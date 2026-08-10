@@ -29,12 +29,21 @@ export default async function DashboardLayout({
     : (await getUserMemberships()).map((m) => m.ministry);
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-64 flex-col justify-between border-r border-neutral-200 bg-white p-5">
+    <div className="flex min-h-screen bg-cream-50">
+      <aside className="flex w-72 flex-col justify-between bg-walnut-900 p-6">
         <div>
-          <p className="mb-4 text-sm font-semibold text-neutral-400">
-            PORTAL DOS MINISTÉRIOS
-          </p>
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
+              AC
+            </div>
+            <div>
+              <p className="text-sm font-semibold leading-tight text-white">
+                Portal dos Ministérios
+              </p>
+              <p className="text-xs leading-tight text-walnut-300">Atitude Creative</p>
+            </div>
+          </div>
+
           <MinistrySwitcher
             options={switcherOptions.map((m) => ({ id: m.id, name: m.name }))}
             currentId={ministry?.id ?? ""}
@@ -42,22 +51,22 @@ export default async function DashboardLayout({
           <DashboardNav showAdminLink={comunicacao} />
         </div>
 
-        <div className="border-t border-neutral-100 pt-4">
-          <p className="mb-0.5 truncate text-sm font-medium text-neutral-700">
+        <div className="border-t border-walnut-800 pt-4">
+          <p className="mb-0.5 truncate text-sm font-medium text-white">
             {ministry?.name ?? "Nenhum ministério cadastrado"}
           </p>
-          <p className="mb-2 text-xs text-neutral-400">
+          <p className="mb-3 text-xs text-walnut-300">
             {role ? roleLabel(role) : "Comunicação"}
           </p>
           <form action={signOut}>
-            <button className="text-sm text-neutral-400 hover:text-neutral-700">
+            <button className="text-sm font-medium text-walnut-300 transition hover:text-brand-400">
               Sair
             </button>
           </form>
         </div>
       </aside>
 
-      <main className="flex-1 bg-neutral-50 p-8">{children}</main>
+      <main className="flex-1 bg-cream-50 p-8">{children}</main>
     </div>
   );
 }
