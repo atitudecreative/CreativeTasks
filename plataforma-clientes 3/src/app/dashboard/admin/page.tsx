@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
+import { getPendingCampaigns } from "@/lib/data/campaigns";
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
@@ -9,7 +10,10 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const overview = await getAdminOverview();
+  const [overview, pendingCampaigns] = await Promise.all([
+    getAdminOverview(),
+    getPendingCampaigns(),
+  ]);
   const totalDemandas = overview.reduce((sum, m) => sum + m.demandasAtivas, 0);
   const totalAtrasadas = overview.reduce((sum, m) => sum + m.demandasAtrasadas, 0);
   const totalCampanhasRisco = overview.reduce((sum, m) => sum + m.campanhasEmAtencaoOuCritica, 0);
@@ -20,6 +24,21 @@ export default async function AdminPage() {
       <p className="mb-6 text-sm text-neutral-500">
         Visão consolidada de todos os ministérios atendidos pela Comunicação.
       </p>
+
+      {pendingCampaigns.length > 0 && (
+        <Link
+          href="/dashboard/admin/campanhas-pendentes"
+          className="mb-6 flex items-center justify-between rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm shadow-sm transition hover:border-brand-300"
+        >
+          <span className="font-medium text-brand-800">
+            {pendingCampaigns.length}{" "}
+            {pendingCampaigns.length === 1
+              ? "campanha detectada no Asana aguardando abertura"
+              : "campanhas detectadas no Asana aguardando abertura"}
+          </span>
+          <span className="font-medium text-brand-700">Revisar →</span>
+        </Link>
+      )}
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
