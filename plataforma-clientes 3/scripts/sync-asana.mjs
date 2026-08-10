@@ -31,7 +31,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ASANA_ACCESS_TOKEN) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const ASANA_API = "https://app.asana.com/api/1.0";
-const TASK_FIELDS = "name,completed,assignee.name,due_on,permalink_url,notes";
+const TASK_FIELDS = "name,completed,assignee.name,due_on,permalink_url,notes,tags.name";
 
 async function fetchAllTasks(projectGid) {
   const tasks = [];
@@ -62,6 +62,47 @@ async function fetchAllTasks(projectGid) {
   return tasks;
 }
 
+// Busca as campanhas já cadastradas pro ministério e monta um mapa
+// nome (minúsculo) -> id, pra não criar campanha duplicada a cada sync.
+async function loadCampaignMap(ministryId) {
+  const { data, error } = await supabase
+    .from("campaigns")
+    .select("id, nome")
+    .eq("ministry_id", ministryId);
+
+  if (error) {
+    throw new Error(`Erro ao buscar campanhas do ministério ${ministryId}: ${error.message}`);
+  }
+
+  const map = new Map();
+  for (const c of data ?? []) map.set(c.nome.trim().toLowerCase(), c.id);
+  return map;
+}
+
+// Tags do Asana viram campanhas/eventos no portal: a primeira tag de
+// cada tarefa é usada como campanha (cria a campanha se ainda não
+// existir uma com esse nome nesse ministério). Tarefas sem tag ficam
+// sem campanha vinculada.
+async function ensureCampaignId(ministryId, tagName, campaignMap) {
+  const key = tagName.trim().toLowerCase();
+  if (campaignMap.has(key)) return campaignMap.get(key);
+
+  const { data, error } = await supabase
+    .from("campaigns")
+    .insert({ ministry_id: ministryId, nome: tagName.trim(), tipo: "campanha" })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.warn(`  Não consegui criar a campanha "${tagName}": ${error.message}`);
+    return null;
+  }
+
+  campaignMap.set(key, data.id);
+  console.log(`  + Nova campanha criada a partir da tag do Asana: "${tagName.trim()}"`);
+  return data.id;
+}
+
 async function syncMinistry(dataSource) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
@@ -75,20 +116,33 @@ async function syncMinistry(dataSource) {
   console.log(`Sincronizando projeto Asana ${projectGid} (ministério ${ministryId})...`);
 
   const tasks = await fetchAllTasks(projectGid);
+  const campaignMap = await loadCampaignMap(ministryId);
 
-  const rows = tasks.map((t) => ({
-    ministry_id: ministryId,
-    asana_task_gid: t.gid,
-    titulo: t.name,
-    status: t.completed ? "concluida" : "em_producao",
-    prazo_acordado: t.due_on ?? null,
-    link_origem: t.permalink_url ?? null,
-    observacao_interna: t.assignee?.name
-      ? `Sincronizado do Asana. Responsável no Asana: ${t.assignee.name}.`
-      : "Sincronizado do Asana.",
-    fonte_externa: "asana",
-    updated_at: new Date().toISOString(),
-  }));
+  const rows = [];
+  for (const t of tasks) {
+    const row = {
+      ministry_id: ministryId,
+      asana_task_gid: t.gid,
+      titulo: t.name,
+      status: t.completed ? "concluida" : "em_producao",
+      prazo_acordado: t.due_on ?? null,
+      link_origem: t.permalink_url ?? null,
+      observacao_interna: t.assignee?.name
+        ? `Sincronizado do Asana. Responsável no Asana: ${t.assignee.name}.`
+        : "Sincronizado do Asana.",
+      fonte_externa: "asana",
+      updated_at: new Date().toISOString(),
+    };
+
+    // primeira tag da tarefa vira a campanha/evento vinculado
+    const tagName = t.tags?.[0]?.name;
+    if (tagName) {
+      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
+      if (campaignId) row.campaign_id = campaignId;
+    }
+
+    rows.push(row);
+  }
 
   if (rows.length > 0) {
     // upsert por (ministry_id, asana_task_gid) — ver unique constraint na migration 0004.
