@@ -42,16 +42,42 @@ const OPEN_STATUSES = new Set(
   Object.keys(STATUS_LABEL).filter((s) => s !== "concluida" && s !== "cancelada")
 );
 
-export async function getDemandsForMinistry(ministryId: string): Promise<Demand[]> {
+export type DemandFilters = {
+  status?: string;
+  // id de uma campanha específica, ou "none" para "sem campanha vinculada"
+  campaignId?: string;
+  prioridade?: string;
+};
+
+export const PRIORIDADE_LABEL: Record<string, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+export async function getDemandsForMinistry(
+  ministryId: string,
+  filters: DemandFilters = {}
+): Promise<Demand[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("demands")
     .select(
       "id, identificador, ministry_id, campaign_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
     )
-    .eq("ministry_id", ministryId)
-    .order("prazo_acordado", { ascending: true, nullsFirst: false });
+    .eq("ministry_id", ministryId);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.prioridade) query = query.eq("prioridade", filters.prioridade);
+  if (filters.campaignId === "none") {
+    query = query.is("campaign_id", null);
+  } else if (filters.campaignId) {
+    query = query.eq("campaign_id", filters.campaignId);
+  }
+
+  const { data, error } = await query.order("prazo_acordado", { ascending: true, nullsFirst: false });
 
   if (error) {
     console.error("Erro ao buscar demandas:", error.message);
