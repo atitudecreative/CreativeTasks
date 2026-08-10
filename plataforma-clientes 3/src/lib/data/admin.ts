@@ -18,7 +18,7 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
   const [{ data: ministries }, { data: demands }, { data: campaigns }] = await Promise.all([
     supabase.from("ministries").select("id, name").order("name"),
     supabase.from("demands").select("ministry_id, status, prazo_acordado"),
-    supabase.from("campaigns").select("ministry_id, saude"),
+    supabase.from("campaigns").select("ministry_id, saude").eq("publicada", true),
   ]);
 
   const today = new Date(new Date().toDateString());
