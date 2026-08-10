@@ -13,6 +13,7 @@ const LINKS = [
 
 const ADMIN_LINKS = [
   { href: "/dashboard/admin", label: "Painel administrativo" },
+  { href: "/dashboard/admin/campanhas-pendentes", label: "Campanhas pendentes" },
   { href: "/dashboard/admin/ministerios", label: "Ministérios (cadastro)" },
   { href: "/dashboard/admin/usuarios", label: "Usuários e acessos" },
 ];
