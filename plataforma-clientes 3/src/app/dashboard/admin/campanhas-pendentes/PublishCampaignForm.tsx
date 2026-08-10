@@ -3,7 +3,19 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { publishCampaign, dismissCampaign } from "./actions";
 import type { PendingCampaign } from "@/lib/data/campaigns";
-import { TIPO_LABEL } from "@/lib/data/campaigns";
+
+// Não importa TIPO_LABEL de @/lib/data/campaigns aqui de propósito: esse
+// arquivo é "use client" e qualquer import de valor (não-tipo) vindo de um
+// módulo que usa @/lib/supabase/server (next/headers) quebra o build —
+// next/headers só pode ser referenciado em Server Components.
+const TIPO_OPTIONS = [
+  { value: "campanha", label: "Campanha" },
+  { value: "evento", label: "Evento" },
+  { value: "lancamento", label: "Lançamento" },
+  { value: "serie", label: "Série" },
+  { value: "acao_recorrente", label: "Ação recorrente" },
+  { value: "projeto_institucional", label: "Projeto institucional" },
+];
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -62,9 +74,9 @@ export function PublishCampaignForm({ campaign }: { campaign: PendingCampaign })
             defaultValue={campaign.tipo}
             className="rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           >
-            {Object.entries(TIPO_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {TIPO_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
