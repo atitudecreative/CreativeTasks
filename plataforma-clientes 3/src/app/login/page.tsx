@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LoginForm } from "./LoginForm";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -24,11 +25,16 @@ export default async function LoginPage({
               "radial-gradient(circle at 20% 20%, rgba(243,112,28,0.35), transparent 45%), radial-gradient(circle at 80% 70%, rgba(243,112,28,0.2), transparent 40%)",
           }}
         />
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold">
-            AC
-          </div>
-          <span className="text-sm font-semibold tracking-wide">ATITUDE CREATIVE</span>
+        <div className="relative">
+          <Image
+            src="/logo-dark-bg.png"
+            alt="Atitude Creative"
+            width={522}
+            height={150}
+            className="h-10 w-auto"
+            priority
+            unoptimized
+          />
         </div>
 
         <div className="relative">
@@ -50,13 +56,21 @@ export default async function LoginPage({
       {/* Formulário */}
       <div className="flex w-full flex-col items-center justify-center bg-cream-50 px-4 py-12 lg:w-1/2">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
-              AC
+          <div className="mb-8 lg:hidden">
+            <div className="mb-2 inline-flex rounded-xl bg-walnut-900 px-4 py-3">
+              <Image
+                src="/logo-dark-bg.png"
+                alt="Atitude Creative"
+                width={522}
+                height={150}
+                className="h-8 w-auto"
+                priority
+                unoptimized
+              />
             </div>
-            <span className="text-sm font-semibold tracking-wide text-walnut-800">
-              PORTAL DOS MINISTÉRIOS
-            </span>
+            <p className="text-xs font-semibold uppercase tracking-wide text-walnut-600">
+              Portal dos Ministérios
+            </p>
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
