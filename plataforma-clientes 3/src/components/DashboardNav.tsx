@@ -11,40 +11,51 @@ const LINKS = [
   { href: "/dashboard/acesso", label: "Meu acesso" },
 ];
 
+const ADMIN_LINKS = [
+  { href: "/dashboard/admin", label: "Painel administrativo" },
+  { href: "/dashboard/admin/ministerios", label: "Ministérios (cadastro)" },
+  { href: "/dashboard/admin/usuarios", label: "Usuários e acessos" },
+];
+
+function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string | null }) {
+  const isActive =
+    href === "/dashboard" || href === "/dashboard/admin"
+      ? pathname === href
+      : pathname?.startsWith(href);
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "block rounded-lg bg-brand-600 px-3 py-2 font-medium text-white shadow-sm"
+          : "block rounded-lg px-3 py-2 font-medium text-walnut-200 transition hover:bg-walnut-800 hover:text-white"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function DashboardNav({ showAdminLink }: { showAdminLink: boolean }) {
   const pathname = usePathname();
 
-  const links = showAdminLink
-    ? [
-        ...LINKS,
-        { href: "/dashboard/admin", label: "Painel administrativo" },
-        { href: "/dashboard/admin/ministerios", label: "Ministérios (cadastro)" },
-        { href: "/dashboard/admin/usuarios", label: "Usuários e acessos" },
-      ]
-    : LINKS;
-
   return (
     <nav className="space-y-1 text-sm">
-      {links.map((link) => {
-        const isActive =
-          link.href === "/dashboard" || link.href === "/dashboard/admin"
-            ? pathname === link.href
-            : pathname?.startsWith(link.href);
+      {LINKS.map((link) => (
+        <NavLink key={link.href} {...link} pathname={pathname} />
+      ))}
 
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={
-              isActive
-                ? "block rounded-lg bg-brand-50 px-3 py-2 font-medium text-brand-700"
-                : "block rounded-lg px-3 py-2 font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
-            }
-          >
-            {link.label}
-          </Link>
-        );
-      })}
+      {showAdminLink && (
+        <>
+          <p className="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wide text-walnut-400">
+            Administração
+          </p>
+          {ADMIN_LINKS.map((link) => (
+            <NavLink key={link.href} {...link} pathname={pathname} />
+          ))}
+        </>
+      )}
     </nav>
   );
 }
