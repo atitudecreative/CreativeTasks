@@ -81,15 +81,24 @@ async function loadCampaignMap(ministryId) {
 
 // Tags do Asana viram campanhas/eventos no portal: a primeira tag de
 // cada tarefa é usada como campanha (cria a campanha se ainda não
-// existir uma com esse nome nesse ministério). Tarefas sem tag ficam
-// sem campanha vinculada.
+// existir uma com esse nome nesse ministério). A campanha nasce como
+// "pendente" (publicada = false) — só aparece pro ministério depois que
+// a Comunicação revisa e "abre" o evento em
+// /dashboard/admin/campanhas-pendentes. Tarefas sem tag ficam sem
+// campanha vinculada.
 async function ensureCampaignId(ministryId, tagName, campaignMap) {
   const key = tagName.trim().toLowerCase();
   if (campaignMap.has(key)) return campaignMap.get(key);
 
   const { data, error } = await supabase
     .from("campaigns")
-    .insert({ ministry_id: ministryId, nome: tagName.trim(), tipo: "campanha" })
+    .insert({
+      ministry_id: ministryId,
+      nome: tagName.trim(),
+      tipo: "campanha",
+      origem: "asana_tag",
+      publicada: false, // fica escondida do ministério até a Comunicação abrir o evento
+    })
     .select("id")
     .single();
 
@@ -99,7 +108,7 @@ async function ensureCampaignId(ministryId, tagName, campaignMap) {
   }
 
   campaignMap.set(key, data.id);
-  console.log(`  + Nova campanha criada a partir da tag do Asana: "${tagName.trim()}"`);
+  console.log(`  + Nova campanha PENDENTE criada a partir da tag do Asana: "${tagName.trim()}" (aguardando abertura pela Comunicação)`);
   return data.id;
 }
 
