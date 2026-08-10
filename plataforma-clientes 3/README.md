@@ -18,14 +18,17 @@ tabelas novas por cima. É seguro rodar em cima do que você já tem.
 
 Rode as migrations em ordem no SQL Editor do Supabase: `0001_init.sql` →
 `0002_asana_tasks.sql` → `0003_metrics_unique.sql` → `0004_portal_ministerios_fase1.sql`
-→ `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql`.
-Pule as que já rodaram antes — a 0004 funciona mesmo que a 0002/0003 nunca
-tenham rodado nesse banco (ela checa se as tabelas existem antes de mexer
-nelas). A 0005 corrige um bug da 0004 (o gatilho de segurança bloqueava até
-atualização feita pelo próprio SQL Editor) — sempre rode ela depois da 0004.
-A 0006 corrige uma colisão possível entre as sequences de identificador
-(`demand_seq`/`campaign_seq`) e dados já existentes — sempre rode ela depois
-da 0004/0005, mesmo que nunca tenha visto esse erro (é seguro rodar de novo).
+→ `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql` →
+`0007_self_healing_identificador.sql`. Pule as que já rodaram antes — a 0004
+funciona mesmo que a 0002/0003 nunca tenham rodado nesse banco (ela checa se
+as tabelas existem antes de mexer nelas). A 0005 corrige um bug da 0004 (o
+gatilho de segurança bloqueava até atualização feita pelo próprio SQL
+Editor) — sempre rode ela depois da 0004. A 0006 e a 0007 corrigem juntas
+uma colisão nas sequences de identificador (`demand_seq`/`campaign_seq`): a
+0007 é a que resolve de vez (o gatilho passa a testar se o identificador já
+existe e tentar o próximo até achar um livre, então não importa mais se a
+sequence ficou dessincronizada) — sempre rode as duas, mesmo que nunca tenha
+visto esse erro (é seguro rodar de novo).
 
 ## Páginas
 
