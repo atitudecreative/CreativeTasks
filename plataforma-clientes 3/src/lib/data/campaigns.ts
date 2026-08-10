@@ -17,6 +17,22 @@ export type Campaign = {
   objetivo_estrategico?: string | null;
   escopo_macro?: string | null;
   resultados_observacoes?: string | null;
+  publicada?: boolean;
+  origem?: string;
+};
+
+export type PendingCampaign = Campaign & {
+  ministryName: string;
+  demandCount: number;
+};
+
+export const TIPO_LABEL: Record<string, string> = {
+  campanha: "Campanha",
+  evento: "Evento",
+  lancamento: "Lançamento",
+  serie: "Série",
+  acao_recorrente: "Ação recorrente",
+  projeto_institucional: "Projeto institucional",
 };
 
 export type Milestone = {
@@ -56,6 +72,7 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
       "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado"
     )
     .eq("ministry_id", ministryId)
+    .eq("publicada", true)
     .order("data_inicio", { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -64,6 +81,56 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   }
 
   return data ?? [];
+}
+
+// Campanhas detectadas automaticamente por tag do Asana, aguardando a
+// Comunicação revisar e "abrir" o evento de propósito (ver migration 0008).
+export async function getPendingCampaigns(): Promise<PendingCampaign[]> {
+  const supabase = await createClient();
+
+  const { data: campaigns, error } = await supabase
+    .from("campaigns")
+    .select(
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries(name)"
+    )
+    .eq("publicada", false)
+    .order("identificador", { ascending: false });
+
+  if (error) {
+    console.error("Erro ao buscar campanhas pendentes:", error.message);
+    return [];
+  }
+
+  const rows = campaigns ?? [];
+  const ids = rows.map((c) => c.id);
+
+  const counts = new Map<string, number>();
+  if (ids.length > 0) {
+    const { data: demandRows, error: demandError } = await supabase
+      .from("demands")
+      .select("campaign_id")
+      .in("campaign_id", ids);
+
+    if (demandError) {
+      console.error("Erro ao contar demandas por campanha pendente:", demandError.message);
+    } else {
+      for (const row of demandRows ?? []) {
+        if (!row.campaign_id) continue;
+        counts.set(row.campaign_id, (counts.get(row.campaign_id) ?? 0) + 1);
+      }
+    }
+  }
+
+  return rows.map((c) => {
+    const { ministries, ...rest } = c as unknown as Campaign & {
+      ministries: { name: string } | null;
+    };
+    return {
+      ...rest,
+      ministryName: ministries?.name ?? "—",
+      demandCount: counts.get(c.id) ?? 0,
+    };
+  });
 }
 
 export async function getCampaignById(id: string): Promise<Campaign | null> {
