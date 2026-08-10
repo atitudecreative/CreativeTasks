@@ -145,16 +145,43 @@ async function syncMinistry(dataSource) {
   }
 
   if (rows.length > 0) {
-    // upsert por (ministry_id, asana_task_gid) — ver unique constraint na migration 0004.
-    // status e prazo são sobrescritos a cada sync; campos preenchidos manualmente
-    // no portal (escopo, observação publicada, campanha vinculada etc.) não são tocados.
+    // Existe um gatilho que gera `identificador` (DEM-YYYY-NNNN) só em
+    // INSERT. Um upsert "cego" dispararia esse gatilho pra toda linha,
+    // inclusive as que já existem e só vão virar UPDATE — desperdiçando
+    // números da sequence à toa e, se a sequence já estiver
+    // dessincronizada dos dados (ex: edição manual no Table Editor),
+    // gerando colisão. Por isso aqui a gente separa: linha que já existe
+    // (mesmo ministry_id + asana_task_gid) leva um UPDATE de verdade, sem
+    // tocar em identificador; só linha nova passa por INSERT. Campos
+    // preenchidos manualmente no portal (escopo, observação publicada
+    // etc.) não são tocados.
     for (const row of rows) {
-      const { error: upsertError } = await supabase
+      const { data: existing, error: findError } = await supabase
         .from("demands")
-        .upsert(row, { onConflict: "ministry_id,asana_task_gid" });
+        .select("id")
+        .eq("ministry_id", row.ministry_id)
+        .eq("asana_task_gid", row.asana_task_gid)
+        .maybeSingle();
 
-      if (upsertError) {
-        throw new Error(`Erro ao gravar demanda ${row.titulo}: ${upsertError.message}`);
+      if (findError) {
+        throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
+      }
+
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from("demands")
+          .update(row)
+          .eq("id", existing.id);
+
+        if (updateError) {
+          throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
+        }
+      } else {
+        const { error: insertError } = await supabase.from("demands").insert(row);
+
+        if (insertError) {
+          throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
+        }
       }
     }
   }
