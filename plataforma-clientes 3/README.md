@@ -18,11 +18,14 @@ tabelas novas por cima. É seguro rodar em cima do que você já tem.
 
 Rode as migrations em ordem no SQL Editor do Supabase: `0001_init.sql` →
 `0002_asana_tasks.sql` → `0003_metrics_unique.sql` → `0004_portal_ministerios_fase1.sql`
-→ `0005_fix_privilege_trigger.sql`. Pule as que já rodaram antes — a 0004
-funciona mesmo que a 0002/0003 nunca tenham rodado nesse banco (ela checa
-se as tabelas existem antes de mexer nelas). A 0005 corrige um bug da 0004
-(o gatilho de segurança bloqueava até atualização feita pelo próprio SQL
-Editor) — sempre rode ela depois da 0004.
+→ `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql`.
+Pule as que já rodaram antes — a 0004 funciona mesmo que a 0002/0003 nunca
+tenham rodado nesse banco (ela checa se as tabelas existem antes de mexer
+nelas). A 0005 corrige um bug da 0004 (o gatilho de segurança bloqueava até
+atualização feita pelo próprio SQL Editor) — sempre rode ela depois da 0004.
+A 0006 corrige uma colisão possível entre as sequences de identificador
+(`demand_seq`/`campaign_seq`) e dados já existentes — sempre rode ela depois
+da 0004/0005, mesmo que nunca tenha visto esse erro (é seguro rodar de novo).
 
 ## Páginas
 
@@ -176,10 +179,21 @@ portal é um próximo passo natural, fora do escopo desta etapa.
    Isso busca as tarefas de cada projeto vinculado e grava direto na tabela
    `demands` (`fonte_externa = 'asana'`), marcando tarefa concluída do
    Asana como status `concluida` e as demais como `em_producao`. Campos
-   preenchidos manualmente no portal (escopo, campanha vinculada, etc.) não
-   são sobrescritos pelo sync. Rode de novo sempre que quiser atualizar —
-   no fim das contas isso deveria virar um agendamento (cron, GitHub
-   Actions, Supabase Edge Function com pg_cron) em vez de rodar manualmente.
+   preenchidos manualmente no portal (escopo, observação publicada, etc.) não
+   são sobrescritos pelo sync. Rode de novo sempre que quiser atualizar.
+
+   Em produção isso já está agendado via um **Cron Job** no Render, que roda
+   `node scripts/sync-asana.mjs` periodicamente com as mesmas 3 variáveis de
+   ambiente (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `ASANA_ACCESS_TOKEN`).
+
+   **Tags do Asana viram campanhas/eventos**: se uma tarefa tiver uma tag no
+   Asana, a primeira tag é usada como o nome da campanha/evento vinculado no
+   portal — a campanha é criada automaticamente na primeira vez que a tag
+   aparece (tipo `campanha` por padrão; dá pra trocar depois pra `evento`
+   direto no Table Editor do Supabase, coluna `tipo` da tabela `campaigns`).
+   Tarefas sem tag ficam sem campanha vinculada. Para agrupar tarefas de um
+   mesmo evento, basta usar a mesma tag em todas elas no Asana.
 
 ## Deploy (GitHub + Render)
 
