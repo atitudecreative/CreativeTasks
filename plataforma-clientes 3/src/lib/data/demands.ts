@@ -56,6 +56,10 @@ export const PRIORIDADE_LABEL: Record<string, string> = {
   urgente: "Urgente",
 };
 
+// Demandas com prazo antes disso são sincronizações antigas do Asana que só
+// poluem a aba — a partir daqui a visualização só mostra 2026 em diante.
+const DEMANDAS_CUTOFF_DATE = "2026-01-01";
+
 export async function getDemandsForMinistry(
   ministryId: string,
   filters: DemandFilters = {}
@@ -67,7 +71,8 @@ export async function getDemandsForMinistry(
     .select(
       "id, identificador, ministry_id, campaign_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
     )
-    .eq("ministry_id", ministryId);
+    .eq("ministry_id", ministryId)
+    .gte("prazo_acordado", DEMANDAS_CUTOFF_DATE);
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.prioridade) query = query.eq("prioridade", filters.prioridade);
@@ -121,6 +126,30 @@ export async function getDemandById(id: string): Promise<Demand | null> {
   }
 
   return data as unknown as Demand | null;
+}
+
+// Agrupa demandas por mês do prazo acordado (chave "YYYY-MM"). Como a
+// consulta já ordena por prazo_acordado ascendente, a ordem de inserção no
+// Map sai cronológica, sem precisar reordenar depois.
+export function groupDemandsByMonth(demands: Demand[]): Map<string, Demand[]> {
+  const groups = new Map<string, Demand[]>();
+  for (const d of demands) {
+    if (!d.prazo_acordado) continue;
+    const key = d.prazo_acordado.slice(0, 7);
+    const list = groups.get(key) ?? [];
+    list.push(d);
+    groups.set(key, list);
+  }
+  return groups;
+}
+
+export function formatMonthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  const label = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function summarizeDemands(demands: Demand[]) {
