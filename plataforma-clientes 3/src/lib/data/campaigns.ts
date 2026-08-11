@@ -90,7 +90,7 @@ async function getCampaignsForAdminByVisibility(publicada: boolean): Promise<Pen
   const { data: campaigns, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries(name)"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries!ministry_id(name)"
     )
     .eq("publicada", publicada)
     .order("data_evento", { ascending: false, nullsFirst: false })
@@ -190,20 +190,23 @@ export async function getDemandsForCampaign(campaignId: string): Promise<Demand[
     .filter((d): d is Demand => d !== null);
 }
 
-// Mapa demand_id -> lista de campanhas vinculadas (id + nome), pra exibir
-// badges de várias campanhas por demanda em listas.
-export async function getCampaignsForDemandIds(
-  demandIds: string[]
+// Mapa demand_id -> lista de campanhas vinculadas (id + nome) pra todas as
+// demandas de um ministério, pra exibir badges de várias campanhas por
+// demanda em listas. Busca por ministério (via campaigns.ministry_id) em
+// vez de receber uma lista de ids de demanda — um ministério tem no
+// máximo algumas dezenas de campanhas, então isso evita montar uma
+// consulta gigante (".in()" com milhares de ids de demanda já deu "Bad
+// Request" por estourar o tamanho da URL).
+export async function getCampaignsForDemandsInMinistry(
+  ministryId: string
 ): Promise<Map<string, { id: string; nome: string }[]>> {
   const map = new Map<string, { id: string; nome: string }[]>();
-  if (demandIds.length === 0) return map;
-
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("demand_campaigns")
-    .select("demand_id, campaigns(id, nome)")
-    .in("demand_id", demandIds);
+    .select("demand_id, campaigns!inner(id, nome, ministry_id)")
+    .eq("campaigns.ministry_id", ministryId);
 
   if (error) {
     console.error("Erro ao buscar campanhas vinculadas às demandas:", error.message);
