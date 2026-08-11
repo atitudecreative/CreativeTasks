@@ -39,17 +39,25 @@ export function PublishCampaignForm({ campaign }: { campaign: PendingCampaign })
         <div>
           <p className="text-xs font-medium text-neutral-400">{campaign.ministryName}</p>
           <p className="text-xs text-neutral-400">
-            Detectado pela tag do Asana · {campaign.demandCount}{" "}
+            {campaign.origem === "asana_tag" ? "Detectado pela tag do Asana" : "Cadastro anterior"} ·{" "}
+            {campaign.demandCount}{" "}
             {campaign.demandCount === 1 ? "demanda vinculada" : "demandas vinculadas"}
           </p>
         </div>
-        <form action={dismissCampaign}>
+        <form
+          action={dismissCampaign}
+          onSubmit={(e) => {
+            if (!window.confirm(`Excluir "${campaign.nome}" definitivamente? As demandas vinculadas ficam sem campanha.`)) {
+              e.preventDefault();
+            }
+          }}
+        >
           <input type="hidden" name="id" value={campaign.id} />
           <button
             type="submit"
             className="text-xs font-medium text-neutral-400 hover:text-red-600"
           >
-            Ignorar
+            Excluir
           </button>
         </form>
       </div>
