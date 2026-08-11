@@ -19,7 +19,8 @@ tabelas novas por cima. É seguro rodar em cima do que você já tem.
 Rode as migrations em ordem no SQL Editor do Supabase: `0001_init.sql` →
 `0002_asana_tasks.sql` → `0003_metrics_unique.sql` → `0004_portal_ministerios_fase1.sql`
 → `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql` →
-`0007_self_healing_identificador.sql`. Pule as que já rodaram antes — a 0004
+`0007_self_healing_identificador.sql` → `0008_campanha_publicacao.sql` →
+`0009_demand_campaigns.sql`. Pule as que já rodaram antes — a 0004
 funciona mesmo que a 0002/0003 nunca tenham rodado nesse banco (ela checa se
 as tabelas existem antes de mexer nelas). A 0005 corrige um bug da 0004 (o
 gatilho de segurança bloqueava até atualização feita pelo próprio SQL
@@ -49,6 +50,8 @@ Lado da Comunicação (`papel_global` = `gestor_comunicacao` ou
 
 - `/dashboard/admin` — painel consolidado com demandas ativas/atrasadas e
   campanhas em risco por ministério
+- `/dashboard/admin/campanhas-pendentes` — campanhas/eventos detectados por
+  tag no Asana, aguardando revisão antes de aparecerem pro ministério
 - `/dashboard/admin/ministerios` — lista e cadastro de ministérios (não
   precisa mais do Table Editor pra isso)
 - `/dashboard/admin/usuarios` — lista de usuários com papel e vínculos, e
@@ -190,13 +193,24 @@ portal é um próximo passo natural, fora do escopo desta etapa.
    ambiente (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
    `ASANA_ACCESS_TOKEN`).
 
-   **Tags do Asana viram campanhas/eventos**: se uma tarefa tiver uma tag no
-   Asana, a primeira tag é usada como o nome da campanha/evento vinculado no
-   portal — a campanha é criada automaticamente na primeira vez que a tag
-   aparece (tipo `campanha` por padrão; dá pra trocar depois pra `evento`
-   direto no Table Editor do Supabase, coluna `tipo` da tabela `campaigns`).
-   Tarefas sem tag ficam sem campanha vinculada. Para agrupar tarefas de um
-   mesmo evento, basta usar a mesma tag em todas elas no Asana.
+   **Tags do Asana viram campanhas/eventos**: toda tag de uma tarefa vira
+   uma campanha/evento vinculado no portal — uma demanda pode estar em
+   várias campanhas ao mesmo tempo (tabela `demand_campaigns`), do mesmo
+   jeito que uma tarefa pode ter várias tags no Asana. Cada tag nova cria
+   automaticamente uma campanha (tipo `campanha` por padrão; a Comunicação
+   escolhe o tipo certo ao abrir o evento em "Campanhas pendentes"). Se
+   você tirar uma tag de uma tarefa no Asana, o próximo sync desfaz o
+   vínculo correspondente no portal. Tarefas sem tag ficam sem campanha
+   vinculada.
+
+   **A campanha nasce pendente**: ela não aparece pro ministério na aba
+   Campanhas assim que a tag é detectada — fica esperando em
+   `/dashboard/admin/campanhas-pendentes` até a Comunicação revisar o nome e
+   o tipo (campanha, evento, lançamento etc.) e clicar em "Abrir
+   evento/campanha". As demandas sincronizam e ficam vinculadas normalmente
+   nesse meio tempo; só a campanha em si fica invisível pro ministério até
+   ser aberta. Dá pra ignorar (excluir) uma campanha pendente que não faça
+   sentido — as demandas vinculadas a ela voltam a ficar sem campanha.
 
 ## Deploy (GitHub + Render)
 
