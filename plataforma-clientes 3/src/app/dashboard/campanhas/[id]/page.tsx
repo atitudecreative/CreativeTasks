@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
   getCampaignById,
   getMilestonesForCampaign,
+  getDemandsForCampaign,
   calculateProgress,
   FASE_LABEL,
   SAUDE_LABEL,
 } from "@/lib/data/campaigns";
+import { STATUS_LABEL } from "@/lib/data/demands";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -26,7 +29,10 @@ export default async function CampanhaDetailPage({
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
 
-  const milestones = await getMilestonesForCampaign(id);
+  const [milestones, demands] = await Promise.all([
+    getMilestonesForCampaign(id),
+    getDemandsForCampaign(id),
+  ]);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
 
@@ -105,6 +111,31 @@ export default async function CampanhaDetailPage({
           </ul>
         </div>
       )}
+
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <p className="mb-3 text-sm font-medium text-neutral-700">
+          Demandas vinculadas {demands.length > 0 && `(${demands.length})`}
+        </p>
+        {demands.length === 0 ? (
+          <p className="text-sm text-neutral-400">Nenhuma demanda vinculada a esta campanha ainda.</p>
+        ) : (
+          <ul className="space-y-2">
+            {demands.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-2 text-sm">
+                <Link
+                  href={`/dashboard/demandas/${d.id}`}
+                  className="font-medium text-neutral-800 hover:underline"
+                >
+                  {d.titulo}
+                </Link>
+                <span className="shrink-0 text-xs text-neutral-400">
+                  {STATUS_LABEL[d.status] ?? d.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {campaign.resultados_observacoes && (
         <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
