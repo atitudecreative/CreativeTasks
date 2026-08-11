@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDemandById, STATUS_LABEL } from "@/lib/data/demands";
 import { getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
+import { STATUS_COLOR, DEFAULT_STATUS_COLOR } from "@/lib/statusColors";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -25,7 +26,15 @@ export default async function DemandaDetailPage({
     <div className="max-w-2xl">
       <p className="mb-1 text-xs font-medium text-neutral-400">{demand.identificador}</p>
       <h1 className="mb-1 text-xl font-semibold text-neutral-900">{demand.titulo}</h1>
-      <p className="mb-3 text-sm text-neutral-500">{STATUS_LABEL[demand.status] ?? demand.status}</p>
+      <p className="mb-3">
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            STATUS_COLOR[demand.status] ?? DEFAULT_STATUS_COLOR
+          }`}
+        >
+          {STATUS_LABEL[demand.status] ?? demand.status}
+        </span>
+      </p>
 
       {campaigns.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-1.5">
