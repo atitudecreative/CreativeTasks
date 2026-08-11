@@ -43,9 +43,24 @@ export async function dismissCampaign(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  // "Ignorar" apaga a campanha pendente — as demandas ficam sem campanha
-  // vinculada (a coluna campaign_id delas volta pra null automaticamente).
+  // Apaga a campanha oculta de vez — as demandas ficam sem campanha
+  // vinculada (o vínculo em demand_campaigns some junto, por cascade).
   await supabase.from("campaigns").delete().eq("id", id).eq("publicada", false);
 
   revalidatePath("/dashboard/admin/campanhas-pendentes");
+}
+
+export async function hideCampaign(formData: FormData) {
+  await requireComunicacao();
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  await supabase.from("campaigns").update({ publicada: false }).eq("id", id);
+
+  revalidatePath("/dashboard/admin/campanhas-pendentes");
+  revalidatePath("/dashboard/campanhas");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/admin");
 }
