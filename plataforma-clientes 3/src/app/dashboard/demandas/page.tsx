@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMinistry } from "@/lib/data/ministries";
 import { getDemandsForMinistry, STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/data/demands";
-import { getCampaignsForMinistry, getCampaignsForDemandIds } from "@/lib/data/campaigns";
+import { getCampaignsForMinistry, getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
@@ -25,7 +25,7 @@ export default async function DemandasPage({
     getCampaignsForMinistry(ministry.id),
   ]);
 
-  const campaignsByDemand = await getCampaignsForDemandIds(demands.map((d) => d.id));
+  const campaignsByDemand = await getCampaignsForDemandsInMinistry(ministry.id);
   const hasFilters = Boolean(params.status || params.campanha || params.prioridade);
 
   return (
