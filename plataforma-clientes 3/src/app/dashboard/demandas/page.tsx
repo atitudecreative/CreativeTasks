@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMinistry } from "@/lib/data/ministries";
 import { getDemandsForMinistry, STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/data/demands";
-import { getCampaignsForMinistry } from "@/lib/data/campaigns";
+import { getCampaignsForMinistry, getCampaignsForDemandIds } from "@/lib/data/campaigns";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
@@ -25,7 +25,7 @@ export default async function DemandasPage({
     getCampaignsForMinistry(ministry.id),
   ]);
 
-  const campaignMap = new Map(campaigns.map((c) => [c.id, c.nome]));
+  const campaignsByDemand = await getCampaignsForDemandIds(demands.map((d) => d.id));
   const hasFilters = Boolean(params.status || params.campanha || params.prioridade);
 
   return (
@@ -132,7 +132,22 @@ export default async function DemandasPage({
                     )}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
-                    {d.campaign_id ? campaignMap.get(d.campaign_id) ?? "—" : "—"}
+                    {(() => {
+                      const linked = campaignsByDemand.get(d.id) ?? [];
+                      if (linked.length === 0) return "—";
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {linked.map((c) => (
+                            <span
+                              key={c.id}
+                              className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700"
+                            >
+                              {c.nome}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">{STATUS_LABEL[d.status] ?? d.status}</td>
                   <td className="px-4 py-3 text-neutral-600 capitalize">
