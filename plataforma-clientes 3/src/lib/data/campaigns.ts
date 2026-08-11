@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { Demand } from "./demands";
 
 export type Campaign = {
   id: string;
@@ -106,16 +107,15 @@ export async function getPendingCampaigns(): Promise<PendingCampaign[]> {
 
   const counts = new Map<string, number>();
   if (ids.length > 0) {
-    const { data: demandRows, error: demandError } = await supabase
-      .from("demands")
+    const { data: linkRows, error: linkError } = await supabase
+      .from("demand_campaigns")
       .select("campaign_id")
       .in("campaign_id", ids);
 
-    if (demandError) {
-      console.error("Erro ao contar demandas por campanha pendente:", demandError.message);
+    if (linkError) {
+      console.error("Erro ao contar demandas por campanha pendente:", linkError.message);
     } else {
-      for (const row of demandRows ?? []) {
-        if (!row.campaign_id) continue;
+      for (const row of linkRows ?? []) {
         counts.set(row.campaign_id, (counts.get(row.campaign_id) ?? 0) + 1);
       }
     }
@@ -150,6 +150,59 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
   }
 
   return data as unknown as Campaign | null;
+}
+
+// Todas as demandas vinculadas a uma campanha (via demand_campaigns) —
+// uma demanda pode aparecer em mais de uma campanha ao mesmo tempo.
+export async function getDemandsForCampaign(campaignId: string): Promise<Demand[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("demand_campaigns")
+    .select(
+      "demands(id, identificador, ministry_id, campaign_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at)"
+    )
+    .eq("campaign_id", campaignId);
+
+  if (error) {
+    console.error("Erro ao buscar demandas da campanha:", error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((row) => row.demands as unknown as Demand | null)
+    .filter((d): d is Demand => d !== null);
+}
+
+// Mapa demand_id -> lista de campanhas vinculadas (id + nome), pra exibir
+// badges de várias campanhas por demanda em listas.
+export async function getCampaignsForDemandIds(
+  demandIds: string[]
+): Promise<Map<string, { id: string; nome: string }[]>> {
+  const map = new Map<string, { id: string; nome: string }[]>();
+  if (demandIds.length === 0) return map;
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("demand_campaigns")
+    .select("demand_id, campaigns(id, nome)")
+    .in("demand_id", demandIds);
+
+  if (error) {
+    console.error("Erro ao buscar campanhas vinculadas às demandas:", error.message);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    const campaign = row.campaigns as unknown as { id: string; nome: string } | null;
+    if (!campaign) continue;
+    const list = map.get(row.demand_id) ?? [];
+    list.push(campaign);
+    map.set(row.demand_id, list);
+  }
+
+  return map;
 }
 
 export async function getMilestonesForCampaign(campaignId: string): Promise<Milestone[]> {
