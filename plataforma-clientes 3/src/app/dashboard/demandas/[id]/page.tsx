@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getDemandById, STATUS_LABEL } from "@/lib/data/demands";
+import { getCampaignsForDemandIds } from "@/lib/data/campaigns";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -16,11 +18,28 @@ export default async function DemandaDetailPage({
 
   if (!demand) notFound();
 
+  const campaignsMap = await getCampaignsForDemandIds([demand.id]);
+  const campaigns = campaignsMap.get(demand.id) ?? [];
+
   return (
     <div className="max-w-2xl">
       <p className="mb-1 text-xs font-medium text-neutral-400">{demand.identificador}</p>
       <h1 className="mb-1 text-xl font-semibold text-neutral-900">{demand.titulo}</h1>
-      <p className="mb-6 text-sm text-neutral-500">{STATUS_LABEL[demand.status] ?? demand.status}</p>
+      <p className="mb-3 text-sm text-neutral-500">{STATUS_LABEL[demand.status] ?? demand.status}</p>
+
+      {campaigns.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-1.5">
+          {campaigns.map((c) => (
+            <Link
+              key={c.id}
+              href={`/dashboard/campanhas/${c.id}`}
+              className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
+            >
+              {c.nome}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         {demand.descricao_objetiva && (
