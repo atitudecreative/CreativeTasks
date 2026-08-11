@@ -8,6 +8,7 @@ import {
   PRIORIDADE_LABEL,
 } from "@/lib/data/demands";
 import { getCampaignsForMinistry, getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
+import { MonthAccordion, type DemandRow } from "./MonthAccordion";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
@@ -115,65 +116,21 @@ export default async function DemandasPage({
             : "Nenhuma demanda publicada ainda para este ministério a partir de 2026."}
         </div>
       ) : (
-        <div className="space-y-8">
-          {Array.from(groupDemandsByMonth(demands)).map(([monthKey, monthDemands]) => (
-            <div key={monthKey}>
-              <h2 className="mb-2 text-sm font-semibold text-neutral-700">
-                {formatMonthLabel(monthKey)}{" "}
-                <span className="font-normal text-neutral-400">({monthDemands.length})</span>
-              </h2>
-              <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-neutral-100 text-neutral-500">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Demanda</th>
-                      <th className="px-4 py-3 font-medium">Campanha/evento</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Prioridade</th>
-                      <th className="px-4 py-3 font-medium">Prazo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthDemands.map((d) => (
-                      <tr key={d.id} className="border-b border-neutral-50 last:border-0">
-                        <td className="px-4 py-3">
-                          <Link href={`/dashboard/demandas/${d.id}`} className="font-medium text-neutral-800 hover:underline">
-                            {d.titulo}
-                          </Link>
-                          {d.identificador && (
-                            <span className="ml-2 text-xs text-neutral-400">{d.identificador}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-neutral-600">
-                          {(() => {
-                            const linked = campaignsByDemand.get(d.id) ?? [];
-                            if (linked.length === 0) return "—";
-                            return (
-                              <div className="flex flex-wrap gap-1">
-                                {linked.map((c) => (
-                                  <span
-                                    key={c.id}
-                                    className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700"
-                                  >
-                                    {c.nome}
-                                  </span>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-4 py-3 text-neutral-600">{STATUS_LABEL[d.status] ?? d.status}</td>
-                        <td className="px-4 py-3 text-neutral-600 capitalize">
-                          {d.prioridade ? PRIORIDADE_LABEL[d.prioridade] ?? d.prioridade : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-neutral-600">{formatDate(d.prazo_acordado)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
+        <div className="space-y-3">
+          {Array.from(groupDemandsByMonth(demands)).map(([monthKey, monthDemands]) => {
+            const rows: DemandRow[] = monthDemands.map((d) => ({
+              id: d.id,
+              identificador: d.identificador,
+              titulo: d.titulo,
+              status: d.status,
+              statusLabel: STATUS_LABEL[d.status] ?? d.status,
+              prioridadeLabel: d.prioridade ? PRIORIDADE_LABEL[d.prioridade] ?? d.prioridade : null,
+              prazoFormatted: formatDate(d.prazo_acordado),
+              campanhas: campaignsByDemand.get(d.id) ?? [],
+            }));
+
+            return <MonthAccordion key={monthKey} monthLabel={formatMonthLabel(monthKey)} demands={rows} />;
+          })}
         </div>
       )}
     </div>
