@@ -71,10 +71,27 @@ export async function getDemandsForMinistry(
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.prioridade) query = query.eq("prioridade", filters.prioridade);
+
+  // Uma demanda pode estar em várias campanhas (demand_campaigns), então o
+  // filtro por campanha precisa passar por essa tabela de junção — não dá
+  // mais pra confiar só na coluna campaign_id (que só guarda um vínculo
+  // "legado", de cadastro manual).
   if (filters.campaignId === "none") {
-    query = query.is("campaign_id", null);
+    const { data: linkedRows } = await supabase.from("demand_campaigns").select("demand_id");
+    const linkedIds = Array.from(new Set((linkedRows ?? []).map((r) => r.demand_id)));
+    if (linkedIds.length > 0) {
+      query = query.not("id", "in", `(${linkedIds.join(",")})`).is("campaign_id", null);
+    } else {
+      query = query.is("campaign_id", null);
+    }
   } else if (filters.campaignId) {
-    query = query.eq("campaign_id", filters.campaignId);
+    const { data: linkedRows } = await supabase
+      .from("demand_campaigns")
+      .select("demand_id")
+      .eq("campaign_id", filters.campaignId);
+    const ids = (linkedRows ?? []).map((r) => r.demand_id);
+    if (ids.length === 0) return [];
+    query = query.in("id", ids);
   }
 
   const { data, error } = await query.order("prazo_acordado", { ascending: true, nullsFirst: false });
