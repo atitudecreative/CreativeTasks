@@ -84,8 +84,12 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   return data ?? [];
 }
 
-// Campanhas detectadas automaticamente por tag do Asana, aguardando a
-// Comunicação revisar e "abrir" o evento de propósito (ver migration 0008).
+// Toda campanha nasce oculta pro ministério (ver migration 0010) — isso
+// inclui tanto campanha nova detectada por tag do Asana quanto campanha
+// antiga cadastrada antes dessa regra existir. Essa função lista todas as
+// ocultas pra Comunicação decidir quais valem a pena abrir. Ordena por
+// data do evento/início mais recente primeiro, pra facilitar achar o que
+// ainda é relevante em meio a campanhas antigas.
 export async function getPendingCampaigns(): Promise<PendingCampaign[]> {
   const supabase = await createClient();
 
@@ -95,7 +99,8 @@ export async function getPendingCampaigns(): Promise<PendingCampaign[]> {
       "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries(name)"
     )
     .eq("publicada", false)
-    .order("identificador", { ascending: false });
+    .order("data_evento", { ascending: false, nullsFirst: false })
+    .order("data_inicio", { ascending: false, nullsFirst: false });
 
   if (error) {
     console.error("Erro ao buscar campanhas pendentes:", error.message);
