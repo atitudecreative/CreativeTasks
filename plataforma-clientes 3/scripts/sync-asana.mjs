@@ -79,11 +79,11 @@ async function loadCampaignMap(ministryId) {
   return map;
 }
 
-// Tags do Asana viram campanhas/eventos no portal: a primeira tag de
-// cada tarefa é usada como campanha (cria a campanha se ainda não
-// existir uma com esse nome nesse ministério). A campanha nasce como
-// "pendente" (publicada = false) — só aparece pro ministério depois que
-// a Comunicação revisa e "abre" o evento em
+// Todas as tags de uma tarefa do Asana viram campanhas/eventos no portal —
+// uma demanda pode estar em várias campanhas ao mesmo tempo (tabela
+// demand_campaigns). Cada tag cria (se ainda não existir) uma campanha
+// "pendente" (publicada = false) — ela só aparece pro ministério depois
+// que a Comunicação revisa e "abre" o evento em
 // /dashboard/admin/campanhas-pendentes. Tarefas sem tag ficam sem
 // campanha vinculada.
 async function ensureCampaignId(ministryId, tagName, campaignMap) {
@@ -112,6 +112,49 @@ async function ensureCampaignId(ministryId, tagName, campaignMap) {
   return data.id;
 }
 
+// Garante que demand_campaigns reflita exatamente as tags atuais da
+// tarefa: adiciona vínculo novo, remove vínculo de tag que foi tirada no
+// Asana.
+async function syncDemandCampaignLinks(demandId, desiredCampaignIds) {
+  const { data: existingLinks, error: existingError } = await supabase
+    .from("demand_campaigns")
+    .select("campaign_id")
+    .eq("demand_id", demandId);
+
+  if (existingError) {
+    console.warn(`  Não consegui ler campanhas vinculadas da demanda: ${existingError.message}`);
+    return;
+  }
+
+  const existingIds = new Set((existingLinks ?? []).map((r) => r.campaign_id));
+  const desiredIds = new Set(desiredCampaignIds);
+
+  const toAdd = [...desiredIds].filter((id) => !existingIds.has(id));
+  const toRemove = [...existingIds].filter((id) => !desiredIds.has(id));
+
+  if (toAdd.length > 0) {
+    const { error: insertError } = await supabase
+      .from("demand_campaigns")
+      .insert(toAdd.map((campaignId) => ({ demand_id: demandId, campaign_id: campaignId })));
+
+    if (insertError) {
+      console.warn(`  Não consegui vincular demanda à campanha: ${insertError.message}`);
+    }
+  }
+
+  if (toRemove.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("demand_campaigns")
+      .delete()
+      .eq("demand_id", demandId)
+      .in("campaign_id", toRemove);
+
+    if (deleteError) {
+      console.warn(`  Não consegui remover vínculo de campanha antiga: ${deleteError.message}`);
+    }
+  }
+}
+
 async function syncMinistry(dataSource) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
@@ -127,6 +170,9 @@ async function syncMinistry(dataSource) {
   const tasks = await fetchAllTasks(projectGid);
   const campaignMap = await loadCampaignMap(ministryId);
 
+  // rows: cada item guarda a linha pra gravar em `demands` + a lista de
+  // nomes de tag da tarefa (separado, porque tag não é mais coluna da
+  // linha — vira registro em demand_campaigns depois que sabemos o id).
   const rows = [];
   for (const t of tasks) {
     const row = {
@@ -143,14 +189,9 @@ async function syncMinistry(dataSource) {
       updated_at: new Date().toISOString(),
     };
 
-    // primeira tag da tarefa vira a campanha/evento vinculado
-    const tagName = t.tags?.[0]?.name;
-    if (tagName) {
-      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
-      if (campaignId) row.campaign_id = campaignId;
-    }
+    const tagNames = (t.tags ?? []).map((tag) => tag.name).filter(Boolean);
 
-    rows.push(row);
+    rows.push({ row, tagNames });
   }
 
   if (rows.length > 0) {
@@ -164,7 +205,7 @@ async function syncMinistry(dataSource) {
     // tocar em identificador; só linha nova passa por INSERT. Campos
     // preenchidos manualmente no portal (escopo, observação publicada
     // etc.) não são tocados.
-    for (const row of rows) {
+    for (const { row, tagNames } of rows) {
       const { data: existing, error: findError } = await supabase
         .from("demands")
         .select("id")
@@ -176,6 +217,8 @@ async function syncMinistry(dataSource) {
         throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
       }
 
+      let demandId = existing?.id ?? null;
+
       if (existing) {
         const { error: updateError } = await supabase
           .from("demands")
@@ -186,16 +229,34 @@ async function syncMinistry(dataSource) {
           throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
         }
       } else {
-        const { error: insertError } = await supabase.from("demands").insert(row);
+        const { data: inserted, error: insertError } = await supabase
+          .from("demands")
+          .insert(row)
+          .select("id")
+          .single();
 
         if (insertError) {
           throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
         }
+
+        demandId = inserted.id;
+      }
+
+      if (demandId && tagNames.length > 0) {
+        const campaignIds = [];
+        for (const tagName of tagNames) {
+          const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
+          if (campaignId) campaignIds.push(campaignId);
+        }
+        await syncDemandCampaignLinks(demandId, campaignIds);
+      } else if (demandId) {
+        // tarefa ficou sem nenhuma tag — remove todos os vínculos antigos
+        await syncDemandCampaignLinks(demandId, []);
       }
     }
   }
 
-  const completedCount = rows.filter((r) => r.status === "concluida").length;
+  const completedCount = rows.filter((r) => r.row.status === "concluida").length;
   const openCount = rows.length - completedCount;
 
   await supabase
