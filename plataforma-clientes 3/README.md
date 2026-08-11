@@ -20,16 +20,19 @@ Rode as migrations em ordem no SQL Editor do Supabase: `0001_init.sql` →
 `0002_asana_tasks.sql` → `0003_metrics_unique.sql` → `0004_portal_ministerios_fase1.sql`
 → `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql` →
 `0007_self_healing_identificador.sql` → `0008_campanha_publicacao.sql` →
-`0009_demand_campaigns.sql`. Pule as que já rodaram antes — a 0004
-funciona mesmo que a 0002/0003 nunca tenham rodado nesse banco (ela checa se
-as tabelas existem antes de mexer nelas). A 0005 corrige um bug da 0004 (o
-gatilho de segurança bloqueava até atualização feita pelo próprio SQL
-Editor) — sempre rode ela depois da 0004. A 0006 e a 0007 corrigem juntas
-uma colisão nas sequences de identificador (`demand_seq`/`campaign_seq`): a
-0007 é a que resolve de vez (o gatilho passa a testar se o identificador já
-existe e tentar o próximo até achar um livre, então não importa mais se a
-sequence ficou dessincronizada) — sempre rode as duas, mesmo que nunca tenha
-visto esse erro (é seguro rodar de novo).
+`0009_demand_campaigns.sql` → `0010_ocultar_campanhas_existentes.sql`. Pule
+as que já rodaram antes — a 0004 funciona mesmo que a 0002/0003 nunca tenham
+rodado nesse banco (ela checa se as tabelas existem antes de mexer nelas). A
+0005 corrige um bug da 0004 (o gatilho de segurança bloqueava até
+atualização feita pelo próprio SQL Editor) — sempre rode ela depois da 0004.
+A 0006 e a 0007 corrigem juntas uma colisão nas sequences de identificador
+(`demand_seq`/`campaign_seq`): a 0007 é a que resolve de vez (o gatilho
+passa a testar se o identificador já existe e tentar o próximo até achar um
+livre, então não importa mais se a sequence ficou dessincronizada) — sempre
+rode as duas, mesmo que nunca tenha visto esse erro (é seguro rodar de
+novo). A 0010 esconde retroativamente toda campanha que já existia (antes
+só campanha nova vinda de tag do Asana nascia oculta) — sempre rode depois
+da 0008/0009.
 
 ## Páginas
 
@@ -50,8 +53,9 @@ Lado da Comunicação (`papel_global` = `gestor_comunicacao` ou
 
 - `/dashboard/admin` — painel consolidado com demandas ativas/atrasadas e
   campanhas em risco por ministério
-- `/dashboard/admin/campanhas-pendentes` — campanhas/eventos detectados por
-  tag no Asana, aguardando revisão antes de aparecerem pro ministério
+- `/dashboard/admin/campanhas-pendentes` ("Campanhas ocultas" no menu) —
+  toda campanha/evento nasce oculta pro ministério (nova, vinda de tag do
+  Asana, ou antiga já cadastrada); aqui a Comunicação escolhe quais abrir
 - `/dashboard/admin/ministerios` — lista e cadastro de ministérios (não
   precisa mais do Table Editor pra isso)
 - `/dashboard/admin/usuarios` — lista de usuários com papel e vínculos, e
@@ -203,14 +207,17 @@ portal é um próximo passo natural, fora do escopo desta etapa.
    vínculo correspondente no portal. Tarefas sem tag ficam sem campanha
    vinculada.
 
-   **A campanha nasce pendente**: ela não aparece pro ministério na aba
-   Campanhas assim que a tag é detectada — fica esperando em
-   `/dashboard/admin/campanhas-pendentes` até a Comunicação revisar o nome e
-   o tipo (campanha, evento, lançamento etc.) e clicar em "Abrir
-   evento/campanha". As demandas sincronizam e ficam vinculadas normalmente
-   nesse meio tempo; só a campanha em si fica invisível pro ministério até
-   ser aberta. Dá pra ignorar (excluir) uma campanha pendente que não faça
-   sentido — as demandas vinculadas a ela voltam a ficar sem campanha.
+   **Toda campanha nasce oculta** (não só a vinda de tag): ela não aparece
+   pro ministério na aba Campanhas até a Comunicação revisar o nome e o
+   tipo (campanha, evento, lançamento etc.) e clicar em "Abrir
+   evento/campanha" em `/dashboard/admin/campanhas-pendentes` ("Campanhas
+   ocultas" no menu). As demandas sincronizam e ficam vinculadas
+   normalmente nesse meio tempo; só a campanha em si fica invisível pro
+   ministério até ser aberta. Isso vale também pras campanhas que já
+   existiam antes dessa regra — a migration `0010` escondeu todas de uma
+   vez, pra não poluir a tela do ministério com evento antigo. Dá pra
+   excluir uma campanha que não faça sentido mais — as demandas vinculadas
+   a ela voltam a ficar sem campanha.
 
 ## Deploy (GitHub + Render)
 
