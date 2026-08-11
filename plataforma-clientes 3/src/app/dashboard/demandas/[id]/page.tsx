@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDemandById, STATUS_LABEL } from "@/lib/data/demands";
-import { getCampaignsForDemandIds } from "@/lib/data/campaigns";
+import { getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -18,7 +18,7 @@ export default async function DemandaDetailPage({
 
   if (!demand) notFound();
 
-  const campaignsMap = await getCampaignsForDemandIds([demand.id]);
+  const campaignsMap = await getCampaignsForDemandsInMinistry(demand.ministry_id);
   const campaigns = campaignsMap.get(demand.id) ?? [];
 
   return (
