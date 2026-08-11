@@ -33,8 +33,8 @@ export default async function AdminPage() {
           <span className="font-medium text-brand-800">
             {pendingCampaigns.length}{" "}
             {pendingCampaigns.length === 1
-              ? "campanha detectada no Asana aguardando abertura"
-              : "campanhas detectadas no Asana aguardando abertura"}
+              ? "campanha oculta — o ministério ainda não vê ela"
+              : "campanhas ocultas — o ministério ainda não vê elas"}
           </span>
           <span className="font-medium text-brand-700">Revisar →</span>
         </Link>
