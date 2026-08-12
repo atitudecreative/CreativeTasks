@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
-export { TIPO_LABEL } from "@/lib/campaignOptions";
+import { SAUDE_LABEL, SAUDE_COLOR_HEX } from "@/lib/campaignOptions";
+export { TIPO_LABEL, SAUDE_LABEL } from "@/lib/campaignOptions";
 
 export type Campaign = {
   id: string;
@@ -60,13 +61,24 @@ export const FASE_LABEL: Record<string, string> = {
   encerramento_aprendizado: "Encerramento e aprendizado",
 };
 
-export const SAUDE_LABEL: Record<string, string> = {
-  no_caminho: "No caminho",
-  atencao: "Atenção",
-  critica: "Crítica",
-  pausada: "Pausada",
-  concluida: "Concluída",
-};
+export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
+
+// Contagem de campanhas por saúde (fase de andamento), pra gráfico de
+// pizza na Início. Recebe as campanhas já buscadas — não faz query nova.
+export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
+  const counts = new Map<string, number>();
+  for (const c of campaigns) {
+    counts.set(c.saude, (counts.get(c.saude) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([saude, count]) => ({
+      saude,
+      label: SAUDE_LABEL[saude] ?? saude,
+      count,
+      color: SAUDE_COLOR_HEX[saude] ?? "#a8a29e",
+    }))
+    .sort((a, b) => b.count - a.count);
+}
 
 export async function getCampaignsForMinistry(ministryId: string): Promise<Campaign[]> {
   const supabase = await createClient();
