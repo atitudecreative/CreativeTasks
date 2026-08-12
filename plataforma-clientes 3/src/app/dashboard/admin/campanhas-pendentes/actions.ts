@@ -65,3 +65,112 @@ export async function deleteCampaign(formData: FormData) {
 
   revalidateCampaignPaths();
 }
+
+// ---------------------------------------------------------------
+// Pastas de campanha (migration 0012) — agrupam campanhas dentro de um
+// ministério, ex: pasta "Festa da Roça" com uma campanha por edição/ano.
+// ---------------------------------------------------------------
+
+export async function createCampaignFolder(formData: FormData) {
+  await requireComunicacao();
+
+  const ministryId = String(formData.get("ministryId") ?? "");
+  const nome = String(formData.get("nome") ?? "").trim();
+  if (!ministryId || !nome) return;
+
+  const supabase = await createClient();
+  const { data: siblings } = await supabase
+    .from("campaign_folders")
+    .select("posicao")
+    .eq("ministry_id", ministryId)
+    .order("posicao", { ascending: false })
+    .limit(1);
+  const posicao = (siblings?.[0]?.posicao ?? -1) + 1;
+
+  await supabase.from("campaign_folders").insert({ ministry_id: ministryId, nome, posicao });
+
+  revalidateCampaignPaths();
+}
+
+export async function renameCampaignFolder(formData: FormData) {
+  await requireComunicacao();
+
+  const id = String(formData.get("id") ?? "");
+  const nome = String(formData.get("nome") ?? "").trim();
+  if (!id || !nome) return;
+
+  const supabase = await createClient();
+  await supabase.from("campaign_folders").update({ nome }).eq("id", id);
+
+  revalidateCampaignPaths();
+}
+
+export async function deleteCampaignFolder(formData: FormData) {
+  await requireComunicacao();
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  // As campanhas dentro da pasta ficam "sem pasta" (on delete set null) —
+  // não são apagadas.
+  await supabase.from("campaign_folders").delete().eq("id", id);
+
+  revalidateCampaignPaths();
+}
+
+// Move uma campanha pra dentro de uma pasta (ou de volta pra "sem pasta",
+// quando folderId vem vazio), sempre entrando no fim da lista de destino.
+export async function moveCampaignToFolder(formData: FormData) {
+  await requireComunicacao();
+
+  const campaignId = String(formData.get("campaignId") ?? "");
+  const folderId = String(formData.get("folderId") ?? "") || null;
+  if (!campaignId) return;
+
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("ministry_id")
+    .eq("id", campaignId)
+    .maybeSingle();
+
+  let posicao = 0;
+  if (campaign) {
+    let query = supabase
+      .from("campaigns")
+      .select("posicao")
+      .eq("ministry_id", campaign.ministry_id);
+    query = folderId ? query.eq("folder_id", folderId) : query.is("folder_id", null);
+    const { data: siblings } = await query.order("posicao", { ascending: false }).limit(1);
+    posicao = (siblings?.[0]?.posicao ?? -1) + 1;
+  }
+
+  await supabase.from("campaigns").update({ folder_id: folderId, posicao }).eq("id", campaignId);
+
+  revalidateCampaignPaths();
+}
+
+// Troca a posição de exibição entre duas campanhas (usado pelos botões
+// "mover pra cima/baixo" — o cliente já sabe quem é o vizinho na lista
+// ordenada que está exibindo, então só manda os dois ids pra trocar).
+export async function swapCampaignPositions(formData: FormData) {
+  await requireComunicacao();
+
+  const idA = String(formData.get("idA") ?? "");
+  const idB = String(formData.get("idB") ?? "");
+  if (!idA || !idB) return;
+
+  const supabase = await createClient();
+  const { data: rows } = await supabase.from("campaigns").select("id, posicao").in("id", [idA, idB]);
+  if (!rows || rows.length !== 2) return;
+
+  const [a, b] = rows;
+  await Promise.all([
+    supabase.from("campaigns").update({ posicao: b.posicao }).eq("id", a.id),
+    supabase.from("campaigns").update({ posicao: a.posicao }).eq("id", b.id),
+  ]);
+
+  revalidateCampaignPaths();
+}
