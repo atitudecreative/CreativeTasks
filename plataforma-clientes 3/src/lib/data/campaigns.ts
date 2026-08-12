@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
+export { TIPO_LABEL } from "@/lib/campaignOptions";
 
 export type Campaign = {
   id: string;
@@ -18,22 +19,14 @@ export type Campaign = {
   objetivo_estrategico?: string | null;
   escopo_macro?: string | null;
   resultados_observacoes?: string | null;
-  publicada?: boolean;
-  origem?: string;
+  // not null no banco (migration 0008) — sempre vem preenchido.
+  publicada: boolean;
+  origem: string;
 };
 
 export type PendingCampaign = Campaign & {
   ministryName: string;
   demandCount: number;
-};
-
-export const TIPO_LABEL: Record<string, string> = {
-  campanha: "Campanha",
-  evento: "Evento",
-  lancamento: "Lançamento",
-  serie: "Série",
-  acao_recorrente: "Ação recorrente",
-  projeto_institucional: "Projeto institucional",
 };
 
 export type Milestone = {
@@ -70,7 +63,7 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem"
     )
     .eq("ministry_id", ministryId)
     .eq("publicada", true)
@@ -84,7 +77,12 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   return data ?? [];
 }
 
-async function getCampaignsForAdminByVisibility(publicada: boolean): Promise<PendingCampaign[]> {
+// Todas as campanhas (ativas/visíveis ou ocultas), pra tela "Campanhas
+// ativas" da Comunicação — uma lista só, agrupável por ministério, com um
+// toggle por linha pra abrir/ocultar pro ministério em vez de duas listas
+// separadas. Ordena por ministério e depois nome, pra facilitar o
+// agrupamento na UI.
+export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
   const supabase = await createClient();
 
   const { data: campaigns, error } = await supabase
@@ -92,9 +90,7 @@ async function getCampaignsForAdminByVisibility(publicada: boolean): Promise<Pen
     .select(
       "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries!ministry_id(name)"
     )
-    .eq("publicada", publicada)
-    .order("data_evento", { ascending: false, nullsFirst: false })
-    .order("data_inicio", { ascending: false, nullsFirst: false });
+    .order("nome", { ascending: true });
 
   if (error) {
     console.error("Erro ao buscar campanhas:", error.message);
@@ -120,33 +116,18 @@ async function getCampaignsForAdminByVisibility(publicada: boolean): Promise<Pen
     }
   }
 
-  return rows.map((c) => {
-    const { ministries, ...rest } = c as unknown as Campaign & {
-      ministries: { name: string } | null;
-    };
-    return {
-      ...rest,
-      ministryName: ministries?.name ?? "—",
-      demandCount: counts.get(c.id) ?? 0,
-    };
-  });
-}
-
-// Toda campanha nasce oculta pro ministério (ver migration 0010) — isso
-// inclui tanto campanha nova detectada por tag do Asana quanto campanha
-// antiga cadastrada antes dessa regra existir. Essa função lista todas as
-// ocultas pra Comunicação decidir quais valem a pena abrir. Ordena por
-// data do evento/início mais recente primeiro, pra facilitar achar o que
-// ainda é relevante em meio a campanhas antigas.
-export async function getPendingCampaigns(): Promise<PendingCampaign[]> {
-  return getCampaignsForAdminByVisibility(false);
-}
-
-// Campanhas que já estão visíveis pro ministério — pra Comunicação poder
-// ocultar de novo uma que não faz mais sentido mostrar (ex: evento que já
-// terminou).
-export async function getVisibleCampaignsAdmin(): Promise<PendingCampaign[]> {
-  return getCampaignsForAdminByVisibility(true);
+  return rows
+    .map((c) => {
+      const { ministries, ...rest } = c as unknown as Campaign & {
+        ministries: { name: string } | null;
+      };
+      return {
+        ...rest,
+        ministryName: ministries?.name ?? "—",
+        demandCount: counts.get(c.id) ?? 0,
+      };
+    })
+    .sort((a, b) => a.ministryName.localeCompare(b.ministryName, "pt-BR"));
 }
 
 export async function getCampaignById(id: string): Promise<Campaign | null> {
