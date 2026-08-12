@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { requireMinistry } from "@/lib/data/ministries";
-import { getDemandsForMinistry, summarizeDemands, STATUS_LABEL } from "@/lib/data/demands";
-import { getCampaignsForMinistry, FASE_LABEL, SAUDE_LABEL } from "@/lib/data/campaigns";
+import {
+  getDemandsForMinistry,
+  summarizeDemands,
+  getMonthlyDemandStats,
+  getStatusBreakdown,
+  STATUS_LABEL,
+} from "@/lib/data/demands";
+import { getCampaignsForMinistry, FASE_LABEL, SAUDE_LABEL, getSaudeBreakdown } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { MetricCard } from "@/components/MetricCard";
+import { DashboardCharts } from "./DashboardCharts";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
@@ -26,6 +33,10 @@ export default async function DashboardPage() {
     .slice(0, 5);
   const entregasRecentes = deliverables.slice(0, 5);
 
+  const monthlyStats = getMonthlyDemandStats(demands);
+  const statusBreakdown = getStatusBreakdown(demands);
+  const saudeBreakdown = getSaudeBreakdown(campaigns);
+
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold text-neutral-900">Início</h1>
@@ -34,13 +45,19 @@ export default async function DashboardPage() {
       </p>
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <MetricCard label="Demandas ativas" value={resumo.abertas} />
-        <MetricCard label="Concluídas" value={resumo.concluidas} />
-        <MetricCard label="Atrasadas" value={resumo.atrasadas} />
-        <MetricCard label="Aguardando ministério" value={resumo.aguardandoMinisterio} />
-        <MetricCard label="Aguardando aprovação" value={resumo.aguardandoAprovacao} />
-        <MetricCard label="Campanhas ativas" value={campanhasAtivas.length} />
+        <MetricCard label="Demandas ativas" value={resumo.abertas} accent="brand" />
+        <MetricCard label="Concluídas" value={resumo.concluidas} accent="green" />
+        <MetricCard label="Atrasadas" value={resumo.atrasadas} accent="red" />
+        <MetricCard label="Aguardando ministério" value={resumo.aguardandoMinisterio} accent="amber" />
+        <MetricCard label="Aguardando aprovação" value={resumo.aguardandoAprovacao} accent="sky" />
+        <MetricCard label="Campanhas ativas" value={campanhasAtivas.length} accent="violet" />
       </div>
+
+      <DashboardCharts
+        monthlyStats={monthlyStats}
+        statusBreakdown={statusBreakdown}
+        saudeBreakdown={saudeBreakdown}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
