@@ -22,11 +22,22 @@ export type Campaign = {
   // not null no banco (migration 0008) — sempre vem preenchido.
   publicada: boolean;
   origem: string;
+  // migration 0012 — pasta (agrupamento) e posição de exibição dentro dela
+  // (ou dentro de "sem pasta", quando folder_id é null).
+  folder_id: string | null;
+  posicao: number;
 };
 
 export type PendingCampaign = Campaign & {
   ministryName: string;
   demandCount: number;
+};
+
+export type CampaignFolder = {
+  id: string;
+  ministry_id: string;
+  nome: string;
+  posicao: number;
 };
 
 export type Milestone = {
@@ -63,7 +74,7 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao"
     )
     .eq("ministry_id", ministryId)
     .eq("publicada", true)
@@ -88,8 +99,9 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
   const { data: campaigns, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, ministries!ministry_id(name)"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao, ministries!ministry_id(name)"
     )
+    .order("posicao", { ascending: true })
     .order("nome", { ascending: true });
 
   if (error) {
@@ -130,13 +142,31 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
     .sort((a, b) => a.ministryName.localeCompare(b.ministryName, "pt-BR"));
 }
 
+// Todas as pastas de campanha, de todos os ministérios — a tela admin
+// mostra todos os ministérios juntos, então busca tudo de uma vez e agrupa
+// por ministry_id no client.
+export async function getAllCampaignFoldersAdmin(): Promise<CampaignFolder[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("campaign_folders")
+    .select("id, ministry_id, nome, posicao")
+    .order("posicao", { ascending: true });
+
+  if (error) {
+    console.error("Erro ao buscar pastas de campanha:", error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function getCampaignById(id: string): Promise<Campaign | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, objetivo_estrategico, escopo_macro, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, resultados_observacoes"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, objetivo_estrategico, escopo_macro, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, resultados_observacoes, publicada, origem, folder_id, posicao"
     )
     .eq("id", id)
     .maybeSingle();
