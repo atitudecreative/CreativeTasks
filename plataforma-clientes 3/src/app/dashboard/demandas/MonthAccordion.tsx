@@ -1,35 +1,55 @@
-// Opções/labels de status e prioridade de demanda — arquivo sem
-// dependência de servidor (sem Supabase, sem next/headers), pra poder ser
-// importado tanto de Server Components quanto de Client Components sem
-// risco de quebrar o build.
-export const STATUS_OPTIONS = [
-  { value: "recebida", label: "Recebida" },
-  { value: "em_triagem", label: "Em triagem" },
-  { value: "aguardando_briefing", label: "Aguardando briefing" },
-  { value: "planejada", label: "Planejada" },
-  { value: "em_producao", label: "Em produção" },
-  { value: "em_revisao_interna", label: "Em revisão interna" },
-  { value: "aguardando_ministerio", label: "Aguardando ministério" },
-  { value: "aguardando_aprovacao", label: "Aguardando aprovação" },
-  { value: "ajustes_solicitados", label: "Ajustes solicitados" },
-  { value: "aprovada", label: "Aprovada" },
-  { value: "agendada_ou_publicada", label: "Agendada ou publicada" },
-  { value: "concluida", label: "Concluída" },
-  { value: "pausada", label: "Pausada" },
-  { value: "cancelada", label: "Cancelada" },
-];
+"use client";
 
-export const STATUS_LABEL: Record<string, string> = Object.fromEntries(
-  STATUS_OPTIONS.map((s) => [s.value, s.label])
-);
+import { useState } from "react";
+import { DemandTable, type DemandRow } from "./DemandTable";
 
-export const PRIORIDADE_OPTIONS = [
-  { value: "baixa", label: "Baixa" },
-  { value: "media", label: "Média" },
-  { value: "alta", label: "Alta" },
-  { value: "urgente", label: "Urgente" },
-];
+export type { DemandRow };
 
-export const PRIORIDADE_LABEL: Record<string, string> = Object.fromEntries(
-  PRIORIDADE_OPTIONS.map((p) => [p.value, p.label])
-);
+// Cada mês vira um acordeão independente, começa fechado — a ideia é a
+// lista de demandas não ficar gigante e "largada" na tela toda vez que a
+// página abre. O usuário expande só o mês que quer ver (ou usa a busca,
+// que ignora esse agrupamento e mostra tudo que bateu numa lista só).
+export function MonthAccordion({
+  monthLabel,
+  demands,
+  defaultOpen = false,
+}: {
+  monthLabel: string;
+  demands: DemandRow[];
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const overdueCount = demands.filter((d) => d.overdue).length;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold text-neutral-700">
+          {monthLabel} <span className="font-normal text-neutral-400">({demands.length})</span>
+          {overdueCount > 0 && (
+            <span className="ml-2 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">
+              {overdueCount} atrasada{overdueCount !== 1 ? "s" : ""}
+            </span>
+          )}
+        </span>
+        <svg
+          className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && <DemandTable demands={demands} />}
+    </div>
+  );
+}
