@@ -2,22 +2,82 @@
 
 import { useMemo, useState } from "react";
 import { CampaignRow, type CampaignRowData } from "./CampaignRow";
+import { FolderBlock } from "./FolderBlock";
+import { createCampaignFolder } from "./actions";
 
 export type AdminCampaignRow = CampaignRowData & {
+  ministry_id: string;
   ministryName: string;
 };
 
+export type AdminCampaignFolder = {
+  id: string;
+  ministry_id: string;
+  nome: string;
+};
+
+function NewFolderForm({ ministryId }: { ministryId: string }) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-brand-600 hover:underline"
+      >
+        + Nova pasta
+      </button>
+    );
+  }
+
+  return (
+    <form
+      action={async (formData) => {
+        await createCampaignFolder(formData);
+        setOpen(false);
+      }}
+      className="flex items-center gap-2"
+    >
+      <input type="hidden" name="ministryId" value={ministryId} />
+      <input
+        name="nome"
+        required
+        autoFocus
+        placeholder="Nome da pasta, ex: Festa da Roça"
+        className="w-56 rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      />
+      <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+        Criar
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:underline">
+        Cancelar
+      </button>
+    </form>
+  );
+}
+
 function MinistryGroup({
+  ministryId,
   ministryName,
   campaigns,
+  folders,
   defaultOpen,
 }: {
+  ministryId: string;
   ministryName: string;
   campaigns: AdminCampaignRow[];
+  folders: AdminCampaignFolder[];
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const activeCount = campaigns.filter((c) => c.publicada).length;
+
+  const folderList = folders
+    .filter((f) => f.ministry_id === ministryId)
+    .map((f) => ({ id: f.id, nome: f.nome }));
+
+  const semPasta = campaigns.filter((c) => !c.folder_id || !folderList.some((f) => f.id === c.folder_id));
 
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -46,17 +106,52 @@ function MinistryGroup({
       </button>
 
       {open && (
-        <div className="border-t border-neutral-100">
-          {campaigns.map((c) => (
-            <CampaignRow key={c.id} campaign={c} />
+        <div className="space-y-3 border-t border-neutral-100 p-3">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Pastas</p>
+            <NewFolderForm ministryId={ministryId} />
+          </div>
+
+          {folderList.map((folder) => (
+            <FolderBlock
+              key={folder.id}
+              folder={folder}
+              campaigns={campaigns.filter((c) => c.folder_id === folder.id)}
+              allFolders={folderList}
+            />
           ))}
+
+          <div className="overflow-hidden rounded-xl border border-neutral-200">
+            <div className="bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-600">
+              Sem pasta <span className="font-normal text-neutral-400">({semPasta.length})</span>
+            </div>
+            {semPasta.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-neutral-400">Nenhuma campanha fora de pasta.</p>
+            ) : (
+              semPasta.map((c, i) => (
+                <CampaignRow
+                  key={c.id}
+                  campaign={c}
+                  folders={folderList}
+                  prevId={semPasta[i - 1]?.id}
+                  nextId={semPasta[i + 1]?.id}
+                />
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export function CampaignsAdminTable({ campaigns }: { campaigns: AdminCampaignRow[] }) {
+export function CampaignsAdminTable({
+  campaigns,
+  folders,
+}: {
+  campaigns: AdminCampaignRow[];
+  folders: AdminCampaignFolder[];
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "ativas" | "ocultas">("");
 
@@ -72,13 +167,13 @@ export function CampaignsAdminTable({ campaigns }: { campaigns: AdminCampaignRow
   }, [campaigns, search, statusFilter]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, AdminCampaignRow[]>();
+    const map = new Map<string, { ministryId: string; ministryName: string; campaigns: AdminCampaignRow[] }>();
     for (const c of filtered) {
-      const list = map.get(c.ministryName) ?? [];
-      list.push(c);
-      map.set(c.ministryName, list);
+      const entry = map.get(c.ministry_id) ?? { ministryId: c.ministry_id, ministryName: c.ministryName, campaigns: [] };
+      entry.campaigns.push(c);
+      map.set(c.ministry_id, entry);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+    return Array.from(map.values()).sort((a, b) => a.ministryName.localeCompare(b.ministryName, "pt-BR"));
   }, [filtered]);
 
   // Com busca ativa faz sentido já abrir os grupos que bateram — sem
@@ -118,11 +213,13 @@ export function CampaignsAdminTable({ campaigns }: { campaigns: AdminCampaignRow
         </div>
       ) : (
         <div className="space-y-3">
-          {grouped.map(([ministryName, group]) => (
+          {grouped.map((g) => (
             <MinistryGroup
-              key={ministryName}
-              ministryName={ministryName}
-              campaigns={group}
+              key={g.ministryId}
+              ministryId={g.ministryId}
+              ministryName={g.ministryName}
+              campaigns={g.campaigns}
+              folders={folders}
               defaultOpen={hasActiveFilter}
             />
           ))}
