@@ -14,6 +14,20 @@ export type Ministry = {
   status: string;
 };
 
+// Versão completa, usada na tela de edição — inclui os campos de contato
+// que a listagem não precisa carregar.
+export type MinistryDetail = Ministry & {
+  pastor_responsavel: string | null;
+  ponto_focal_ministerio: string | null;
+  ponto_focal_comunicacao: string | null;
+  centro_custo: string | null;
+};
+
+export type MinistryWithCounts = Ministry & {
+  memberCount: number;
+  demandCount: number;
+};
+
 export type MinistryRole = "leitor" | "colaborador" | "aprovador" | "supervisor" | "atendimento";
 
 export type MinistryMembership = {
@@ -95,6 +109,61 @@ export async function getAllMinistries(): Promise<Ministry[]> {
   }
 
   return data ?? [];
+}
+
+// Lista pra tela de cadastro de ministérios: além dos campos básicos, traz
+// quantos usuários e quantas demandas cada ministério tem — ajuda a
+// Comunicação a decidir se faz sentido excluir/arquivar um cadastro antes
+// de fazer isso (excluir é irreversível e apaga tudo em cascata).
+export async function getAllMinistriesWithCounts(): Promise<MinistryWithCounts[]> {
+  const supabase = await createClient();
+
+  const [{ data: ministries, error }, { data: members }, { data: demands }] = await Promise.all([
+    supabase
+      .from("ministries")
+      .select("id, name, slug, sigla, description, categoria, status")
+      .order("name"),
+    supabase.from("ministry_members").select("ministry_id"),
+    supabase.from("demands").select("ministry_id"),
+  ]);
+
+  if (error) {
+    console.error("Erro ao buscar ministérios:", error.message);
+    return [];
+  }
+
+  const memberCounts = new Map<string, number>();
+  for (const row of members ?? []) {
+    memberCounts.set(row.ministry_id, (memberCounts.get(row.ministry_id) ?? 0) + 1);
+  }
+  const demandCounts = new Map<string, number>();
+  for (const row of demands ?? []) {
+    demandCounts.set(row.ministry_id, (demandCounts.get(row.ministry_id) ?? 0) + 1);
+  }
+
+  return (ministries ?? []).map((m) => ({
+    ...m,
+    memberCount: memberCounts.get(m.id) ?? 0,
+    demandCount: demandCounts.get(m.id) ?? 0,
+  }));
+}
+
+export async function getMinistryById(id: string): Promise<MinistryDetail | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ministries")
+    .select(
+      "id, name, slug, sigla, description, categoria, status, pastor_responsavel, ponto_focal_ministerio, ponto_focal_comunicacao, centro_custo"
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Erro ao buscar ministério:", error.message);
+    return null;
+  }
+
+  return data as unknown as MinistryDetail | null;
 }
 
 // Ministério "ativo" na sessão: respeita o seletor (cookie) quando o
