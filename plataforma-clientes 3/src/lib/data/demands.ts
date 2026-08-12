@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { STATUS_COLOR_HEX, DEFAULT_STATUS_COLOR_HEX } from "@/lib/statusColors";
 
 export type Demand = {
   id: string;
@@ -150,6 +151,47 @@ export function formatMonthLabel(key: string): string {
     year: "numeric",
   });
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatMonthShortLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  const raw = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "short" });
+  const cleaned = raw.replace(".", "");
+  const label = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  return `${label}/${String(year).slice(2)}`;
+}
+
+export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
+
+// Total de demandas e quantas já concluíram, por mês (prazo acordado) —
+// pra o gráfico de colunas com linha na Início. Reaproveita o mesmo
+// agrupamento por mês da aba Demandas.
+export function getMonthlyDemandStats(demands: Demand[]): MonthlyDemandStat[] {
+  const grouped = groupDemandsByMonth(demands);
+  return Array.from(grouped.entries()).map(([key, list]) => ({
+    month: key,
+    label: formatMonthShortLabel(key),
+    total: list.length,
+    concluidas: list.filter((d) => d.status === "concluida").length,
+  }));
+}
+
+export type StatusBreakdownItem = { status: string; label: string; count: number; color: string };
+
+// Contagem de demandas por status, pra gráfico de pizza na Início.
+export function getStatusBreakdown(demands: Demand[]): StatusBreakdownItem[] {
+  const counts = new Map<string, number>();
+  for (const d of demands) {
+    counts.set(d.status, (counts.get(d.status) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([status, count]) => ({
+      status,
+      label: STATUS_LABEL[status] ?? status,
+      count,
+      color: STATUS_COLOR_HEX[status] ?? DEFAULT_STATUS_COLOR_HEX,
+    }))
+    .sort((a, b) => b.count - a.count);
 }
 
 export function summarizeDemands(demands: Demand[]) {
