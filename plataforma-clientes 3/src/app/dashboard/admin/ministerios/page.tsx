@@ -1,60 +1,50 @@
-import { requireComunicacao } from "@/lib/data/ministries";
-import { getAllMinistries } from "@/lib/data/ministries";
-import { CreateMinistryForm } from "./CreateMinistryForm";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { requireComunicacao, getMinistryById } from "@/lib/data/ministries";
+import { createClient } from "@/lib/supabase/server";
+import { EditMinistryForm } from "../EditMinistryForm";
+import { DeleteMinistryButton } from "../DeleteMinistryButton";
 
-const CATEGORIA_LABEL: Record<string, string> = {
-  ministerio: "Ministério",
-  rede: "Rede",
-  programa: "Programa",
-  area_institucional: "Área institucional",
-  evento_recorrente: "Evento recorrente",
-};
-
-export default async function AdminMinisteriosPage() {
+export default async function EditMinistryPage({ params }: { params: Promise<{ id: string }> }) {
   await requireComunicacao();
-  const ministries = await getAllMinistries();
+  const { id } = await params;
+  const ministry = await getMinistryById(id);
+  if (!ministry) notFound();
+
+  const supabase = await createClient();
+  const [{ count: memberCount }, { count: demandCount }] = await Promise.all([
+    supabase.from("ministry_members").select("*", { count: "exact", head: true }).eq("ministry_id", id),
+    supabase.from("demands").select("*", { count: "exact", head: true }).eq("ministry_id", id),
+  ]);
 
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Ministérios</h1>
+    <div className="max-w-2xl">
+      <Link href="/dashboard/admin/ministerios" className="mb-3 inline-block text-xs text-neutral-500 hover:underline">
+        ← Voltar pra Ministérios
+      </Link>
+      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Editar ministério</h1>
       <p className="mb-6 text-sm text-neutral-500">
-        Cadastro dos ministérios, redes e áreas atendidas pela Comunicação.
+        {memberCount ?? 0} usuário(s) vinculado(s) · {demandCount ?? 0} demanda(s)
       </p>
 
-      <div className="mb-6 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-neutral-100 text-neutral-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">Nome</th>
-              <th className="px-4 py-3 font-medium">Sigla</th>
-              <th className="px-4 py-3 font-medium">Categoria</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ministries.length === 0 ? (
-              <tr>
-                <td className="px-4 py-3 text-neutral-500" colSpan={4}>
-                  Nenhum ministério cadastrado ainda — crie o primeiro abaixo.
-                </td>
-              </tr>
-            ) : (
-              ministries.map((m) => (
-                <tr key={m.id} className="border-b border-neutral-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-neutral-800">{m.name}</td>
-                  <td className="px-4 py-3 text-neutral-600">{m.sigla ?? "—"}</td>
-                  <td className="px-4 py-3 text-neutral-600">
-                    {CATEGORIA_LABEL[m.categoria] ?? m.categoria}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-600 capitalize">{m.status}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="mb-6">
+        <EditMinistryForm ministry={ministry} />
       </div>
 
-      <CreateMinistryForm />
+      <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
+        <p className="mb-1 text-sm font-medium text-rose-700">Zona de risco</p>
+        <p className="mb-3 text-xs text-rose-600">
+          Excluir apaga esse ministério e tudo que está vinculado a ele (usuários, demandas,
+          campanhas, entregas e fonte de dados do Asana). Não tem como desfazer.
+        </p>
+        <DeleteMinistryButton
+          id={ministry.id}
+          name={ministry.name}
+          memberCount={memberCount ?? 0}
+          demandCount={demandCount ?? 0}
+          variant="full"
+        />
+      </div>
     </div>
   );
 }
