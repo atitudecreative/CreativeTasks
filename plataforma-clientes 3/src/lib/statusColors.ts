@@ -21,3 +21,25 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 export const DEFAULT_STATUS_COLOR = "bg-neutral-100 text-neutral-600";
+
+// Mesma paleta, em hex — pros gráficos (recharts pinta SVG via `fill`, não
+// dá pra usar classe Tailwind ali). Cores bem distintas entre si pra ficar
+// legível num gráfico de pizza com várias fatias pequenas.
+export const STATUS_COLOR_HEX: Record<string, string> = {
+  recebida: "#94a3b8",
+  em_triagem: "#38bdf8",
+  aguardando_briefing: "#fbbf24",
+  planejada: "#818cf8",
+  em_producao: "#f3701c",
+  em_revisao_interna: "#a78bfa",
+  aguardando_ministerio: "#fb7185",
+  aguardando_aprovacao: "#eab308",
+  ajustes_solicitados: "#f87171",
+  aprovada: "#2dd4bf",
+  agendada_ou_publicada: "#22d3ee",
+  concluida: "#4ade80",
+  pausada: "#a8a29e",
+  cancelada: "#e11d48",
+};
+
+export const DEFAULT_STATUS_COLOR_HEX = "#a8a29e";
