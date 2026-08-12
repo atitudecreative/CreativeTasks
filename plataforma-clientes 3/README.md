@@ -20,7 +20,8 @@ Rode as migrations em ordem no SQL Editor do Supabase: `0001_init.sql` →
 `0002_asana_tasks.sql` → `0003_metrics_unique.sql` → `0004_portal_ministerios_fase1.sql`
 → `0005_fix_privilege_trigger.sql` → `0006_fix_identificador_sequences.sql` →
 `0007_self_healing_identificador.sql` → `0008_campanha_publicacao.sql` →
-`0009_demand_campaigns.sql` → `0010_ocultar_campanhas_existentes.sql`. Pule
+`0009_demand_campaigns.sql` → `0010_ocultar_campanhas_existentes.sql` →
+`0011_ministerios_excluir.sql` → `0012_campaign_folders.sql`. Pule
 as que já rodaram antes — a 0004 funciona mesmo que a 0002/0003 nunca tenham
 rodado nesse banco (ela checa se as tabelas existem antes de mexer nelas). A
 0005 corrige um bug da 0004 (o gatilho de segurança bloqueava até
@@ -32,7 +33,9 @@ livre, então não importa mais se a sequence ficou dessincronizada) — sempre
 rode as duas, mesmo que nunca tenha visto esse erro (é seguro rodar de
 novo). A 0010 esconde retroativamente toda campanha que já existia (antes
 só campanha nova vinda de tag do Asana nascia oculta) — sempre rode depois
-da 0008/0009.
+da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
+delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
+ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
 ## Páginas
 
@@ -53,9 +56,12 @@ Lado da Comunicação (`papel_global` = `gestor_comunicacao` ou
 
 - `/dashboard/admin` — painel consolidado com demandas ativas/atrasadas e
   campanhas em risco por ministério
-- `/dashboard/admin/campanhas-pendentes` ("Campanhas ocultas" no menu) —
-  toda campanha/evento nasce oculta pro ministério (nova, vinda de tag do
-  Asana, ou antiga já cadastrada); aqui a Comunicação escolhe quais abrir
+- `/dashboard/admin/campanhas-pendentes` ("Campanhas ativas" no menu) —
+  lista única de todas as campanhas/eventos, agrupadas por ministério e
+  organizáveis em pastas (útil pra evento anual recorrente, ex: pasta
+  "Festa da Roça" com uma campanha por edição). Toda campanha nasce oculta
+  pro ministério (nova, vinda de tag do Asana, ou antiga já cadastrada); um
+  toggle por linha abre/oculta, sem precisar de duas telas separadas
 - `/dashboard/admin/ministerios` — lista e cadastro de ministérios (não
   precisa mais do Table Editor pra isso)
 - `/dashboard/admin/usuarios` — lista de usuários com papel e vínculos, e
@@ -202,22 +208,28 @@ portal é um próximo passo natural, fora do escopo desta etapa.
    várias campanhas ao mesmo tempo (tabela `demand_campaigns`), do mesmo
    jeito que uma tarefa pode ter várias tags no Asana. Cada tag nova cria
    automaticamente uma campanha (tipo `campanha` por padrão; a Comunicação
-   escolhe o tipo certo ao abrir o evento em "Campanhas pendentes"). Se
-   você tirar uma tag de uma tarefa no Asana, o próximo sync desfaz o
-   vínculo correspondente no portal. Tarefas sem tag ficam sem campanha
-   vinculada.
+   pode editar o nome e o tipo depois em "Campanhas ativas"). Se você
+   tirar uma tag de uma tarefa no Asana, o próximo sync desfaz o vínculo
+   correspondente no portal. Tarefas sem tag ficam sem campanha vinculada.
 
    **Toda campanha nasce oculta** (não só a vinda de tag): ela não aparece
-   pro ministério na aba Campanhas até a Comunicação revisar o nome e o
-   tipo (campanha, evento, lançamento etc.) e clicar em "Abrir
-   evento/campanha" em `/dashboard/admin/campanhas-pendentes` ("Campanhas
-   ocultas" no menu). As demandas sincronizam e ficam vinculadas
+   pro ministério na aba Campanhas até a Comunicação ativar o toggle de
+   visibilidade em `/dashboard/admin/campanhas-pendentes` ("Campanhas
+   ativas" no menu). As demandas sincronizam e ficam vinculadas
    normalmente nesse meio tempo; só a campanha em si fica invisível pro
-   ministério até ser aberta. Isso vale também pras campanhas que já
+   ministério até ser ativada. Isso vale também pras campanhas que já
    existiam antes dessa regra — a migration `0010` escondeu todas de uma
    vez, pra não poluir a tela do ministério com evento antigo. Dá pra
    excluir uma campanha que não faça sentido mais — as demandas vinculadas
    a ela voltam a ficar sem campanha.
+
+   **Pastas de campanha** (migration `0012`): dentro de cada ministério,
+   dá pra criar pastas e mover campanhas pra dentro delas — útil pra
+   eventos anuais recorrentes (ex: pasta "Festa da Roça" contendo "Festa
+   da Roça 2025", "Festa da Roça 2026" etc). Cada campanha só pode estar
+   em uma pasta por vez (ou em nenhuma — fica em "Sem pasta"), e dá pra
+   reordenar tanto as pastas quanto as campanhas dentro delas com as
+   setinhas pra cima/baixo.
 
 ## Deploy (GitHub + Render)
 
