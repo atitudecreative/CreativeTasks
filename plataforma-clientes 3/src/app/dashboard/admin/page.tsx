@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
-import { getPendingCampaigns } from "@/lib/data/campaigns";
+import { getAllCampaignsAdmin } from "@/lib/data/campaigns";
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
@@ -10,10 +10,11 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [overview, pendingCampaigns] = await Promise.all([
+  const [overview, allCampaigns] = await Promise.all([
     getAdminOverview(),
-    getPendingCampaigns(),
+    getAllCampaignsAdmin(),
   ]);
+  const pendingCampaigns = allCampaigns.filter((c) => !c.publicada);
   const totalDemandas = overview.reduce((sum, m) => sum + m.demandasAtivas, 0);
   const totalAtrasadas = overview.reduce((sum, m) => sum + m.demandasAtrasadas, 0);
   const totalCampanhasRisco = overview.reduce((sum, m) => sum + m.campanhasEmAtencaoOuCritica, 0);
