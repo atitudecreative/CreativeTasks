@@ -30,13 +30,28 @@ export default async function DashboardLayout({
     ? await getAllMinistries()
     : (await getUserMemberships()).map((m) => m.ministry);
 
+  // Quando o ministério ativo tem uma capa (imagem de fundo cadastrada em
+  // /dashboard/admin/ministerios/[id]), o menu lateral mostra ela em vez
+  // da cor sólida — com um gradiente escuro por cima (usando a própria
+  // cor secundária do tema) pra logo, nav e nome continuarem legíveis.
+  const asideStyle = ministry?.capa_url
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgb(var(--walnut-900) / 0.90), rgb(var(--walnut-900) / 0.96)), url(${ministry.capa_url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : undefined;
+
   return (
     <div className="flex min-h-screen bg-cream-50">
-      <aside className="flex w-72 flex-col justify-between bg-walnut-900 p-6">
+      <aside
+        className={`flex w-72 flex-col justify-between p-6 ${ministry?.capa_url ? "" : "bg-walnut-900"}`}
+        style={asideStyle}
+      >
         <div>
           <div className="mb-8 flex flex-col items-start">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo é um
-                arquivo dinâmico (upload em /dashboard/admin/marca), sem
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo pode
+                vir de um arquivo dinâmico (site_theme.logo_url), sem
                 dimensões fixas conhecidas em build time */}
             <img
               src={siteTheme.logoUrl ?? "/logo-dark-bg.png"}
