@@ -14,33 +14,40 @@ const config: Config = {
         neutral: colors.stone,
 
         // Laranja forte — cor primária: botões, links, estados ativos, foco.
+        // Valores vêm de variáveis CSS (--brand-50..900), definidas em
+        // tempo real pelo layout raiz a partir do que está salvo em
+        // site_theme (ver src/lib/data/theme.ts e src/lib/theme.ts) — é
+        // isso que permite a Comunicação trocar a cor principal do site
+        // inteiro em /dashboard/admin/aparencia sem precisar de novo
+        // deploy. `<alpha-value>` mantém classes tipo bg-brand-50/40
+        // funcionando normalmente.
         brand: {
-          50: "#fff4ec",
-          100: "#ffe4cc",
-          200: "#ffc899",
-          300: "#ffa35c",
-          400: "#fb8332",
-          500: "#f3701c",
-          600: "#dd5b0f",
-          700: "#b6470c",
-          800: "#8f380f",
-          900: "#742f10",
+          50: "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
         },
 
         // Marrom — cor secundária: sidebar, blocos de destaque escuros,
-        // textos de apoio com mais peso.
+        // textos de apoio com mais peso. Mesma ideia: vem de variável CSS.
         walnut: {
-          50: "#faf6f2",
-          100: "#f0e5d8",
-          200: "#ddc4a8",
-          300: "#c19d76",
-          400: "#a67b54",
-          500: "#87603f",
-          600: "#6b4a30",
-          700: "#523827",
-          800: "#3a271b",
-          900: "#271a13",
-          950: "#180F0A",
+          50: "rgb(var(--walnut-50) / <alpha-value>)",
+          100: "rgb(var(--walnut-100) / <alpha-value>)",
+          200: "rgb(var(--walnut-200) / <alpha-value>)",
+          300: "rgb(var(--walnut-300) / <alpha-value>)",
+          400: "rgb(var(--walnut-400) / <alpha-value>)",
+          500: "rgb(var(--walnut-500) / <alpha-value>)",
+          600: "rgb(var(--walnut-600) / <alpha-value>)",
+          700: "rgb(var(--walnut-700) / <alpha-value>)",
+          800: "rgb(var(--walnut-800) / <alpha-value>)",
+          900: "rgb(var(--walnut-900) / <alpha-value>)",
+          950: "rgb(var(--walnut-950) / <alpha-value>)",
         },
 
         // Creme — base do app (fundo de página).
