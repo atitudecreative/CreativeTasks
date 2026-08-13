@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { getSiteTheme } from "@/lib/data/theme";
 import { LoginForm } from "./LoginForm";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -13,6 +13,7 @@ export default async function LoginPage({
 }) {
   const { erro } = await searchParams;
   const urlErrorMessage = erro ? ERROR_MESSAGES[erro] ?? null : null;
+  const siteTheme = await getSiteTheme();
 
   return (
     <div className="flex min-h-screen">
@@ -26,14 +27,12 @@ export default async function LoginPage({
           }}
         />
         <div className="relative">
-          <Image
-            src="/logo-dark-bg.png"
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo é um
+              arquivo dinâmico (upload em /dashboard/admin/marca) */}
+          <img
+            src={siteTheme.logoUrl ?? "/logo-dark-bg.png"}
             alt="Atitude Creative"
-            width={510}
-            height={138}
-            className="h-10 w-auto"
-            priority
-            unoptimized
+            className="h-10 w-auto object-contain"
           />
         </div>
 
@@ -58,14 +57,12 @@ export default async function LoginPage({
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
             <div className="mb-2 inline-flex rounded-xl bg-walnut-900 px-4 py-3">
-              <Image
-                src="/logo-dark-bg.png"
+              {/* eslint-disable-next-line @next/next/no-img-element -- logo é um
+                  arquivo dinâmico (upload em /dashboard/admin/marca) */}
+              <img
+                src={siteTheme.logoUrl ?? "/logo-dark-bg.png"}
                 alt="Atitude Creative"
-                width={510}
-                height={138}
-                className="h-8 w-auto"
-                priority
-                unoptimized
+                className="h-8 w-auto object-contain"
               />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-walnut-600">
