@@ -100,3 +100,95 @@ export async function addMembership(
   revalidatePath("/dashboard/admin/usuarios");
   return { error: null };
 }
+
+// Muda o papel global de outro usuário. Não deixa a pessoa mudar o
+// PRÓPRIO papel por aqui — evita que alguém se auto-rebaixe sem querer e
+// perca o acesso à própria tela de administração.
+export async function updateUserPapelGlobal(
+  _prevState: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
+  const current = await requireComunicacao();
+
+  const userId = String(formData.get("userId") ?? "");
+  const papelGlobal = String(formData.get("papelGlobal") ?? "nenhum");
+
+  if (!userId) {
+    return { error: "Usuário inválido." };
+  }
+  if (userId === current.id) {
+    return { error: "Não é possível alterar seu próprio papel por aqui — peça a outro administrador." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("profiles").update({ papel_global: papelGlobal }).eq("id", userId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/admin/usuarios");
+  return { error: null };
+}
+
+// Troca o papel de um usuário já vinculado a um ministério (sem precisar
+// remover e recriar o vínculo).
+export async function updateMembershipRole(
+  _prevState: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
+  await requireComunicacao();
+
+  const userId = String(formData.get("userId") ?? "");
+  const ministryId = String(formData.get("ministryId") ?? "");
+  const role = String(formData.get("role") ?? "");
+
+  if (!userId || !ministryId || !role) {
+    return { error: "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ministry_members")
+    .update({ role })
+    .eq("user_id", userId)
+    .eq("ministry_id", ministryId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/admin/usuarios");
+  return { error: null };
+}
+
+// Desvincula um usuário de um ministério — ele deixa de ver/selecionar
+// esse ministério, mas a conta continua existindo (e outros vínculos, se
+// houver, continuam intactos).
+export async function removeMembership(formData: FormData) {
+  await requireComunicacao();
+
+  const userId = String(formData.get("userId") ?? "");
+  const ministryId = String(formData.get("ministryId") ?? "");
+  if (!userId || !ministryId) return;
+
+  const supabase = await createClient();
+  await supabase.from("ministry_members").delete().eq("user_id", userId).eq("ministry_id", ministryId);
+
+  revalidatePath("/dashboard/admin/usuarios");
+}
+
+// Exclui a conta inteira (auth.users) — profiles e ministry_members do
+// usuário são apagados em cascata pelo próprio banco. Não deixa excluir
+// a própria conta por aqui.
+export async function deleteUserAccount(formData: FormData) {
+  const current = await requireComunicacao();
+
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId || userId === current.id) return;
+
+  const admin = createAdminClient();
+  await admin.auth.admin.deleteUser(userId);
+
+  revalidatePath("/dashboard/admin/usuarios");
+}
