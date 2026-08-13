@@ -33,13 +33,13 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen bg-cream-50">
       <aside className="flex w-72 flex-col justify-between bg-walnut-900 p-6">
         <div>
-          <div className="mb-8">
+          <div className="mb-8 flex flex-col items-start">
             <Image
               src="/logo-dark-bg.png"
               alt="Atitude Creative"
               width={510}
               height={138}
-              className="h-9 w-auto"
+              className="h-14 w-auto"
               priority
               unoptimized
             />
