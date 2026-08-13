@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { getSiteTheme, buildThemeCssVars } from "@/lib/data/theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,11 +14,14 @@ export const metadata: Metadata = {
   description: "Painel unificado com dados de Asana, Meta Ads e e-inscrição.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const theme = await getSiteTheme();
+  const themeVars = buildThemeCssVars(theme);
+
   return (
-    <html lang="pt-BR" className={inter.variable}>
+    <html lang="pt-BR" className={inter.variable} style={themeVars as React.CSSProperties}>
       <body className="bg-cream-50 font-sans text-neutral-900 antialiased">
         {children}
       </body>
