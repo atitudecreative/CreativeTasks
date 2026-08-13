@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
+
+const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB — foto de fundo pode ser um pouco maior que um PNG de logo
 
 function slugify(value: string) {
   return value
@@ -104,6 +107,76 @@ export async function updateMinistry(
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard");
   return { error: null };
+}
+
+// Sobe a imagem de capa desse ministério (fundo do menu lateral quando
+// ele é o ativo). Só a Comunicação faz isso — troca a "cara" de um
+// ministério pra todo mundo vinculado a ele.
+export async function uploadMinistryCapa(
+  _prevState: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
+  await requireComunicacao();
+
+  const ministryId = String(formData.get("ministryId") ?? "");
+  const file = formData.get("capa");
+
+  if (!ministryId) {
+    return { error: "Ministério inválido." };
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Selecione uma imagem." };
+  }
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    return { error: "Formato não aceito — use PNG, JPG ou WEBP." };
+  }
+  if (file.size > MAX_CAPA_SIZE) {
+    return { error: "Arquivo muito grande — o limite é 4MB." };
+  }
+
+  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const admin = createAdminClient();
+  const path = `ministerios/${ministryId}/capa-${Date.now()}.${extension}`;
+
+  const { error: uploadError } = await admin.storage
+    .from("branding")
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (uploadError) {
+    return { error: uploadError.message };
+  }
+
+  const { data: publicUrlData } = admin.storage.from("branding").getPublicUrl(path);
+
+  const supabase = await createClient();
+  const { error: updateError } = await supabase
+    .from("ministries")
+    .update({ capa_url: publicUrlData.publicUrl, updated_at: new Date().toISOString() })
+    .eq("id", ministryId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  revalidatePath(`/dashboard/admin/ministerios/${ministryId}`);
+  revalidatePath("/dashboard", "layout");
+  return { error: null };
+}
+
+export async function removeMinistryCapa(formData: FormData) {
+  await requireComunicacao();
+
+  const ministryId = String(formData.get("ministryId") ?? "");
+  if (!ministryId) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("ministries")
+    .update({ capa_url: null, updated_at: new Date().toISOString() })
+    .eq("id", ministryId);
+
+  revalidatePath(`/dashboard/admin/ministerios/${ministryId}`);
+  revalidatePath("/dashboard", "layout");
 }
 
 export async function deleteMinistry(formData: FormData) {
