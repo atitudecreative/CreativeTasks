@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import {
   getCurrentMinistry,
   getUserMemberships,
@@ -32,16 +33,19 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen bg-cream-50">
       <aside className="flex w-72 flex-col justify-between bg-walnut-900 p-6">
         <div>
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
-              AC
-            </div>
-            <div>
-              <p className="text-sm font-semibold leading-tight text-white">
-                Portal dos Ministérios
-              </p>
-              <p className="text-xs leading-tight text-walnut-300">Atitude Creative</p>
-            </div>
+          <div className="mb-8">
+            <Image
+              src="/logo-dark-bg.png"
+              alt="Atitude Creative"
+              width={510}
+              height={138}
+              className="h-9 w-auto"
+              priority
+              unoptimized
+            />
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-walnut-300">
+              Portal dos Ministérios
+            </p>
           </div>
 
           <MinistrySwitcher
