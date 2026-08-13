@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import {
   getCurrentMinistry,
   getUserMemberships,
   getAllMinistries,
   isComunicacaoGlobal,
 } from "@/lib/data/ministries";
+import { getSiteTheme } from "@/lib/data/theme";
 import { signOut } from "@/app/login/actions";
 import { DashboardNav } from "@/components/DashboardNav";
 import { MinistrySwitcher } from "@/components/MinistrySwitcher";
@@ -16,6 +16,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const current = await getCurrentMinistry();
+  const siteTheme = await getSiteTheme();
 
   if (!current) {
     // Usuário autenticado mas sem vínculo com nenhum ministério ainda.
@@ -34,14 +35,13 @@ export default async function DashboardLayout({
       <aside className="flex w-72 flex-col justify-between bg-walnut-900 p-6">
         <div>
           <div className="mb-8 flex flex-col items-start">
-            <Image
-              src="/logo-dark-bg.png"
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo é um
+                arquivo dinâmico (upload em /dashboard/admin/marca), sem
+                dimensões fixas conhecidas em build time */}
+            <img
+              src={siteTheme.logoUrl ?? "/logo-dark-bg.png"}
               alt="Atitude Creative"
-              width={510}
-              height={138}
-              className="h-14 w-auto"
-              priority
-              unoptimized
+              className="h-14 w-auto object-contain"
             />
             <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-walnut-300">
               Portal dos Ministérios
