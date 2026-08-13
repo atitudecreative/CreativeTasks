@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -41,7 +42,12 @@ export type CurrentUser = {
   papelGlobal: "nenhum" | "atendimento" | "gestor_comunicacao" | "administrador_tecnico";
 };
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// cache() do React memoiza por request (RSC): sem isso, layout.tsx e cada
+// page.tsx chamavam getCurrentUser/getUserMemberships/getCurrentMinistry
+// de novo cada um, duplicando 3-4 idas ao Supabase (auth.getUser + query)
+// em toda navegação. Com cache(), a segunda chamada com os mesmos
+// argumentos dentro do mesmo request reaproveita o resultado da primeira.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -60,7 +66,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     fullName: profile?.full_name ?? null,
     papelGlobal: (profile?.papel_global as CurrentUser["papelGlobal"]) ?? "nenhum",
   };
-}
+});
 
 export function isComunicacaoGlobal(user: CurrentUser | null): boolean {
   return user?.papelGlobal === "gestor_comunicacao" || user?.papelGlobal === "administrador_tecnico";
@@ -70,7 +76,7 @@ export function isComunicacaoGlobal(user: CurrentUser | null): boolean {
 // (ministry_members). Quem tem papel_global de Comunicação enxerga
 // todos os ministérios via RLS mesmo sem vínculo — para esses casos
 // use getAllMinistries() para o seletor.
-export async function getUserMemberships(): Promise<MinistryMembership[]> {
+export const getUserMemberships = cache(async (): Promise<MinistryMembership[]> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -94,9 +100,9 @@ export async function getUserMemberships(): Promise<MinistryMembership[]> {
       role: row.role as MinistryRole,
       ministry: row.ministries as unknown as Ministry,
     }));
-}
+});
 
-export async function getAllMinistries(): Promise<Ministry[]> {
+export const getAllMinistries = cache(async (): Promise<Ministry[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ministries")
@@ -109,7 +115,7 @@ export async function getAllMinistries(): Promise<Ministry[]> {
   }
 
   return data ?? [];
-}
+});
 
 // Lista pra tela de cadastro de ministérios: além dos campos básicos, traz
 // quantos usuários e quantas demandas cada ministério tem — ajuda a
@@ -174,11 +180,11 @@ export async function getMinistryById(id: string): Promise<MinistryDetail | null
 // ministério cadastrado no banco. Esse caso não é "sem acesso" — só
 // não tem ministério pra mostrar ainda, então quem chama isso decide o
 // que fazer (normalmente: mandar pro painel administrativo).
-export async function getCurrentMinistry(): Promise<{
+export const getCurrentMinistry = cache(async (): Promise<{
   ministry: Ministry | null;
   role: MinistryRole | null;
   user: CurrentUser;
-} | null> {
+} | null> => {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -205,7 +211,7 @@ export async function getCurrentMinistry(): Promise<{
   }
 
   return null;
-}
+});
 
 // Use isso nas páginas do lado ministério (Início, Demandas, Campanhas,
 // Entregas, Meu acesso): garante um ministério de verdade ou manda o
