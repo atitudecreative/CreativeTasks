@@ -17,6 +17,7 @@ const ADMIN_LINKS = [
   { href: "/dashboard/admin/campanhas-pendentes", label: "Campanhas ativas" },
   { href: "/dashboard/admin/ministerios", label: "Ministérios (cadastro)" },
   { href: "/dashboard/admin/usuarios", label: "Usuários e acessos" },
+  { href: "/dashboard/admin/marca", label: "Marca do site" },
 ];
 
 function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string | null }) {
