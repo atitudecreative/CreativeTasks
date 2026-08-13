@@ -23,28 +23,41 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
 
   const today = new Date(new Date().toDateString());
 
-  return (ministries ?? []).map((m) => {
-    const ministryDemands = (demands ?? []).filter((d) => d.ministry_id === m.id);
-    const ministryCampaigns = (campaigns ?? []).filter((c) => c.ministry_id === m.id);
+  // Uma passada só por cada tabela, acumulando num Map por ministério — em
+  // vez de rodar 4 .filter() no array inteiro de demandas/campanhas pra
+  // cada ministério (O(n × m), fica lento à medida que a base cresce).
+  type Counts = {
+    demandasAtivas: number;
+    demandasAtrasadas: number;
+    campanhasAtivas: number;
+    campanhasEmAtencaoOuCritica: number;
+  };
+  const byMinistry = new Map<string, Counts>();
+  const getCounts = (ministryId: string): Counts => {
+    let c = byMinistry.get(ministryId);
+    if (!c) {
+      c = { demandasAtivas: 0, demandasAtrasadas: 0, campanhasAtivas: 0, campanhasEmAtencaoOuCritica: 0 };
+      byMinistry.set(ministryId, c);
+    }
+    return c;
+  };
 
-    const demandasAtivas = ministryDemands.filter(
-      (d) => d.status !== "concluida" && d.status !== "cancelada"
-    );
-    const demandasAtrasadas = demandasAtivas.filter(
-      (d) => d.prazo_acordado && new Date(d.prazo_acordado) < today
-    );
-    const campanhasAtivas = ministryCampaigns.filter((c) => c.saude !== "concluida");
-    const campanhasEmRisco = ministryCampaigns.filter(
-      (c) => c.saude === "atencao" || c.saude === "critica"
-    );
+  for (const d of demands ?? []) {
+    if (d.status === "concluida" || d.status === "cancelada") continue;
+    const c = getCounts(d.ministry_id);
+    c.demandasAtivas++;
+    if (d.prazo_acordado && new Date(d.prazo_acordado) < today) c.demandasAtrasadas++;
+  }
 
-    return {
-      id: m.id,
-      name: m.name,
-      demandasAtivas: demandasAtivas.length,
-      demandasAtrasadas: demandasAtrasadas.length,
-      campanhasAtivas: campanhasAtivas.length,
-      campanhasEmAtencaoOuCritica: campanhasEmRisco.length,
-    };
-  });
+  for (const camp of campaigns ?? []) {
+    const c = getCounts(camp.ministry_id);
+    if (camp.saude !== "concluida") c.campanhasAtivas++;
+    if (camp.saude === "atencao" || camp.saude === "critica") c.campanhasEmAtencaoOuCritica++;
+  }
+
+  return (ministries ?? []).map((m) => ({
+    id: m.id,
+    name: m.name,
+    ...getCounts(m.id),
+  }));
 }
