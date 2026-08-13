@@ -8,7 +8,7 @@ import {
   DEFAULT_WALNUT_COLOR,
 } from "@/lib/theme";
 
-export type SiteTheme = { brandColor: string; walnutColor: string };
+export type SiteTheme = { brandColor: string; walnutColor: string; logoUrl: string | null };
 
 // Cor "própria" do usuário logado — cada campo fica null se a pessoa
 // nunca escolheu uma cor pessoal (aí vale o padrão do site).
@@ -20,14 +20,14 @@ export const getSiteTheme = cache(async (): Promise<SiteTheme> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("site_theme")
-    .select("brand_color, walnut_color")
+    .select("brand_color, walnut_color, logo_url")
     .eq("id", true)
     .maybeSingle();
 
   if (error || !data) {
-    return { brandColor: DEFAULT_BRAND_COLOR, walnutColor: DEFAULT_WALNUT_COLOR };
+    return { brandColor: DEFAULT_BRAND_COLOR, walnutColor: DEFAULT_WALNUT_COLOR, logoUrl: null };
   }
-  return { brandColor: data.brand_color, walnutColor: data.walnut_color };
+  return { brandColor: data.brand_color, walnutColor: data.walnut_color, logoUrl: data.logo_url ?? null };
 });
 
 // Cor pessoal do usuário logado (colunas em profiles), sem aplicar
@@ -65,6 +65,9 @@ export const getEffectiveTheme = cache(async (): Promise<SiteTheme> => {
   return {
     brandColor: override.brandColor ?? site.brandColor,
     walnutColor: override.walnutColor ?? site.walnutColor,
+    // Logo não é pessoal — é uma identidade de marca única (definida em
+    // /dashboard/admin/marca), sempre a do site.
+    logoUrl: site.logoUrl,
   };
 });
 
