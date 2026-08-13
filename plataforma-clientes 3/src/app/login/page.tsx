@@ -29,8 +29,8 @@ export default async function LoginPage({
           <Image
             src="/logo-dark-bg.png"
             alt="Atitude Creative"
-            width={522}
-            height={150}
+            width={510}
+            height={138}
             className="h-10 w-auto"
             priority
             unoptimized
@@ -61,8 +61,8 @@ export default async function LoginPage({
               <Image
                 src="/logo-dark-bg.png"
                 alt="Atitude Creative"
-                width={522}
-                height={150}
+                width={510}
+                height={138}
                 className="h-8 w-auto"
                 priority
                 unoptimized
