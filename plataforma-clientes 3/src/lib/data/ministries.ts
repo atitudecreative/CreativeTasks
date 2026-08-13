@@ -13,6 +13,9 @@ export type Ministry = {
   description: string | null;
   categoria: string;
   status: string;
+  // Imagem de fundo do menu lateral quando esse é o ministério ativo —
+  // configurada só pela Comunicação, na edição do ministério.
+  capa_url: string | null;
 };
 
 // Versão completa, usada na tela de edição — inclui os campos de contato
@@ -86,7 +89,7 @@ export const getUserMemberships = cache(async (): Promise<MinistryMembership[]> 
 
   const { data, error } = await supabase
     .from("ministry_members")
-    .select("role, ministries(id, name, slug, sigla, description, categoria, status)")
+    .select("role, ministries(id, name, slug, sigla, description, categoria, status, capa_url)")
     .eq("user_id", user.id);
 
   if (error) {
@@ -106,7 +109,7 @@ export const getAllMinistries = cache(async (): Promise<Ministry[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ministries")
-    .select("id, name, slug, sigla, description, categoria, status")
+    .select("id, name, slug, sigla, description, categoria, status, capa_url")
     .order("name");
 
   if (error) {
@@ -127,7 +130,7 @@ export async function getAllMinistriesWithCounts(): Promise<MinistryWithCounts[]
   const [{ data: ministries, error }, { data: members }, { data: demands }] = await Promise.all([
     supabase
       .from("ministries")
-      .select("id, name, slug, sigla, description, categoria, status")
+      .select("id, name, slug, sigla, description, categoria, status, capa_url")
       .order("name"),
     supabase.from("ministry_members").select("ministry_id"),
     supabase.from("demands").select("ministry_id"),
@@ -159,7 +162,7 @@ export async function getMinistryById(id: string): Promise<MinistryDetail | null
   const { data, error } = await supabase
     .from("ministries")
     .select(
-      "id, name, slug, sigla, description, categoria, status, pastor_responsavel, ponto_focal_ministerio, ponto_focal_comunicacao, centro_custo"
+      "id, name, slug, sigla, description, categoria, status, capa_url, pastor_responsavel, ponto_focal_ministerio, ponto_focal_comunicacao, centro_custo"
     )
     .eq("id", id)
     .maybeSingle();
