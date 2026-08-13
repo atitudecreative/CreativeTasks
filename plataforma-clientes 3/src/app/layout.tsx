@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { getSiteTheme, buildThemeCssVars } from "@/lib/data/theme";
+import { getEffectiveTheme, buildThemeCssVars } from "@/lib/data/theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const theme = await getSiteTheme();
+  const theme = await getEffectiveTheme();
   const themeVars = buildThemeCssVars(theme);
 
   return (
