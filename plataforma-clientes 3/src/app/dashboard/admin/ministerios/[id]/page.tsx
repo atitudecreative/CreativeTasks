@@ -4,6 +4,7 @@ import { requireComunicacao, getMinistryById } from "@/lib/data/ministries";
 import { createClient } from "@/lib/supabase/server";
 import { EditMinistryForm } from "../EditMinistryForm";
 import { DeleteMinistryButton } from "../DeleteMinistryButton";
+import { CapaUploadForm } from "../CapaUploadForm";
 
 export default async function EditMinistryPage({ params }: { params: Promise<{ id: string }> }) {
   await requireComunicacao();
@@ -29,6 +30,10 @@ export default async function EditMinistryPage({ params }: { params: Promise<{ i
 
       <div className="mb-6">
         <EditMinistryForm ministry={ministry} />
+      </div>
+
+      <div className="mb-6">
+        <CapaUploadForm ministryId={ministry.id} ministryName={ministry.name} currentCapaUrl={ministry.capa_url} />
       </div>
 
       <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
