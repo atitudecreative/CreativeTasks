@@ -61,7 +61,13 @@ export function DemandasPorMesChart({ data }: { data: MonthlyDemandStat[] }) {
           labelStyle={{ fontWeight: 600, color: "#292524" }}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="total" name="Total de demandas" fill="#f3701c" radius={[6, 6, 0, 0]} maxBarSize={40} />
+        <Bar
+          dataKey="total"
+          name="Total de demandas"
+          fill="rgb(var(--brand-500))"
+          radius={[6, 6, 0, 0]}
+          maxBarSize={40}
+        />
         <Line
           type="monotone"
           dataKey="concluidas"
