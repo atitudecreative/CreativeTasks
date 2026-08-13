@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/dashboard/campanhas", label: "Campanhas e eventos" },
   { href: "/dashboard/entregas", label: "Entregas e arquivos" },
   { href: "/dashboard/acesso", label: "Meu acesso" },
+  { href: "/dashboard/aparencia", label: "Aparência" },
 ];
 
 const ADMIN_LINKS = [
@@ -16,7 +17,6 @@ const ADMIN_LINKS = [
   { href: "/dashboard/admin/campanhas-pendentes", label: "Campanhas ativas" },
   { href: "/dashboard/admin/ministerios", label: "Ministérios (cadastro)" },
   { href: "/dashboard/admin/usuarios", label: "Usuários e acessos" },
-  { href: "/dashboard/admin/aparencia", label: "Aparência" },
 ];
 
 function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string | null }) {
