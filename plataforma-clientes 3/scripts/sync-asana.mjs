@@ -62,6 +62,37 @@ async function fetchAllTasks(projectGid) {
   return tasks;
 }
 
+// `/projects/{gid}/tasks` só devolve tarefas de primeiro nível — subtarefas
+// (demandas "filhas") precisam de uma chamada à parte, por tarefa pai.
+async function fetchSubtasks(taskGid) {
+  const tasks = [];
+  let offset;
+
+  do {
+    const url = new URL(`${ASANA_API}/tasks/${taskGid}/subtasks`);
+    url.searchParams.set("opt_fields", TASK_FIELDS);
+    url.searchParams.set("limit", "100");
+    if (offset) url.searchParams.set("offset", offset);
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${ASANA_ACCESS_TOKEN}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(
+        `Asana API retornou ${res.status} para as subtarefas de ${taskGid}: ${body}`
+      );
+    }
+
+    const json = await res.json();
+    tasks.push(...json.data);
+    offset = json.next_page?.offset;
+  } while (offset);
+
+  return tasks;
+}
+
 // Busca TODAS as campanhas já cadastradas (de qualquer ministério) e
 // monta um mapa nome (minúsculo) -> id. Global, não por ministério: uma
 // tag com o mesmo nome em projetos do Asana de ministérios diferentes
@@ -160,6 +191,86 @@ async function syncDemandCampaignLinks(demandId, desiredCampaignIds) {
   }
 }
 
+// Grava UMA tarefa do Asana (de topo ou subtarefa) como linha de `demands`
+// e sincroniza seus vínculos de tag/campanha. `parentDemandId` é null pra
+// tarefa de topo, ou o id da demanda pai quando `task` é uma subtarefa —
+// é isso que faz a aba Demandas mostrar só o card pai e o detalhe da
+// demanda listar as filhas com o status de cada uma.
+//
+// Existe um gatilho que gera `identificador` (DEM-YYYY-NNNN) só em INSERT.
+// Um upsert "cego" dispararia esse gatilho pra toda linha, inclusive as
+// que já existem e só vão virar UPDATE — desperdiçando números da
+// sequence à toa e, se a sequence já estiver dessincronizada dos dados
+// (ex: edição manual no Table Editor), gerando colisão. Por isso aqui a
+// gente separa: linha que já existe (mesmo ministry_id + asana_task_gid)
+// leva um UPDATE de verdade, sem tocar em identificador; só linha nova
+// passa por INSERT. Campos preenchidos manualmente no portal (escopo,
+// observação publicada etc.) não são tocados.
+async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId) {
+  const row = {
+    ministry_id: ministryId,
+    asana_task_gid: task.gid,
+    titulo: task.name,
+    status: task.completed ? "concluida" : "em_producao",
+    prazo_acordado: task.due_on ?? null,
+    link_origem: task.permalink_url ?? null,
+    observacao_interna: task.assignee?.name
+      ? `Sincronizado do Asana. Responsável no Asana: ${task.assignee.name}.`
+      : "Sincronizado do Asana.",
+    fonte_externa: "asana",
+    parent_demand_id: parentDemandId,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existing, error: findError } = await supabase
+    .from("demands")
+    .select("id")
+    .eq("ministry_id", row.ministry_id)
+    .eq("asana_task_gid", row.asana_task_gid)
+    .maybeSingle();
+
+  if (findError) {
+    throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
+  }
+
+  let demandId = existing?.id ?? null;
+
+  if (existing) {
+    const { error: updateError } = await supabase.from("demands").update(row).eq("id", existing.id);
+    if (updateError) {
+      throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
+    }
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from("demands")
+      .insert(row)
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
+    }
+
+    demandId = inserted.id;
+  }
+
+  const tagNames = (task.tags ?? []).map((tag) => tag.name).filter(Boolean);
+
+  if (demandId && tagNames.length > 0) {
+    const campaignIds = [];
+    for (const tagName of tagNames) {
+      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
+      if (campaignId) campaignIds.push(campaignId);
+    }
+    await syncDemandCampaignLinks(demandId, campaignIds);
+  } else if (demandId) {
+    // tarefa ficou sem nenhuma tag — remove todos os vínculos antigos
+    await syncDemandCampaignLinks(demandId, []);
+  }
+
+  return { demandId, completed: task.completed === true };
+}
+
 async function syncMinistry(dataSource, campaignMap) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
@@ -174,94 +285,29 @@ async function syncMinistry(dataSource, campaignMap) {
 
   const tasks = await fetchAllTasks(projectGid);
 
-  // rows: cada item guarda a linha pra gravar em `demands` + a lista de
-  // nomes de tag da tarefa (separado, porque tag não é mais coluna da
-  // linha — vira registro em demand_campaigns depois que sabemos o id).
-  const rows = [];
+  let demandCount = 0;
+  let completedCount = 0;
+  let subtaskCount = 0;
+
   for (const t of tasks) {
-    const row = {
-      ministry_id: ministryId,
-      asana_task_gid: t.gid,
-      titulo: t.name,
-      status: t.completed ? "concluida" : "em_producao",
-      prazo_acordado: t.due_on ?? null,
-      link_origem: t.permalink_url ?? null,
-      observacao_interna: t.assignee?.name
-        ? `Sincronizado do Asana. Responsável no Asana: ${t.assignee.name}.`
-        : "Sincronizado do Asana.",
-      fonte_externa: "asana",
-      updated_at: new Date().toISOString(),
-    };
+    const { demandId, completed } = await upsertTaskAsDemand(ministryId, t, campaignMap, null);
+    demandCount++;
+    if (completed) completedCount++;
 
-    const tagNames = (t.tags ?? []).map((tag) => tag.name).filter(Boolean);
+    if (!demandId) continue;
 
-    rows.push({ row, tagNames });
-  }
-
-  if (rows.length > 0) {
-    // Existe um gatilho que gera `identificador` (DEM-YYYY-NNNN) só em
-    // INSERT. Um upsert "cego" dispararia esse gatilho pra toda linha,
-    // inclusive as que já existem e só vão virar UPDATE — desperdiçando
-    // números da sequence à toa e, se a sequence já estiver
-    // dessincronizada dos dados (ex: edição manual no Table Editor),
-    // gerando colisão. Por isso aqui a gente separa: linha que já existe
-    // (mesmo ministry_id + asana_task_gid) leva um UPDATE de verdade, sem
-    // tocar em identificador; só linha nova passa por INSERT. Campos
-    // preenchidos manualmente no portal (escopo, observação publicada
-    // etc.) não são tocados.
-    for (const { row, tagNames } of rows) {
-      const { data: existing, error: findError } = await supabase
-        .from("demands")
-        .select("id")
-        .eq("ministry_id", row.ministry_id)
-        .eq("asana_task_gid", row.asana_task_gid)
-        .maybeSingle();
-
-      if (findError) {
-        throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
-      }
-
-      let demandId = existing?.id ?? null;
-
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from("demands")
-          .update(row)
-          .eq("id", existing.id);
-
-        if (updateError) {
-          throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
-        }
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from("demands")
-          .insert(row)
-          .select("id")
-          .single();
-
-        if (insertError) {
-          throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
-        }
-
-        demandId = inserted.id;
-      }
-
-      if (demandId && tagNames.length > 0) {
-        const campaignIds = [];
-        for (const tagName of tagNames) {
-          const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
-          if (campaignId) campaignIds.push(campaignId);
-        }
-        await syncDemandCampaignLinks(demandId, campaignIds);
-      } else if (demandId) {
-        // tarefa ficou sem nenhuma tag — remove todos os vínculos antigos
-        await syncDemandCampaignLinks(demandId, []);
-      }
+    // Subtarefas do Asana ("demandas filhas") não vêm na listagem de
+    // primeiro nível — precisam de uma chamada por tarefa pai.
+    const subtasks = await fetchSubtasks(t.gid);
+    for (const st of subtasks) {
+      const { completed: subCompleted } = await upsertTaskAsDemand(ministryId, st, campaignMap, demandId);
+      demandCount++;
+      subtaskCount++;
+      if (subCompleted) completedCount++;
     }
   }
 
-  const completedCount = rows.filter((r) => r.row.status === "concluida").length;
-  const openCount = rows.length - completedCount;
+  const openCount = demandCount - completedCount;
 
   await supabase
     .from("data_sources")
@@ -270,7 +316,7 @@ async function syncMinistry(dataSource, campaignMap) {
     .eq("source", "asana");
 
   console.log(
-    `  -> ${rows.length} demandas (${openCount} em produção, ${completedCount} concluídas).`
+    `  -> ${demandCount} demandas (${openCount} em produção, ${completedCount} concluídas, ${subtaskCount} são subtarefas).`
   );
 }
 
