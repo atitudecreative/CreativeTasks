@@ -15,10 +15,18 @@ export type MinistryOverview = {
 export async function getAdminOverview(): Promise<MinistryOverview[]> {
   const supabase = await createClient();
 
-  const [{ data: ministries }, { data: demands }, { data: campaigns }] = await Promise.all([
+  // Campanha não pertence mais a um ministério só (tags globais, migration
+  // 0018) — "campanhasAtivas" de um ministério agora conta toda campanha
+  // publicada com AO MENOS uma demanda dele, não só as que nasceram lá.
+  // Por isso busca via demand_campaigns (join com demands e campaigns) em
+  // vez de campaigns.ministry_id direto.
+  const [{ data: ministries }, { data: demands }, { data: campaignLinks }] = await Promise.all([
     supabase.from("ministries").select("id, name").order("name"),
     supabase.from("demands").select("ministry_id, status, prazo_acordado"),
-    supabase.from("campaigns").select("ministry_id, saude").eq("publicada", true),
+    supabase
+      .from("demand_campaigns")
+      .select("campaign_id, demands(ministry_id), campaigns!inner(saude, publicada)")
+      .eq("campaigns.publicada", true),
   ]);
 
   const today = new Date(new Date().toDateString());
@@ -49,10 +57,21 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
     if (d.prazo_acordado && new Date(d.prazo_acordado) < today) c.demandasAtrasadas++;
   }
 
-  for (const camp of campaigns ?? []) {
-    const c = getCounts(camp.ministry_id);
-    if (camp.saude !== "concluida") c.campanhasAtivas++;
-    if (camp.saude === "atencao" || camp.saude === "critica") c.campanhasEmAtencaoOuCritica++;
+  // campanha pode ter várias demandas do mesmo ministério — conta a
+  // campanha uma vez só por ministério (Set de "ministryId:campaignId").
+  const seenPerMinistry = new Set<string>();
+  for (const row of campaignLinks ?? []) {
+    const demand = row.demands as unknown as { ministry_id: string } | null;
+    const campaign = row.campaigns as unknown as { saude: string; publicada: boolean } | null;
+    if (!demand?.ministry_id || !campaign) continue;
+
+    const key = `${demand.ministry_id}:${row.campaign_id}`;
+    if (seenPerMinistry.has(key)) continue;
+    seenPerMinistry.add(key);
+
+    const c = getCounts(demand.ministry_id);
+    if (campaign.saude !== "concluida") c.campanhasAtivas++;
+    if (campaign.saude === "atencao" || campaign.saude === "critica") c.campanhasEmAtencaoOuCritica++;
   }
 
   return (ministries ?? []).map((m) => ({
