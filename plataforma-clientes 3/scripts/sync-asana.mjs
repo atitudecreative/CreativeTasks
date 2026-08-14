@@ -31,7 +31,13 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ASANA_ACCESS_TOKEN) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const ASANA_API = "https://app.asana.com/api/1.0";
-const TASK_FIELDS = "name,completed,assignee.name,due_on,permalink_url,notes,tags.name";
+// `parent` entra pra dar pra detectar, na listagem de primeiro nível do
+// projeto, uma tarefa que na verdade é subtarefa de outra (o Asana deixa
+// adicionar uma subtarefa como card independente do quadro também — nesse
+// caso ela aparece tanto em /projects/{gid}/tasks quanto em
+// /tasks/{pai}/subtasks). Sem isso não dá pra diferenciar tarefa de topo
+// de verdade de subtarefa "solta" no quadro.
+const TASK_FIELDS = "name,completed,assignee.name,due_on,permalink_url,notes,tags.name,parent";
 
 async function fetchAllTasks(projectGid) {
   const tasks = [];
@@ -271,6 +277,26 @@ async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId)
   return { demandId, completed: task.completed === true };
 }
 
+// Desce recursivamente a árvore de subtarefas: busca as subtarefas de
+// `parentTaskGid`, grava cada uma com `parentDemandId` como pai, e repete
+// pra CADA UMA delas (subtarefa da subtarefa, e assim por diante — sem
+// limite de profundidade). `stats` é um objeto compartilhado só pra
+// acumular contadores pro log final sem precisar somar retornos aninhados.
+async function syncSubtasksRecursively(ministryId, parentTaskGid, parentDemandId, campaignMap, stats) {
+  const subtasks = await fetchSubtasks(parentTaskGid);
+
+  for (const st of subtasks) {
+    const { demandId, completed } = await upsertTaskAsDemand(ministryId, st, campaignMap, parentDemandId);
+    stats.demandCount++;
+    stats.subtaskCount++;
+    if (completed) stats.completedCount++;
+
+    if (demandId) {
+      await syncSubtasksRecursively(ministryId, st.gid, demandId, campaignMap, stats);
+    }
+  }
+}
+
 async function syncMinistry(dataSource, campaignMap) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
@@ -283,30 +309,30 @@ async function syncMinistry(dataSource, campaignMap) {
 
   console.log(`Sincronizando projeto Asana ${projectGid} (ministério ${ministryId})...`);
 
-  const tasks = await fetchAllTasks(projectGid);
+  const allTasks = await fetchAllTasks(projectGid);
 
-  let demandCount = 0;
-  let completedCount = 0;
-  let subtaskCount = 0;
+  // Só processa aqui quem NÃO tem `parent` (tarefa de topo de verdade).
+  // Quem tem `parent` é uma subtarefa que também foi adicionada como card
+  // do quadro — ela é ignorada neste laço e só entra via
+  // syncSubtasksRecursively, chamado a partir do pai verdadeiro. Sem esse
+  // filtro, ela seria gravada duas vezes (uma vez como se fosse pai, outra
+  // como filha de verdade) e, dependendo da ordem de processamento, o
+  // vínculo certo podia ser sobrescrito de volta pra "sem pai".
+  const tasks = allTasks.filter((t) => !t.parent);
+
+  const stats = { demandCount: 0, completedCount: 0, subtaskCount: 0 };
 
   for (const t of tasks) {
     const { demandId, completed } = await upsertTaskAsDemand(ministryId, t, campaignMap, null);
-    demandCount++;
-    if (completed) completedCount++;
+    stats.demandCount++;
+    if (completed) stats.completedCount++;
 
     if (!demandId) continue;
 
-    // Subtarefas do Asana ("demandas filhas") não vêm na listagem de
-    // primeiro nível — precisam de uma chamada por tarefa pai.
-    const subtasks = await fetchSubtasks(t.gid);
-    for (const st of subtasks) {
-      const { completed: subCompleted } = await upsertTaskAsDemand(ministryId, st, campaignMap, demandId);
-      demandCount++;
-      subtaskCount++;
-      if (subCompleted) completedCount++;
-    }
+    await syncSubtasksRecursively(ministryId, t.gid, demandId, campaignMap, stats);
   }
 
+  const { demandCount, completedCount, subtaskCount } = stats;
   const openCount = demandCount - completedCount;
 
   await supabase
