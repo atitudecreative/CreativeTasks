@@ -67,27 +67,26 @@ export async function deleteCampaign(formData: FormData) {
 }
 
 // ---------------------------------------------------------------
-// Pastas de campanha (migration 0012) — agrupam campanhas dentro de um
-// ministério, ex: pasta "Festa da Roça" com uma campanha por edição/ano.
+// Pastas de campanha (migration 0012, globais desde a 0018) — agrupam
+// campanhas relacionadas, ex: pasta "Festa da Roça" com uma campanha
+// por edição/ano. Não pertencem mais a um ministério específico.
 // ---------------------------------------------------------------
 
 export async function createCampaignFolder(formData: FormData) {
   await requireComunicacao();
 
-  const ministryId = String(formData.get("ministryId") ?? "");
   const nome = String(formData.get("nome") ?? "").trim();
-  if (!ministryId || !nome) return;
+  if (!nome) return;
 
   const supabase = await createClient();
   const { data: siblings } = await supabase
     .from("campaign_folders")
     .select("posicao")
-    .eq("ministry_id", ministryId)
     .order("posicao", { ascending: false })
     .limit(1);
   const posicao = (siblings?.[0]?.posicao ?? -1) + 1;
 
-  await supabase.from("campaign_folders").insert({ ministry_id: ministryId, nome, posicao });
+  await supabase.from("campaign_folders").insert({ nome, posicao });
 
   revalidateCampaignPaths();
 }
@@ -121,6 +120,8 @@ export async function deleteCampaignFolder(formData: FormData) {
 
 // Move uma campanha pra dentro de uma pasta (ou de volta pra "sem pasta",
 // quando folderId vem vazio), sempre entrando no fim da lista de destino.
+// A posição é calculada dentro da pasta (ou de "sem pasta") inteira, sem
+// mais separar por ministério — pastas são globais desde a migration 0018.
 export async function moveCampaignToFolder(formData: FormData) {
   await requireComunicacao();
 
@@ -130,22 +131,10 @@ export async function moveCampaignToFolder(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { data: campaign } = await supabase
-    .from("campaigns")
-    .select("ministry_id")
-    .eq("id", campaignId)
-    .maybeSingle();
-
-  let posicao = 0;
-  if (campaign) {
-    let query = supabase
-      .from("campaigns")
-      .select("posicao")
-      .eq("ministry_id", campaign.ministry_id);
-    query = folderId ? query.eq("folder_id", folderId) : query.is("folder_id", null);
-    const { data: siblings } = await query.order("posicao", { ascending: false }).limit(1);
-    posicao = (siblings?.[0]?.posicao ?? -1) + 1;
-  }
+  let query = supabase.from("campaigns").select("posicao");
+  query = folderId ? query.eq("folder_id", folderId) : query.is("folder_id", null);
+  const { data: siblings } = await query.order("posicao", { ascending: false }).limit(1);
+  const posicao = (siblings?.[0]?.posicao ?? -1) + 1;
 
   await supabase.from("campaigns").update({ folder_id: folderId, posicao }).eq("id", campaignId);
 
