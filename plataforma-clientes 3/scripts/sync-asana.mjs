@@ -395,52 +395,97 @@ async function syncMinistry(dataSource, campaignMap) {
   );
 }
 
-async function main() {
-  const { data: sources, error } = await supabase
-    .from("data_sources")
-    .select("ministry_id, external_id")
-    .eq("source", "asana");
+// Trava manual (tabela `sync_lock`, migration 0020) pra impedir duas
+// rodadas do sync correndo ao mesmo tempo — foi confirmado na prática que
+// isso causa timeout em cascata (duas execuções brigando pela mesma linha
+// da `demands`). O UPDATE é atômico: só "ganha" o cadeado quem conseguir
+// mudar `locked` de false (ou destravado há mais de 1h, sinal de rodada
+// anterior que morreu sem liberar) pra true numa única operação — se duas
+// chamadas tentarem ao mesmo tempo, o banco serializa e só uma consegue.
+async function tryAcquireSyncLock() {
+  const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("sync_lock")
+    .update({ locked: true, locked_at: new Date().toISOString() })
+    .eq("id", "asana")
+    .or(`locked.eq.false,locked_at.lt.${staleThreshold}`)
+    .select("id");
 
   if (error) {
-    throw new Error(`Erro ao buscar data_sources: ${error.message}`);
+    throw new Error(`Erro ao tentar travar a sincronização: ${error.message}`);
   }
 
-  if (!sources || sources.length === 0) {
+  return (data ?? []).length > 0;
+}
+
+async function releaseSyncLock() {
+  const { error } = await supabase.from("sync_lock").update({ locked: false }).eq("id", "asana");
+  if (error) {
+    console.warn(`Não consegui destravar a sincronização (não deve travar a próxima rodada, ela ` +
+      `também tenta destravar sozinha se achar o cadeado com mais de 1h): ${error.message}`);
+  }
+}
+
+async function main() {
+  const acquired = await tryAcquireSyncLock();
+  if (!acquired) {
     console.log(
-      "Nenhum ministério com integração 'asana' cadastrada em data_sources. Nada a fazer."
+      "Já existe uma sincronização em andamento (ou travada há menos de 1h) — saindo sem fazer " +
+        "nada, pra não rodar em paralelo e brigar pelos mesmos dados."
     );
     return;
   }
 
-  // Um mapa só, carregado uma vez e compartilhado entre todos os
-  // ministérios dessa rodada — assim, se dois ministérios sincronizados
-  // na mesma execução introduzirem a mesma tag nova, a segunda reaproveita
-  // a campanha que a primeira acabou de criar em vez de duplicar.
-  const campaignMap = await loadCampaignMap();
+  try {
+    const { data: sources, error } = await supabase
+      .from("data_sources")
+      .select("ministry_id, external_id")
+      .eq("source", "asana");
 
-  // Antes, um erro num ministério (ex: timeout no meio da lista) derrubava
-  // o processo inteiro e nenhum ministério depois dele na fila chegava a
-  // sincronizar naquela rodada. Agora cada ministério é isolado: se um
-  // falhar, fica registrado no log e a rotina segue pros próximos — mas o
-  // job ainda termina com status de erro (exit code 1) se algum falhou, pra
-  // não mascarar o problema no painel do Render.
-  let hadError = false;
-  for (const source of sources) {
-    try {
-      await syncMinistry(source, campaignMap);
-    } catch (err) {
-      hadError = true;
-      console.error(`Erro ao sincronizar ministério ${source.ministry_id}: ${err.message}. Seguindo pros próximos.`);
+    if (error) {
+      throw new Error(`Erro ao buscar data_sources: ${error.message}`);
     }
+
+    if (!sources || sources.length === 0) {
+      console.log(
+        "Nenhum ministério com integração 'asana' cadastrada em data_sources. Nada a fazer."
+      );
+      return;
+    }
+
+    // Um mapa só, carregado uma vez e compartilhado entre todos os
+    // ministérios dessa rodada — assim, se dois ministérios sincronizados
+    // na mesma execução introduzirem a mesma tag nova, a segunda reaproveita
+    // a campanha que a primeira acabou de criar em vez de duplicar.
+    const campaignMap = await loadCampaignMap();
+
+    // Antes, um erro num ministério (ex: timeout no meio da lista) derrubava
+    // o processo inteiro e nenhum ministério depois dele na fila chegava a
+    // sincronizar naquela rodada. Agora cada ministério é isolado: se um
+    // falhar, fica registrado no log e a rotina segue pros próximos — mas o
+    // job ainda termina com status de erro (exit code 1) se algum falhou, pra
+    // não mascarar o problema no painel do Render.
+    let hadError = false;
+    for (const source of sources) {
+      try {
+        await syncMinistry(source, campaignMap);
+      } catch (err) {
+        hadError = true;
+        console.error(`Erro ao sincronizar ministério ${source.ministry_id}: ${err.message}. Seguindo pros próximos.`);
+      }
+    }
+
+    console.log(
+      hadError
+        ? "Sincronização com o Asana concluída — com erro em pelo menos um ministério (veja acima)."
+        : "Sincronização com o Asana concluída."
+    );
+
+    if (hadError) process.exitCode = 1;
+  } finally {
+    await releaseSyncLock();
   }
-
-  console.log(
-    hadError
-      ? "Sincronização com o Asana concluída — com erro em pelo menos um ministério (veja acima)."
-      : "Sincronização com o Asana concluída."
-  );
-
-  if (hadError) process.exitCode = 1;
 }
 
 main().catch((err) => {
