@@ -20,6 +20,9 @@ export type CampaignRowData = {
   origem?: string;
   demandCount: number;
   folder_id: string | null;
+  // Nomes de todos os ministérios com demanda vinculada a essa campanha —
+  // pode ter mais de um, já que tags são globais (migration 0018).
+  ministryNames: string[];
 };
 
 function VisibilityToggle({ id, publicada }: { id: string; publicada: boolean }) {
@@ -162,6 +165,15 @@ export function CampaignRow({
           {TIPO_LABEL[campaign.tipo] ?? campaign.tipo}
           {campaign.origem === "asana_tag" && " · detectada por tag do Asana"} ·{" "}
           {campaign.demandCount} {campaign.demandCount === 1 ? "demanda" : "demandas"}
+          {campaign.ministryNames.length > 0 && (
+            <>
+              {" "}
+              ·{" "}
+              <span title="Ministérios com demanda vinculada a essa campanha">
+                {campaign.ministryNames.join(", ")}
+              </span>
+            </>
+          )}
         </p>
       </div>
 
