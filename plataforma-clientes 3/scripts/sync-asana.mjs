@@ -30,6 +30,27 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ASANA_ACCESS_TOKEN) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// A base cresceu muito depois que o sync passou a descer recursivamente
+// pelas subtarefas (uma tarefa "guarda-chuva" chegou a ter 1500+ filhas) —
+// isso multiplicou o número de idas e vindas ao banco, e de vez em quando
+// uma dessas operações esbarra num "statement timeout" passageiro (carga
+// momentânea, não um erro real de dado). Em vez de deixar isso derrubar a
+// sincronização inteira, tenta de novo algumas vezes com uma pequena
+// pausa antes de desistir.
+async function withRetry(operationFn, { attempts = 3, delayMs = 2000, label = "" } = {}) {
+  let result;
+  for (let i = 0; i < attempts; i++) {
+    result = await operationFn();
+    const isTimeout = /timeout/i.test(result?.error?.message ?? "");
+    if (!result?.error || !isTimeout || i === attempts - 1) return result;
+    console.warn(
+      `  (${label} deu timeout, tentativa ${i + 1}/${attempts} — tentando de novo em ${delayMs}ms...)`
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return result;
+}
+
 const ASANA_API = "https://app.asana.com/api/1.0";
 // `parent` entra pra dar pra detectar, na listagem de primeiro nível do
 // projeto, uma tarefa que na verdade é subtarefa de outra (o Asana deixa
@@ -228,12 +249,16 @@ async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId)
     updated_at: new Date().toISOString(),
   };
 
-  const { data: existing, error: findError } = await supabase
-    .from("demands")
-    .select("id")
-    .eq("ministry_id", row.ministry_id)
-    .eq("asana_task_gid", row.asana_task_gid)
-    .maybeSingle();
+  const { data: existing, error: findError } = await withRetry(
+    () =>
+      supabase
+        .from("demands")
+        .select("id")
+        .eq("ministry_id", row.ministry_id)
+        .eq("asana_task_gid", row.asana_task_gid)
+        .maybeSingle(),
+    { label: `buscar demanda existente (${row.titulo})` }
+  );
 
   if (findError) {
     throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
@@ -242,16 +267,18 @@ async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId)
   let demandId = existing?.id ?? null;
 
   if (existing) {
-    const { error: updateError } = await supabase.from("demands").update(row).eq("id", existing.id);
+    const { error: updateError } = await withRetry(
+      () => supabase.from("demands").update(row).eq("id", existing.id),
+      { label: `atualizar demanda (${row.titulo})` }
+    );
     if (updateError) {
       throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
     }
   } else {
-    const { data: inserted, error: insertError } = await supabase
-      .from("demands")
-      .insert(row)
-      .select("id")
-      .single();
+    const { data: inserted, error: insertError } = await withRetry(
+      () => supabase.from("demands").insert(row).select("id").single(),
+      { label: `criar demanda (${row.titulo})` }
+    );
 
     if (insertError) {
       throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
@@ -277,22 +304,40 @@ async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId)
   return { demandId, completed: task.completed === true };
 }
 
+// Trava de segurança: uma hierarquia de subtarefas do Asana não deveria
+// nunca chegar nem perto disso, mas evita recursão descontrolada (ex: se
+// algum dado vier estranho) travar a sincronização inteira.
+const MAX_SUBTASK_DEPTH = 15;
+
 // Desce recursivamente a árvore de subtarefas: busca as subtarefas de
 // `parentTaskGid`, grava cada uma com `parentDemandId` como pai, e repete
-// pra CADA UMA delas (subtarefa da subtarefa, e assim por diante — sem
-// limite de profundidade). `stats` é um objeto compartilhado só pra
-// acumular contadores pro log final sem precisar somar retornos aninhados.
-async function syncSubtasksRecursively(ministryId, parentTaskGid, parentDemandId, campaignMap, stats) {
+// pra CADA UMA delas (subtarefa da subtarefa, e assim por diante). `stats`
+// é um objeto compartilhado só pra acumular contadores pro log final sem
+// precisar somar retornos aninhados. Cada subtarefa é isolada num
+// try/catch: se UMA falhar (ex: timeout persistente do Postgres mesmo
+// depois do retry), ela é pulada e reportada no log, sem derrubar as
+// outras — antes, uma tarefa problemática interrompia a sincronização do
+// ministério inteiro (e de todos os ministérios seguintes na fila).
+async function syncSubtasksRecursively(ministryId, parentTaskGid, parentDemandId, campaignMap, stats, depth = 0) {
+  if (depth >= MAX_SUBTASK_DEPTH) {
+    console.warn(`  Profundidade máxima (${MAX_SUBTASK_DEPTH}) atingida em ${parentTaskGid}, parando de descer aqui.`);
+    return;
+  }
+
   const subtasks = await fetchSubtasks(parentTaskGid);
 
   for (const st of subtasks) {
-    const { demandId, completed } = await upsertTaskAsDemand(ministryId, st, campaignMap, parentDemandId);
-    stats.demandCount++;
-    stats.subtaskCount++;
-    if (completed) stats.completedCount++;
+    try {
+      const { demandId, completed } = await upsertTaskAsDemand(ministryId, st, campaignMap, parentDemandId);
+      stats.demandCount++;
+      stats.subtaskCount++;
+      if (completed) stats.completedCount++;
 
-    if (demandId) {
-      await syncSubtasksRecursively(ministryId, st.gid, demandId, campaignMap, stats);
+      if (demandId) {
+        await syncSubtasksRecursively(ministryId, st.gid, demandId, campaignMap, stats, depth + 1);
+      }
+    } catch (err) {
+      console.error(`  Erro ao sincronizar subtarefa "${st.name}" (${st.gid}): ${err.message}. Pulando.`);
     }
   }
 }
@@ -323,13 +368,17 @@ async function syncMinistry(dataSource, campaignMap) {
   const stats = { demandCount: 0, completedCount: 0, subtaskCount: 0 };
 
   for (const t of tasks) {
-    const { demandId, completed } = await upsertTaskAsDemand(ministryId, t, campaignMap, null);
-    stats.demandCount++;
-    if (completed) stats.completedCount++;
+    try {
+      const { demandId, completed } = await upsertTaskAsDemand(ministryId, t, campaignMap, null);
+      stats.demandCount++;
+      if (completed) stats.completedCount++;
 
-    if (!demandId) continue;
-
-    await syncSubtasksRecursively(ministryId, t.gid, demandId, campaignMap, stats);
+      if (demandId) {
+        await syncSubtasksRecursively(ministryId, t.gid, demandId, campaignMap, stats);
+      }
+    } catch (err) {
+      console.error(`  Erro ao sincronizar tarefa "${t.name}" (${t.gid}): ${err.message}. Pulando.`);
+    }
   }
 
   const { demandCount, completedCount, subtaskCount } = stats;
@@ -369,11 +418,29 @@ async function main() {
   // a campanha que a primeira acabou de criar em vez de duplicar.
   const campaignMap = await loadCampaignMap();
 
+  // Antes, um erro num ministério (ex: timeout no meio da lista) derrubava
+  // o processo inteiro e nenhum ministério depois dele na fila chegava a
+  // sincronizar naquela rodada. Agora cada ministério é isolado: se um
+  // falhar, fica registrado no log e a rotina segue pros próximos — mas o
+  // job ainda termina com status de erro (exit code 1) se algum falhou, pra
+  // não mascarar o problema no painel do Render.
+  let hadError = false;
   for (const source of sources) {
-    await syncMinistry(source, campaignMap);
+    try {
+      await syncMinistry(source, campaignMap);
+    } catch (err) {
+      hadError = true;
+      console.error(`Erro ao sincronizar ministério ${source.ministry_id}: ${err.message}. Seguindo pros próximos.`);
+    }
   }
 
-  console.log("Sincronização com o Asana concluída.");
+  console.log(
+    hadError
+      ? "Sincronização com o Asana concluída — com erro em pelo menos um ministério (veja acima)."
+      : "Sincronização com o Asana concluída."
+  );
+
+  if (hadError) process.exitCode = 1;
 }
 
 main().catch((err) => {
