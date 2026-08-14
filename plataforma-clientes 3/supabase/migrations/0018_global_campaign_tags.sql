@@ -40,8 +40,66 @@ alter table campaign_folders
   alter column ministry_id drop not null;
 
 -- ---------------------------------------------------------------
--- 3. RLS: visibilidade cruzada entre ministérios quando compartilham
--- uma campanha publicada.
+-- 3. Funções auxiliares (SECURITY DEFINER) pra checar visibilidade
+-- cruzada sem causar recursão de RLS.
+--
+-- Por quê: a policy de `demands` precisa consultar `demand_campaigns`
+-- pra saber se a demanda compartilha uma campanha; mas `demand_campaigns`
+-- também tem RLS, e a policy DELA precisa consultar `demands` de volta.
+-- Isso forma um ciclo (demands -> demand_campaigns -> demands -> ...)
+-- que o Postgres barra com "infinite recursion detected in policy".
+-- Empacotar a consulta cruzada numa função SECURITY DEFINER quebra o
+-- ciclo: por dentro da função, as consultas ignoram RLS (mesma técnica
+-- já usada em has_ministry_access/is_comunicacao_global pra consultar
+-- ministry_members/profiles sem recair na RLS delas).
+-- ---------------------------------------------------------------
+
+-- A campanha `target_campaign_id` tem alguma demanda vinculada de um
+-- ministério que o usuário logado acessa? (não olha publicada — quem
+-- chama decide se isso importa)
+create or replace function public.campaign_has_accessible_demand(target_campaign_id uuid)
+returns boolean as $$
+  select exists (
+    select 1
+    from demand_campaigns dc
+    join demands d on d.id = dc.demand_id
+    where dc.campaign_id = target_campaign_id
+      and public.has_ministry_access(d.ministry_id)
+  );
+$$ language sql stable security definer;
+
+-- Igual à de cima, mas só conta se a campanha estiver publicada —
+-- usado pra decidir se um VÍNCULO (linha de demand_campaigns) ou uma
+-- DEMANDA de outro ministério ficam visíveis via campanha compartilhada.
+create or replace function public.campaign_shared_with_accessible_ministry(target_campaign_id uuid)
+returns boolean as $$
+  select exists (
+    select 1
+    from demand_campaigns dc
+    join demands d on d.id = dc.demand_id
+    join campaigns c on c.id = target_campaign_id
+    where dc.campaign_id = target_campaign_id
+      and public.has_ministry_access(d.ministry_id)
+      and c.publicada = true
+  );
+$$ language sql stable security definer;
+
+-- A demanda `target_demand_id` compartilha alguma campanha publicada
+-- com uma demanda de um ministério que o usuário acessa?
+create or replace function public.demand_visible_via_shared_campaign(target_demand_id uuid)
+returns boolean as $$
+  select exists (
+    select 1
+    from demand_campaigns dc
+    where dc.demand_id = target_demand_id
+      and public.campaign_shared_with_accessible_ministry(dc.campaign_id)
+  );
+$$ language sql stable security definer;
+
+-- ---------------------------------------------------------------
+-- 4. RLS: visibilidade cruzada entre ministérios quando compartilham
+-- uma campanha publicada — usando as funções acima em vez de subquery
+-- direta, pra não recair em recursão.
 -- ---------------------------------------------------------------
 
 -- campaigns: além do vínculo com o ministério de origem, também
@@ -52,13 +110,7 @@ drop policy if exists "campaigns: acesso por origem ou por demanda vinculada" on
 create policy "campaigns: acesso por origem ou por demanda vinculada" on campaigns
   for select using (
     (ministry_id is not null and public.has_ministry_access(ministry_id))
-    or exists (
-      select 1
-      from demand_campaigns dc
-      join demands d on d.id = dc.demand_id
-      where dc.campaign_id = campaigns.id
-        and public.has_ministry_access(d.ministry_id)
-    )
+    or public.campaign_has_accessible_demand(campaigns.id)
   );
 
 -- demands: além do próprio ministério, também visível se a demanda
@@ -71,18 +123,7 @@ create policy "demands: acesso por ministério" on demands
   for select using (public.has_ministry_access(ministry_id));
 
 create policy "demands: visível via campanha compartilhada" on demands
-  for select using (
-    exists (
-      select 1
-      from demand_campaigns dc
-      join demand_campaigns dc2 on dc2.campaign_id = dc.campaign_id
-      join demands d2 on d2.id = dc2.demand_id
-      join campaigns c on c.id = dc.campaign_id
-      where dc.demand_id = demands.id
-        and c.publicada = true
-        and public.has_ministry_access(d2.ministry_id)
-    )
-  );
+  for select using (public.demand_visible_via_shared_campaign(demands.id));
 
 -- demand_campaigns: idem — o vínculo (linha da tabela de junção) fica
 -- visível não só quando a demanda diretamente ligada é sua, mas também
@@ -96,15 +137,7 @@ create policy "demand_campaigns: acesso por ministério ou campanha compartilhad
       where d.id = demand_campaigns.demand_id
         and public.has_ministry_access(d.ministry_id)
     )
-    or exists (
-      select 1
-      from demand_campaigns dc2
-      join demands d2 on d2.id = dc2.demand_id
-      join campaigns c on c.id = demand_campaigns.campaign_id
-      where dc2.campaign_id = demand_campaigns.campaign_id
-        and public.has_ministry_access(d2.ministry_id)
-        and c.publicada = true
-    )
+    or public.campaign_shared_with_accessible_ministry(demand_campaigns.campaign_id)
   );
 
 -- milestones (marcos): mesma lógica — visível também pra ministério
@@ -114,13 +147,7 @@ drop policy if exists "milestones: acesso por ministério ou campanha compartilh
 create policy "milestones: acesso por ministério ou campanha compartilhada" on milestones
   for select using (
     exists (select 1 from campaigns c where c.id = milestones.campaign_id and public.has_ministry_access(c.ministry_id))
-    or exists (
-      select 1
-      from demand_campaigns dc
-      join demands d on d.id = dc.demand_id
-      where dc.campaign_id = milestones.campaign_id
-        and public.has_ministry_access(d.ministry_id)
-    )
+    or public.campaign_has_accessible_demand(milestones.campaign_id)
   );
 
 -- campaign_folders: leitura por Comunicação (vê tudo) ou por vínculo
@@ -142,7 +169,7 @@ create policy "campaign_folders: só Comunicação gerencia" on campaign_folders
   with check (public.is_comunicacao_global());
 
 -- ---------------------------------------------------------------
--- 4. Conserta o estrago que o modelo antigo já causou: funde
+-- 5. Conserta o estrago que o modelo antigo já causou: funde
 -- campanhas duplicadas (mesmo nome, ignorando maiúsc/minúsc e
 -- espaços) que existem hoje só porque a mesma tag apareceu em mais
 -- de um ministério. Fica uma linha por nome — a mais antiga — e tudo
