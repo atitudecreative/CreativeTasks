@@ -1,5 +1,11 @@
 import { requireMinistry } from "@/lib/data/ministries";
-import { getDemandsForMinistry, isOverdue, STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/data/demands";
+import {
+  getDemandsForMinistry,
+  getChildDemandCounts,
+  isOverdue,
+  STATUS_LABEL,
+  PRIORIDADE_LABEL,
+} from "@/lib/data/demands";
 import { getCampaignsForMinistry, getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
 import { DemandasExplorer } from "./DemandasExplorer";
 import type { DemandRow } from "./DemandTable";
@@ -15,10 +21,11 @@ export default async function DemandasPage() {
   // Busca tudo de uma vez (só o corte de 2026 em diante já aplicado na
   // query) — busca e filtros de status/campanha/prioridade acontecem no
   // client, instantaneamente, sem precisar recarregar a página.
-  const [demands, campaigns, campaignsByDemand] = await Promise.all([
+  const [demands, campaigns, campaignsByDemand, childCounts] = await Promise.all([
     getDemandsForMinistry(ministry.id),
     getCampaignsForMinistry(ministry.id),
     getCampaignsForDemandsInMinistry(ministry.id),
+    getChildDemandCounts(ministry.id),
   ]);
 
   const rows: DemandRow[] = demands.map((d) => ({
@@ -33,6 +40,7 @@ export default async function DemandasPage() {
     prazoFormatted: formatDate(d.prazo_acordado),
     overdue: isOverdue(d),
     campanhas: campaignsByDemand.get(d.id) ?? [],
+    childCount: childCounts.get(d.id) ?? 0,
   }));
 
   return (
