@@ -56,7 +56,13 @@ export async function getDemandsForMinistry(
     // — só no detalhe da demanda pai (getChildDemands). Sem esse filtro, a
     // aba Demandas duplicaria: o card pai E cada filha como linha própria.
     .is("parent_demand_id", null)
-    .gte("prazo_acordado", DEMANDAS_CUTOFF_DATE);
+    // O corte é só pra tarefa ANTIGA (prazo antes de 2026) — demanda sem
+    // prazo nenhum (ex: tarefas "guarda-chuva" tipo "Frases Impulso
+    // Pastoral", usadas só pra organizar subtarefas) não é lixo antigo, é
+    // ativa, e precisa continuar visível (a tela já agrupa isso em "Sem
+    // prazo definido"). Antes esse .gte() também excluía essas por engano,
+    // porque no Postgres uma comparação com NULL nunca dá "true".
+    .or(`prazo_acordado.gte.${DEMANDAS_CUTOFF_DATE},prazo_acordado.is.null`);
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.prioridade) query = query.eq("prioridade", filters.prioridade);
