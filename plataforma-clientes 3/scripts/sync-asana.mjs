@@ -62,16 +62,18 @@ async function fetchAllTasks(projectGid) {
   return tasks;
 }
 
-// Busca as campanhas já cadastradas pro ministério e monta um mapa
-// nome (minúsculo) -> id, pra não criar campanha duplicada a cada sync.
-async function loadCampaignMap(ministryId) {
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select("id, nome")
-    .eq("ministry_id", ministryId);
+// Busca TODAS as campanhas já cadastradas (de qualquer ministério) e
+// monta um mapa nome (minúsculo) -> id. Global, não por ministério: uma
+// tag com o mesmo nome em projetos do Asana de ministérios diferentes
+// tem que cair na MESMA campanha, não criar uma por ministério — é o
+// que faz um ministério enxergar as demandas de outro que compartilha a
+// tag. Carregado uma vez em main() e reaproveitado (e atualizado) em
+// todos os ministérios sincronizados na mesma rodada.
+async function loadCampaignMap() {
+  const { data, error } = await supabase.from("campaigns").select("id, nome");
 
   if (error) {
-    throw new Error(`Erro ao buscar campanhas do ministério ${ministryId}: ${error.message}`);
+    throw new Error(`Erro ao buscar campanhas: ${error.message}`);
   }
 
   const map = new Map();
@@ -81,11 +83,14 @@ async function loadCampaignMap(ministryId) {
 
 // Todas as tags de uma tarefa do Asana viram campanhas/eventos no portal —
 // uma demanda pode estar em várias campanhas ao mesmo tempo (tabela
-// demand_campaigns). Cada tag cria (se ainda não existir) uma campanha
-// "pendente" (publicada = false) — ela só aparece pro ministério depois
-// que a Comunicação revisa e "abre" o evento em
-// /dashboard/admin/campanhas-pendentes. Tarefas sem tag ficam sem
-// campanha vinculada.
+// demand_campaigns). Cada tag cria (se ainda não existir EM QUALQUER
+// MINISTÉRIO) uma campanha "pendente" (publicada = false) — ela só
+// aparece pros ministérios envolvidos depois que a Comunicação revisa e
+// "abre" o evento em /dashboard/admin/campanhas-pendentes. Se a tag já
+// existir (de outro ministério ou do mesmo), reaproveita a campanha —
+// `ministryId` aqui só define o "ministério de origem" registrado na
+// criação, não um dono exclusivo. Tarefas sem tag ficam sem campanha
+// vinculada.
 async function ensureCampaignId(ministryId, tagName, campaignMap) {
   const key = tagName.trim().toLowerCase();
   if (campaignMap.has(key)) return campaignMap.get(key);
@@ -155,7 +160,7 @@ async function syncDemandCampaignLinks(demandId, desiredCampaignIds) {
   }
 }
 
-async function syncMinistry(dataSource) {
+async function syncMinistry(dataSource, campaignMap) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
   if (!projectGid) {
@@ -168,7 +173,6 @@ async function syncMinistry(dataSource) {
   console.log(`Sincronizando projeto Asana ${projectGid} (ministério ${ministryId})...`);
 
   const tasks = await fetchAllTasks(projectGid);
-  const campaignMap = await loadCampaignMap(ministryId);
 
   // rows: cada item guarda a linha pra gravar em `demands` + a lista de
   // nomes de tag da tarefa (separado, porque tag não é mais coluna da
@@ -287,8 +291,14 @@ async function main() {
     return;
   }
 
+  // Um mapa só, carregado uma vez e compartilhado entre todos os
+  // ministérios dessa rodada — assim, se dois ministérios sincronizados
+  // na mesma execução introduzirem a mesma tag nova, a segunda reaproveita
+  // a campanha que a primeira acabou de criar em vez de duplicar.
+  const campaignMap = await loadCampaignMap();
+
   for (const source of sources) {
-    await syncMinistry(source);
+    await syncMinistry(source, campaignMap);
   }
 
   console.log("Sincronização com o Asana concluída.");
