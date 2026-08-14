@@ -5,18 +5,17 @@ import { CampaignRow, type CampaignRowData } from "./CampaignRow";
 import { FolderBlock } from "./FolderBlock";
 import { createCampaignFolder } from "./actions";
 
-export type AdminCampaignRow = CampaignRowData & {
-  ministry_id: string;
-  ministryName: string;
-};
+// Tags viraram globais (migration 0018) — uma campanha não pertence mais
+// a um ministério só, então a lista não agrupa mais por ministério.
+// `ministryNames` (já em CampaignRowData) mostra quem está envolvido.
+export type AdminCampaignRow = CampaignRowData;
 
 export type AdminCampaignFolder = {
   id: string;
-  ministry_id: string;
   nome: string;
 };
 
-function NewFolderForm({ ministryId }: { ministryId: string }) {
+function NewFolderForm() {
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -39,7 +38,6 @@ function NewFolderForm({ ministryId }: { ministryId: string }) {
       }}
       className="flex items-center gap-2"
     >
-      <input type="hidden" name="ministryId" value={ministryId} />
       <input
         name="nome"
         required
@@ -57,40 +55,28 @@ function NewFolderForm({ ministryId }: { ministryId: string }) {
   );
 }
 
-function MinistryGroup({
-  ministryId,
-  ministryName,
-  campaigns,
-  folders,
+function Section({
+  title,
+  count,
   defaultOpen,
+  children,
 }: {
-  ministryId: string;
-  ministryName: string;
-  campaigns: AdminCampaignRow[];
-  folders: AdminCampaignFolder[];
+  title: string;
+  count: number;
   defaultOpen: boolean;
+  children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const activeCount = campaigns.filter((c) => c.publicada).length;
-
-  const folderList = folders
-    .filter((f) => f.ministry_id === ministryId)
-    .map((f) => ({ id: f.id, nome: f.nome }));
-
-  const semPasta = campaigns.filter((c) => !c.folder_id || !folderList.some((f) => f.id === c.folder_id));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-neutral-200">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        className="flex w-full items-center justify-between bg-neutral-50 px-4 py-2 text-left"
       >
-        <span className="text-sm font-semibold text-neutral-700">
-          {ministryName}{" "}
-          <span className="font-normal text-neutral-400">
-            ({activeCount} ativa{activeCount !== 1 ? "s" : ""} de {campaigns.length})
-          </span>
+        <span className="text-sm font-medium text-neutral-600">
+          {title} <span className="font-normal text-neutral-400">({count})</span>
         </span>
         <svg
           className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150 ${
@@ -104,43 +90,7 @@ function MinistryGroup({
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
-      {open && (
-        <div className="space-y-3 border-t border-neutral-100 p-3">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Pastas</p>
-            <NewFolderForm ministryId={ministryId} />
-          </div>
-
-          {folderList.map((folder) => (
-            <FolderBlock
-              key={folder.id}
-              folder={folder}
-              campaigns={campaigns.filter((c) => c.folder_id === folder.id)}
-              allFolders={folderList}
-            />
-          ))}
-
-          <div className="overflow-hidden rounded-xl border border-neutral-200">
-            <div className="bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-600">
-              Sem pasta <span className="font-normal text-neutral-400">({semPasta.length})</span>
-            </div>
-            {semPasta.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-neutral-400">Nenhuma campanha fora de pasta.</p>
-            ) : (
-              semPasta.map((c, i) => (
-                <CampaignRow
-                  key={c.id}
-                  campaign={c}
-                  folders={folderList}
-                  prevId={semPasta[i - 1]?.id}
-                  nextId={semPasta[i + 1]?.id}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {open && <div>{children}</div>}
     </div>
   );
 }
@@ -159,27 +109,18 @@ export function CampaignsAdminTable({
     const term = search.trim().toLowerCase();
     return campaigns.filter((c) => {
       const matchesSearch =
-        !term || c.nome.toLowerCase().includes(term) || c.ministryName.toLowerCase().includes(term);
-      const matchesStatus =
-        !statusFilter || (statusFilter === "ativas" ? c.publicada : !c.publicada);
+        !term ||
+        c.nome.toLowerCase().includes(term) ||
+        c.ministryNames.some((n) => n.toLowerCase().includes(term));
+      const matchesStatus = !statusFilter || (statusFilter === "ativas" ? c.publicada : !c.publicada);
       return matchesSearch && matchesStatus;
     });
   }, [campaigns, search, statusFilter]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, { ministryId: string; ministryName: string; campaigns: AdminCampaignRow[] }>();
-    for (const c of filtered) {
-      const entry = map.get(c.ministry_id) ?? { ministryId: c.ministry_id, ministryName: c.ministryName, campaigns: [] };
-      entry.campaigns.push(c);
-      map.set(c.ministry_id, entry);
-    }
-    return Array.from(map.values()).sort((a, b) => a.ministryName.localeCompare(b.ministryName, "pt-BR"));
-  }, [filtered]);
-
-  // Com busca ativa faz sentido já abrir os grupos que bateram — sem
-  // busca, tudo começa fechado (é a mesma ideia das demandas por mês: não
-  // afogar a tela com listão gigante logo de cara).
   const hasActiveFilter = Boolean(search.trim() || statusFilter);
+
+  const folderList = folders.map((f) => ({ id: f.id, nome: f.nome }));
+  const semPasta = filtered.filter((c) => !c.folder_id || !folderList.some((f) => f.id === c.folder_id));
 
   return (
     <div>
@@ -203,26 +144,44 @@ export function CampaignsAdminTable({
         <span className="text-xs text-neutral-400">
           {filtered.length} de {campaigns.length}
         </span>
+        <div className="ml-auto">
+          <NewFolderForm />
+        </div>
       </div>
 
-      {grouped.length === 0 ? (
+      {campaigns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
-          {campaigns.length === 0
-            ? "Nenhuma campanha cadastrada ainda."
-            : "Nenhuma campanha encontrada para esse filtro."}
+          Nenhuma campanha cadastrada ainda.
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
+          Nenhuma campanha encontrada para esse filtro.
         </div>
       ) : (
         <div className="space-y-3">
-          {grouped.map((g) => (
-            <MinistryGroup
-              key={g.ministryId}
-              ministryId={g.ministryId}
-              ministryName={g.ministryName}
-              campaigns={g.campaigns}
-              folders={folders}
-              defaultOpen={hasActiveFilter}
-            />
-          ))}
+          {folderList.map((folder) => {
+            const folderCampaigns = filtered.filter((c) => c.folder_id === folder.id);
+            if (hasActiveFilter && folderCampaigns.length === 0) return null;
+            return (
+              <FolderBlock key={folder.id} folder={folder} campaigns={folderCampaigns} allFolders={folderList} />
+            );
+          })}
+
+          <Section title="Sem pasta" count={semPasta.length} defaultOpen={hasActiveFilter || folderList.length === 0}>
+            {semPasta.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-neutral-400">Nenhuma campanha fora de pasta.</p>
+            ) : (
+              semPasta.map((c, i) => (
+                <CampaignRow
+                  key={c.id}
+                  campaign={c}
+                  folders={folderList}
+                  prevId={semPasta[i - 1]?.id}
+                  nextId={semPasta[i + 1]?.id}
+                />
+              ))
+            )}
+          </Section>
         </div>
       )}
     </div>
