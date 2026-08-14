@@ -15,6 +15,7 @@ export type DemandRow = {
   prazoFormatted: string;
   overdue: boolean;
   campanhas: { id: string; nome: string }[];
+  childCount: number;
 };
 
 export function DemandTable({ demands }: { demands: DemandRow[] }) {
@@ -38,6 +39,11 @@ export function DemandTable({ demands }: { demands: DemandRow[] }) {
               </Link>
               {d.identificador && (
                 <span className="ml-2 text-xs text-neutral-400">{d.identificador}</span>
+              )}
+              {d.childCount > 0 && (
+                <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">
+                  +{d.childCount} {d.childCount === 1 ? "subtarefa" : "subtarefas"}
+                </span>
               )}
             </td>
             <td className="px-4 py-3 text-neutral-600">
