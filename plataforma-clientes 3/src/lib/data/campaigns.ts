@@ -6,7 +6,11 @@ export { TIPO_LABEL, SAUDE_LABEL } from "@/lib/campaignOptions";
 export type Campaign = {
   id: string;
   identificador: string | null;
-  ministry_id: string;
+  // "Ministério de origem" (quem criou a tag primeiro) — não é mais
+  // dono/limite de acesso: uma campanha pode ter demandas de vários
+  // ministérios (tags viraram globais, migration 0018). Pode ficar null
+  // se o ministério de origem for excluído depois.
+  ministry_id: string | null;
   nome: string;
   tipo: string;
   fase: string;
@@ -30,13 +34,14 @@ export type Campaign = {
 };
 
 export type PendingCampaign = Campaign & {
-  ministryName: string;
+  // Nomes de todos os ministérios com pelo menos uma demanda vinculada a
+  // essa campanha — pode ter mais de um (é o sentido de tag global).
+  ministryNames: string[];
   demandCount: number;
 };
 
 export type CampaignFolder = {
   id: string;
-  ministry_id: string;
   nome: string;
   posicao: number;
 };
@@ -83,12 +88,29 @@ export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
 export async function getCampaignsForMinistry(ministryId: string): Promise<Campaign[]> {
   const supabase = await createClient();
 
+  // Campanha não pertence mais a um ministério só — uma tag pode
+  // aparecer em vários (migration 0018). Um ministério vê uma campanha
+  // se tiver AO MENOS uma demanda sua vinculada a ela (e ela estiver
+  // publicada), não só quando ele é o "ministério de origem".
+  const { data: linkRows, error: linkError } = await supabase
+    .from("demand_campaigns")
+    .select("campaign_id, demands!inner(ministry_id)")
+    .eq("demands.ministry_id", ministryId);
+
+  if (linkError) {
+    console.error("Erro ao buscar campanhas do ministério:", linkError.message);
+    return [];
+  }
+
+  const campaignIds = Array.from(new Set((linkRows ?? []).map((r) => r.campaign_id)));
+  if (campaignIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from("campaigns")
     .select(
       "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao"
     )
-    .eq("ministry_id", ministryId)
+    .in("id", campaignIds)
     .eq("publicada", true)
     .order("data_inicio", { ascending: false, nullsFirst: false });
 
@@ -101,20 +123,25 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
 }
 
 // Todas as campanhas (ativas/visíveis ou ocultas), pra tela "Campanhas
-// ativas" da Comunicação — uma lista só, agrupável por ministério, com um
-// toggle por linha pra abrir/ocultar pro ministério em vez de duas listas
-// separadas. Ordena por ministério e depois nome, pra facilitar o
-// agrupamento na UI.
+// ativas" da Comunicação — uma lista só, organizável em pastas, com um
+// toggle por linha pra abrir/ocultar pros ministérios envolvidos em vez
+// de duas listas separadas. Não agrupa mais por ministério "dono" (tags
+// são globais desde a migration 0018) — em vez disso, cada campanha traz
+// a lista de nomes de todos os ministérios que têm demanda vinculada a
+// ela, pra mostrar como badge na linha.
 export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
   const supabase = await createClient();
 
-  const { data: campaigns, error } = await supabase
-    .from("campaigns")
-    .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao, ministries!ministry_id(name)"
-    )
-    .order("posicao", { ascending: true })
-    .order("nome", { ascending: true });
+  const [{ data: campaigns, error }, { data: ministries }] = await Promise.all([
+    supabase
+      .from("campaigns")
+      .select(
+        "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao"
+      )
+      .order("posicao", { ascending: true })
+      .order("nome", { ascending: true }),
+    supabase.from("ministries").select("id, name"),
+  ]);
 
   if (error) {
     console.error("Erro ao buscar campanhas:", error.message);
@@ -123,45 +150,56 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
 
   const rows = campaigns ?? [];
   const ids = rows.map((c) => c.id);
+  const ministryNameById = new Map((ministries ?? []).map((m) => [m.id, m.name] as const));
 
-  const counts = new Map<string, number>();
+  const demandCounts = new Map<string, number>();
+  const ministryIdsByCampaign = new Map<string, Set<string>>();
+
   if (ids.length > 0) {
     const { data: linkRows, error: linkError } = await supabase
       .from("demand_campaigns")
-      .select("campaign_id")
+      .select("campaign_id, demands(ministry_id)")
       .in("campaign_id", ids);
 
     if (linkError) {
       console.error("Erro ao contar demandas por campanha:", linkError.message);
     } else {
       for (const row of linkRows ?? []) {
-        counts.set(row.campaign_id, (counts.get(row.campaign_id) ?? 0) + 1);
+        demandCounts.set(row.campaign_id, (demandCounts.get(row.campaign_id) ?? 0) + 1);
+
+        const demand = row.demands as unknown as { ministry_id: string } | null;
+        if (demand?.ministry_id) {
+          const set = ministryIdsByCampaign.get(row.campaign_id) ?? new Set<string>();
+          set.add(demand.ministry_id);
+          ministryIdsByCampaign.set(row.campaign_id, set);
+        }
       }
     }
   }
 
   return rows
     .map((c) => {
-      const { ministries, ...rest } = c as unknown as Campaign & {
-        ministries: { name: string } | null;
-      };
+      const ministryNames = Array.from(ministryIdsByCampaign.get(c.id) ?? [])
+        .map((id) => ministryNameById.get(id))
+        .filter((name): name is string => Boolean(name))
+        .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
       return {
-        ...rest,
-        ministryName: ministries?.name ?? "—",
-        demandCount: counts.get(c.id) ?? 0,
+        ...c,
+        ministryNames,
+        demandCount: demandCounts.get(c.id) ?? 0,
       };
     })
-    .sort((a, b) => a.ministryName.localeCompare(b.ministryName, "pt-BR"));
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
-// Todas as pastas de campanha, de todos os ministérios — a tela admin
-// mostra todos os ministérios juntos, então busca tudo de uma vez e agrupa
-// por ministry_id no client.
+// Todas as pastas de campanha — agora globais (migration 0018), não
+// pertencem mais a um ministério específico.
 export async function getAllCampaignFoldersAdmin(): Promise<CampaignFolder[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("campaign_folders")
-    .select("id, ministry_id, nome, posicao")
+    .select("id, nome, posicao")
     .order("posicao", { ascending: true });
 
   if (error) {
@@ -215,11 +253,11 @@ export async function getDemandsForCampaign(campaignId: string): Promise<Demand[
 
 // Mapa demand_id -> lista de campanhas vinculadas (id + nome) pra todas as
 // demandas de um ministério, pra exibir badges de várias campanhas por
-// demanda em listas. Busca por ministério (via campaigns.ministry_id) em
-// vez de receber uma lista de ids de demanda — um ministério tem no
-// máximo algumas dezenas de campanhas, então isso evita montar uma
-// consulta gigante (".in()" com milhares de ids de demanda já deu "Bad
-// Request" por estourar o tamanho da URL).
+// demanda em listas. Filtra pelo ministério da DEMANDA (não mais da
+// campanha — desde a migration 0018 uma campanha pode ter demandas de
+// vários ministérios), evitando montar uma consulta gigante
+// (".in()" com milhares de ids de demanda já deu "Bad Request" por
+// estourar o tamanho da URL).
 export async function getCampaignsForDemandsInMinistry(
   ministryId: string
 ): Promise<Map<string, { id: string; nome: string }[]>> {
@@ -228,8 +266,8 @@ export async function getCampaignsForDemandsInMinistry(
 
   const { data, error } = await supabase
     .from("demand_campaigns")
-    .select("demand_id, campaigns!inner(id, nome, ministry_id)")
-    .eq("campaigns.ministry_id", ministryId);
+    .select("demand_id, campaigns(id, nome), demands!inner(ministry_id)")
+    .eq("demands.ministry_id", ministryId);
 
   if (error) {
     console.error("Erro ao buscar campanhas vinculadas às demandas:", error.message);
