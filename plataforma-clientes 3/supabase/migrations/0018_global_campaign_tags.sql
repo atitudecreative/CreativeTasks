@@ -140,66 +140,77 @@ create policy "campaign_folders: só Comunicação gerencia" on campaign_folders
 -- que apontava pras duplicatas (demand_campaigns, demands.campaign_id,
 -- deliverables.campaign_id, milestones.campaign_id) é repontado pra
 -- ela antes das duplicatas serem apagadas.
+--
+-- Tudo dentro de um único bloco DO: uma tabela temporária só é
+-- confiável entre vários comandos se todos rodarem na MESMA sessão —
+-- e o SQL Editor do Supabase nem sempre garante isso quando o script
+-- tem várias instruções separadas por ";" (foi o que deu
+-- "relation campaign_canonical does not exist" da primeira vez). Um
+-- bloco DO é uma instrução só, executada de uma vez, então a tabela
+-- temporária criada dentro dele nunca "some" no meio do caminho.
 -- ---------------------------------------------------------------
-create temporary table campaign_canonical as
-select
-  c.id,
-  first_value(c.id) over (
-    partition by lower(trim(c.nome))
-    order by c.created_at asc, c.id asc
-  ) as canonical_id
-from campaigns c;
+do $$
+begin
+  create temporary table campaign_canonical on commit drop as
+  select
+    c.id,
+    first_value(c.id) over (
+      partition by lower(trim(c.nome))
+      order by c.created_at asc, c.id asc
+    ) as canonical_id
+  from campaigns c;
 
--- remove vínculo duplicado que colidiria com a PK (demand_id, campaign_id)
--- ao repontar pra canônica (caso a mesma demanda já estivesse ligada às duas)
-delete from demand_campaigns dc
-using campaign_canonical cc
-where dc.campaign_id = cc.id
-  and cc.id <> cc.canonical_id
-  and exists (
-    select 1 from demand_campaigns dc2
-    where dc2.demand_id = dc.demand_id
-      and dc2.campaign_id = cc.canonical_id
-  );
+  -- remove vínculo duplicado que colidiria com a PK (demand_id, campaign_id)
+  -- ao repontar pra canônica (caso a mesma demanda já estivesse ligada às duas)
+  delete from demand_campaigns dc
+  using campaign_canonical cc
+  where dc.campaign_id = cc.id
+    and cc.id <> cc.canonical_id
+    and exists (
+      select 1 from demand_campaigns dc2
+      where dc2.demand_id = dc.demand_id
+        and dc2.campaign_id = cc.canonical_id
+    );
 
-update demand_campaigns dc
-set campaign_id = cc.canonical_id
-from campaign_canonical cc
-where dc.campaign_id = cc.id
-  and cc.id <> cc.canonical_id;
+  update demand_campaigns dc
+  set campaign_id = cc.canonical_id
+  from campaign_canonical cc
+  where dc.campaign_id = cc.id
+    and cc.id <> cc.canonical_id;
 
-update demands d
-set campaign_id = cc.canonical_id
-from campaign_canonical cc
-where d.campaign_id = cc.id
-  and cc.id <> cc.canonical_id;
+  update demands d
+  set campaign_id = cc.canonical_id
+  from campaign_canonical cc
+  where d.campaign_id = cc.id
+    and cc.id <> cc.canonical_id;
 
-update deliverables dl
-set campaign_id = cc.canonical_id
-from campaign_canonical cc
-where dl.campaign_id = cc.id
-  and cc.id <> cc.canonical_id;
+  update deliverables dl
+  set campaign_id = cc.canonical_id
+  from campaign_canonical cc
+  where dl.campaign_id = cc.id
+    and cc.id <> cc.canonical_id;
 
-update milestones m
-set campaign_id = cc.canonical_id
-from campaign_canonical cc
-where m.campaign_id = cc.id
-  and cc.id <> cc.canonical_id;
+  update milestones m
+  set campaign_id = cc.canonical_id
+  from campaign_canonical cc
+  where m.campaign_id = cc.id
+    and cc.id <> cc.canonical_id;
 
--- se alguma duplicata já estava publicada (visível), garante que a
--- que sobrevive também fique — não esconde algo que já era visível
-update campaigns c
-set publicada = true
-where c.id in (select canonical_id from campaign_canonical)
-  and exists (
-    select 1 from campaigns dup
-    join campaign_canonical cc on cc.id = dup.id
-    where cc.canonical_id = c.id and dup.publicada = true
-  );
+  -- se alguma duplicata já estava publicada (visível), garante que a
+  -- que sobrevive também fique — não esconde algo que já era visível
+  update campaigns c
+  set publicada = true
+  where c.id in (select canonical_id from campaign_canonical)
+    and exists (
+      select 1 from campaigns dup
+      join campaign_canonical cc on cc.id = dup.id
+      where cc.canonical_id = c.id and dup.publicada = true
+    );
 
-delete from campaigns c
-using campaign_canonical cc
-where c.id = cc.id
-  and cc.id <> cc.canonical_id;
+  delete from campaigns c
+  using campaign_canonical cc
+  where c.id = cc.id
+    and cc.id <> cc.canonical_id;
 
-drop table campaign_canonical;
+  drop table campaign_canonical;
+end $$;
