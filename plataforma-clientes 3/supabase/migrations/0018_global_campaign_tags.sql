@@ -48,6 +48,7 @@ alter table campaign_folders
 -- visível pra quem tem acesso a QUALQUER ministério com demanda
 -- vinculada a essa campanha.
 drop policy if exists "campaigns: acesso por ministério" on campaigns;
+drop policy if exists "campaigns: acesso por origem ou por demanda vinculada" on campaigns;
 create policy "campaigns: acesso por origem ou por demanda vinculada" on campaigns
   for select using (
     (ministry_id is not null and public.has_ministry_access(ministry_id))
@@ -65,6 +66,10 @@ create policy "campaigns: acesso por origem ou por demanda vinculada" on campaig
 -- que o usuário acessa (é isso que faz o card da campanha mostrar as
 -- demandas de todos os ministérios envolvidos, não só o seu).
 drop policy if exists "demands: visível via campanha compartilhada" on demands;
+drop policy if exists "demands: acesso por ministério" on demands;
+create policy "demands: acesso por ministério" on demands
+  for select using (public.has_ministry_access(ministry_id));
+
 create policy "demands: visível via campanha compartilhada" on demands
   for select using (
     exists (
@@ -83,6 +88,7 @@ create policy "demands: visível via campanha compartilhada" on demands
 -- visível não só quando a demanda diretamente ligada é sua, mas também
 -- quando a campanha é compartilhada com um ministério seu.
 drop policy if exists "demand_campaigns: acesso por ministério" on demand_campaigns;
+drop policy if exists "demand_campaigns: acesso por ministério ou campanha compartilhada" on demand_campaigns;
 create policy "demand_campaigns: acesso por ministério ou campanha compartilhada" on demand_campaigns
   for select using (
     exists (
@@ -104,6 +110,7 @@ create policy "demand_campaigns: acesso por ministério ou campanha compartilhad
 -- milestones (marcos): mesma lógica — visível também pra ministério
 -- que compartilha a campanha via demanda vinculada.
 drop policy if exists "milestones: acesso por ministério" on milestones;
+drop policy if exists "milestones: acesso por ministério ou campanha compartilhada" on milestones;
 create policy "milestones: acesso por ministério ou campanha compartilhada" on milestones
   for select using (
     exists (select 1 from campaigns c where c.id = milestones.campaign_id and public.has_ministry_access(c.ministry_id))
@@ -121,6 +128,7 @@ create policy "milestones: acesso por ministério ou campanha compartilhada" on 
 -- antigas). Escrita sempre só Comunicação global — pasta é uma
 -- ferramenta de organização administrativa, sem "dono" por ministério.
 drop policy if exists "campaign_folders: acesso por vínculo ou Comunicação" on campaign_folders;
+drop policy if exists "campaign_folders: leitura" on campaign_folders;
 create policy "campaign_folders: leitura" on campaign_folders
   for select using (
     public.is_comunicacao_global()
@@ -128,6 +136,7 @@ create policy "campaign_folders: leitura" on campaign_folders
   );
 
 drop policy if exists "campaign_folders: Comunicação gerencia" on campaign_folders;
+drop policy if exists "campaign_folders: só Comunicação gerencia" on campaign_folders;
 create policy "campaign_folders: só Comunicação gerencia" on campaign_folders
   for all using (public.is_comunicacao_global())
   with check (public.is_comunicacao_global());
