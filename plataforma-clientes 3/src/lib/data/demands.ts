@@ -8,6 +8,7 @@ export type Demand = {
   identificador: string | null;
   ministry_id: string;
   campaign_id: string | null;
+  parent_demand_id: string | null;
   titulo: string;
   tipo_servico: string | null;
   prioridade: string | null;
@@ -48,9 +49,13 @@ export async function getDemandsForMinistry(
   let query = supabase
     .from("demands")
     .select(
-      "id, identificador, ministry_id, campaign_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
+      "id, identificador, ministry_id, campaign_id, parent_demand_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
     )
     .eq("ministry_id", ministryId)
+    // Subtarefa do Asana ("demanda filha") não aparece na listagem principal
+    // — só no detalhe da demanda pai (getChildDemands). Sem esse filtro, a
+    // aba Demandas duplicaria: o card pai E cada filha como linha própria.
+    .is("parent_demand_id", null)
     .gte("prazo_acordado", DEMANDAS_CUTOFF_DATE);
 
   if (filters.status) query = query.eq("status", filters.status);
@@ -94,7 +99,7 @@ export async function getDemandById(id: string): Promise<Demand | null> {
   const { data, error } = await supabase
     .from("demands")
     .select(
-      "id, identificador, ministry_id, campaign_id, titulo, descricao_objetiva, tipo_servico, objetivo_entrega, escopo_acordado, prioridade, status, fase_atual, data_solicitacao, data_inicio, prazo_acordado, data_conclusao, dependencias, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
+      "id, identificador, ministry_id, campaign_id, parent_demand_id, titulo, descricao_objetiva, tipo_servico, objetivo_entrega, escopo_acordado, prioridade, status, fase_atual, data_solicitacao, data_inicio, prazo_acordado, data_conclusao, dependencias, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -105,6 +110,54 @@ export async function getDemandById(id: string): Promise<Demand | null> {
   }
 
   return data as unknown as Demand | null;
+}
+
+// Demandas filhas (subtarefas do Asana) de uma demanda pai — mostradas no
+// detalhe do card, com o status de cada uma. Sem corte de data: se a
+// demanda pai apareceu na listagem, suas filhas também devem aparecer no
+// detalhe dela, independente do prazo.
+export async function getChildDemands(parentDemandId: string): Promise<Demand[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("demands")
+    .select(
+      "id, identificador, ministry_id, campaign_id, parent_demand_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
+    )
+    .eq("parent_demand_id", parentDemandId)
+    .order("prazo_acordado", { ascending: true, nullsFirst: false });
+
+  if (error) {
+    console.error("Erro ao buscar demandas filhas:", error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+// Quantas demandas filhas cada demanda de um ministério tem — usado pra
+// mostrar um badge ("+3 subtarefas") na listagem principal sem precisar
+// abrir o detalhe de cada card.
+export async function getChildDemandCounts(ministryId: string): Promise<Map<string, number>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("demands")
+    .select("parent_demand_id")
+    .eq("ministry_id", ministryId)
+    .not("parent_demand_id", "is", null);
+
+  const counts = new Map<string, number>();
+  if (error) {
+    console.error("Erro ao contar demandas filhas:", error.message);
+    return counts;
+  }
+
+  for (const row of data ?? []) {
+    const parentId = row.parent_demand_id as string;
+    counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 // Agrupa demandas por mês do prazo acordado (chave "YYYY-MM"). Como a
