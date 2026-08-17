@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDemandById, getChildDemands, STATUS_LABEL } from "@/lib/data/demands";
 import { getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
+import { getCommentsForDemand } from "@/lib/data/comments";
+import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { STATUS_COLOR, DEFAULT_STATUS_COLOR } from "@/lib/statusColors";
+import { CommentsSection } from "./CommentsSection";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -19,9 +22,11 @@ export default async function DemandaDetailPage({
 
   if (!demand) notFound();
 
-  const [campaignsMap, children] = await Promise.all([
+  const [campaignsMap, children, comments, currentUser] = await Promise.all([
     getCampaignsForDemandsInMinistry(demand.ministry_id),
     getChildDemands(demand.id),
+    getCommentsForDemand(demand.id),
+    getCurrentUser(),
   ]);
   const campaigns = campaignsMap.get(demand.id) ?? [];
 
@@ -140,6 +145,15 @@ export default async function DemandaDetailPage({
         <p className="text-xs text-neutral-400">
           Última atualização: {new Date(demand.updated_at).toLocaleString("pt-BR")}
         </p>
+      </div>
+
+      <div className="mt-6">
+        <CommentsSection
+          demandId={demand.id}
+          comments={comments}
+          currentUserId={currentUser?.id ?? null}
+          canModerate={isComunicacaoGlobal(currentUser)}
+        />
       </div>
     </div>
   );
