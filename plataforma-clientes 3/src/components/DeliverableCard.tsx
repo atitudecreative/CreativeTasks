@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { getLinkPreview } from "@/lib/linkPreview";
-import { DELIVERABLE_STATUS_LABEL, type Deliverable } from "@/lib/data/deliverables";
+import type { Deliverable } from "@/lib/data/deliverables";
+import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import { setDeliverableStatus } from "@/app/dashboard/entregas/actions";
 
 function formatDate(dateStr: string | null) {
