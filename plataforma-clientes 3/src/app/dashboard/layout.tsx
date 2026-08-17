@@ -9,6 +9,7 @@ import { getSiteTheme } from "@/lib/data/theme";
 import { signOut } from "@/app/login/actions";
 import { DashboardNav } from "@/components/DashboardNav";
 import { MinistrySwitcher } from "@/components/MinistrySwitcher";
+import { CommandPalette } from "@/components/CommandPalette";
 
 export default async function DashboardLayout({
   children,
@@ -67,6 +68,7 @@ export default async function DashboardLayout({
             options={switcherOptions.map((m) => ({ id: m.id, name: m.name }))}
             currentId={ministry?.id ?? ""}
           />
+          <CommandPalette />
           <DashboardNav showAdminLink={comunicacao} />
         </div>
 
