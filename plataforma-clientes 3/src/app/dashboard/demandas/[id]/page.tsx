@@ -3,8 +3,10 @@ import Link from "next/link";
 import { getDemandById, getChildDemands, STATUS_LABEL } from "@/lib/data/demands";
 import { getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
 import { getCommentsForDemand } from "@/lib/data/comments";
+import { getDeliverablesForDemand } from "@/lib/data/deliverables";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { STATUS_COLOR, DEFAULT_STATUS_COLOR } from "@/lib/statusColors";
+import { DeliverableCard } from "@/components/DeliverableCard";
 import { CommentsSection } from "./CommentsSection";
 
 function formatDate(dateStr: string | null) {
@@ -22,13 +24,15 @@ export default async function DemandaDetailPage({
 
   if (!demand) notFound();
 
-  const [campaignsMap, children, comments, currentUser] = await Promise.all([
+  const [campaignsMap, children, comments, currentUser, deliverables] = await Promise.all([
     getCampaignsForDemandsInMinistry(demand.ministry_id),
     getChildDemands(demand.id),
     getCommentsForDemand(demand.id),
     getCurrentUser(),
+    getDeliverablesForDemand(demand.id),
   ]);
   const campaigns = campaignsMap.get(demand.id) ?? [];
+  const canApproveDeliverable = isComunicacaoGlobal(currentUser);
 
   return (
     <div className="max-w-2xl">
@@ -146,6 +150,17 @@ export default async function DemandaDetailPage({
           Última atualização: {new Date(demand.updated_at).toLocaleString("pt-BR")}
         </p>
       </div>
+
+      {deliverables.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-3 text-sm font-medium text-neutral-700">Entregas dessa demanda ({deliverables.length})</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {deliverables.map((d) => (
+              <DeliverableCard key={d.id} deliverable={d} canApprove={canApproveDeliverable} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6">
         <CommentsSection
