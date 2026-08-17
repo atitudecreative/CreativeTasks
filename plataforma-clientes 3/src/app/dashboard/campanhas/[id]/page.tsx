@@ -9,6 +9,9 @@ import {
   SAUDE_LABEL,
 } from "@/lib/data/campaigns";
 import { STATUS_LABEL } from "@/lib/data/demands";
+import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
+import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
+import { DeliverableCard } from "@/components/DeliverableCard";
 import { MilestoneTimeline } from "./MilestoneTimeline";
 
 function formatDate(dateStr: string | null) {
@@ -30,12 +33,15 @@ export default async function CampanhaDetailPage({
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
 
-  const [milestones, demands] = await Promise.all([
+  const [milestones, demands, deliverables, currentUser] = await Promise.all([
     getMilestonesForCampaign(id),
     getDemandsForCampaign(id),
+    getDeliverablesForCampaign(id),
+    getCurrentUser(),
   ]);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
+  const canApprove = isComunicacaoGlobal(currentUser);
 
   return (
     <div className="max-w-2xl">
@@ -126,6 +132,19 @@ export default async function CampanhaDetailPage({
           </ul>
         )}
       </div>
+
+      {deliverables.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-3 text-sm font-medium text-neutral-700">
+            Entregas dessa campanha ({deliverables.length})
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {deliverables.map((d) => (
+              <DeliverableCard key={d.id} deliverable={d} canApprove={canApprove} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {campaign.resultados_observacoes && (
         <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
