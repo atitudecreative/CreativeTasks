@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
+export { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
+
 export type Deliverable = {
   id: string;
   ministry_id: string;
@@ -17,14 +19,6 @@ export type Deliverable = {
 
 const DELIVERABLE_FIELDS =
   "id, ministry_id, campaign_id, demand_id, titulo, tipo_arquivo, versao, status, data_entrega, link_principal, links_complementares, observacao_uso";
-
-export const DELIVERABLE_STATUS_LABEL: Record<string, string> = {
-  rascunho: "Rascunho",
-  para_aprovacao: "Para aprovação",
-  aprovado: "Aprovado",
-  final: "Final",
-  arquivado: "Arquivado",
-};
 
 export async function getDeliverablesForMinistry(ministryId: string): Promise<Deliverable[]> {
   const supabase = await createClient();
