@@ -9,6 +9,7 @@ import {
   SAUDE_LABEL,
 } from "@/lib/data/campaigns";
 import { STATUS_LABEL } from "@/lib/data/demands";
+import { MilestoneTimeline } from "./MilestoneTimeline";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -95,20 +96,9 @@ export default async function CampanhaDetailPage({
       </div>
 
       {milestones.length > 0 && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="mb-3 text-sm font-medium text-neutral-700">Marcos</p>
-          <ul className="space-y-2">
-            {milestones.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-sm">
-                <span className={m.concluido ? "text-neutral-400 line-through" : "text-neutral-800"}>
-                  {m.nome}
-                </span>
-                <span className="text-xs text-neutral-400">
-                  {m.concluido ? "concluído" : formatDate(m.data_prevista)}
-                </span>
-              </li>
-            ))}
-          </ul>
+        <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-sm font-medium text-neutral-700">Linha do tempo</p>
+          <MilestoneTimeline milestones={milestones} />
         </div>
       )}
 
