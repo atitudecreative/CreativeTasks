@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "sync:asana": "node scripts/sync-asana.mjs"
+    "sync:asana": "node scripts/sync-asana.mjs",
+    "send:weekly-digest": "node scripts/send-weekly-digest.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
