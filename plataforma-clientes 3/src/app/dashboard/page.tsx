@@ -62,9 +62,9 @@ function MetricChip({
   accent: keyof typeof CHIP_ACCENT;
 }) {
   return (
-    <div className="flex min-w-[92px] flex-col items-center rounded-xl border border-neutral-200 bg-white px-4 py-2 text-center shadow-sm">
-      <span className={`text-lg font-bold ${CHIP_ACCENT[accent]}`}>{value}</span>
-      <span className="text-[10px] text-neutral-400">{label}</span>
+    <div className="flex flex-col items-center justify-center rounded-xl border border-neutral-200 bg-white px-4 py-5 text-center shadow-sm">
+      <span className={`text-4xl font-bold ${CHIP_ACCENT[accent]}`}>{value}</span>
+      <span className="mt-1 text-xs text-neutral-400">{label}</span>
     </div>
   );
 }
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
           {getGreeting()}, {ministry.name}
         </h1>
 
-        <div className="flex gap-3 overflow-x-auto">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricChip label="Demandas ativas" value={resumo.abertas} accent="brand" />
           <MetricChip label="Concluídas" value={resumo.concluidas} accent="green" />
           <MetricChip label="Aguardando ministério" value={resumo.aguardandoMinisterio} accent="amber" />
