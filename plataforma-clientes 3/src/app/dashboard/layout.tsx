@@ -37,10 +37,13 @@ export default async function DashboardLayout({
   // aparência do site) e bem mais transparente — só o suficiente pra
   // logo, nav e nome continuarem legíveis, sem misturar a cor do tema com
   // a foto e sem esconder a imagem escolhida.
+  // backgroundSize "100% 100%" (em vez de "cover") força a imagem a
+  // preencher a barra inteira de ponta a ponta, sem sobrar nenhuma faixa
+  // — estica se precisar, em vez de recortar.
   const asideStyle = ministry?.capa_url
     ? {
         backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.45)), url(${ministry.capa_url})`,
-        backgroundSize: "cover",
+        backgroundSize: "100% 100%",
         backgroundPosition: "top center",
         backgroundRepeat: "no-repeat" as const,
       }
