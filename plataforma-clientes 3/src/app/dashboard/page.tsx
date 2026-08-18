@@ -91,13 +91,11 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-400">{getTodayLabel()}</p>
-          <h1 className="text-2xl font-bold text-walnut-700">
-            {getGreeting()}, {ministry.name}
-          </h1>
-        </div>
+      <div className="mb-8">
+        <p className="mb-1 text-xs uppercase tracking-wide text-neutral-400">{getTodayLabel()}</p>
+        <h1 className="mb-5 text-4xl font-bold text-walnut-700">
+          {getGreeting()}, {ministry.name}
+        </h1>
 
         <div className="flex gap-3 overflow-x-auto">
           <MetricChip label="Demandas ativas" value={resumo.abertas} accent="brand" />
