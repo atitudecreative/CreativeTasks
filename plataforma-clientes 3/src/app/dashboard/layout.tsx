@@ -33,11 +33,13 @@ export default async function DashboardLayout({
 
   // Quando o ministério ativo tem uma capa (imagem de fundo cadastrada em
   // /dashboard/admin/ministerios/[id]), o menu lateral mostra ela em vez
-  // da cor sólida — com um gradiente escuro por cima (usando a própria
-  // cor secundária do tema) pra logo, nav e nome continuarem legíveis.
+  // da cor sólida. O gradiente por cima é preto neutro (não a cor de
+  // aparência do site) e bem mais transparente — só o suficiente pra
+  // logo, nav e nome continuarem legíveis, sem misturar a cor do tema com
+  // a foto e sem esconder a imagem escolhida.
   const asideStyle = ministry?.capa_url
     ? {
-        backgroundImage: `linear-gradient(180deg, rgb(var(--walnut-900) / 0.90), rgb(var(--walnut-900) / 0.96)), url(${ministry.capa_url})`,
+        backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.45)), url(${ministry.capa_url})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }
@@ -46,7 +48,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-cream-50">
       <aside
-        className={`flex w-72 flex-col justify-between p-6 ${ministry?.capa_url ? "" : "bg-walnut-900"}`}
+        className={`flex w-[300px] flex-col justify-between p-6 ${ministry?.capa_url ? "" : "bg-walnut-900"}`}
         style={asideStyle}
       >
         <div>
