@@ -52,13 +52,28 @@ const CHIP_ACCENT: Record<string, string> = {
   violet: "text-violet-600",
 };
 
+// Não temos apontamento de horas de verdade ainda, então estipulamos uma
+// duração por demanda (entre 15min e 2h30) de forma determinística a
+// partir do id — assim a estimativa não fica pulando a cada carregamento
+// da página, e cada demanda sempre "pesa" a mesma coisa.
+const MIN_MINUTES = 15;
+const MAX_MINUTES = 150;
+
+function estimateDemandMinutes(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return MIN_MINUTES + (hash % (MAX_MINUTES - MIN_MINUTES + 1));
+}
+
 function MetricChip({
   label,
   value,
   accent,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   accent: keyof typeof CHIP_ACCENT;
 }) {
   return (
@@ -80,6 +95,13 @@ export default async function DashboardPage() {
 
   const resumo = summarizeDemands(demands);
   const campanhasAtivas = campaigns.filter((c) => c.saude !== "concluida");
+
+  // Horas trabalhadas = soma da duração estipulada (15min–2h30) de cada
+  // demanda já concluída.
+  const totalMinutosTrabalhados = demands
+    .filter((d) => d.status === "concluida")
+    .reduce((sum, d) => sum + estimateDemandMinutes(d.id), 0);
+  const horasTrabalhadas = totalMinutosTrabalhados / 60;
   const proximasEntregas = demands
     .filter((d) => d.prazo_acordado && d.status !== "concluida" && d.status !== "cancelada")
     .slice(0, 5);
@@ -100,7 +122,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricChip label="Demandas ativas" value={resumo.abertas} accent="brand" />
           <MetricChip label="Concluídas" value={resumo.concluidas} accent="green" />
-          <MetricChip label="Aguardando ministério" value={resumo.aguardandoMinisterio} accent="amber" />
+          <MetricChip label="Horas trabalhadas" value={`${horasTrabalhadas.toFixed(1)}h`} accent="amber" />
           <MetricChip label="Campanhas ativas" value={campanhasAtivas.length} accent="violet" />
         </div>
       </div>
