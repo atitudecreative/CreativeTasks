@@ -5,13 +5,17 @@ import {
   summarizeDemands,
   getMonthlyDemandStats,
   getStatusBreakdown,
-  isOverdue,
   STATUS_LABEL,
 } from "@/lib/data/demands";
-import { getCampaignsForMinistry, FASE_LABEL, SAUDE_LABEL, getSaudeBreakdown } from "@/lib/data/campaigns";
+import {
+  getCampaignsForMinistry,
+  getMilestonesForCampaign,
+  calculateProgress,
+  getSaudeBreakdown,
+} from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { MetricCard } from "@/components/MetricCard";
-import { DashboardCharts } from "./DashboardCharts";
+import { DashboardCharts, ConclusionGauge } from "./DashboardCharts";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
@@ -34,13 +38,15 @@ export default async function DashboardPage() {
     .slice(0, 5);
   const entregasRecentes = deliverables.slice(0, 5);
 
-  // "Precisa da sua atenção": atrasada primeiro (mais antiga primeiro —
-  // é a que está esperando há mais tempo), depois aguardando o ministério
-  // (sem essas já estarem atrasadas, pra não duplicar). É isso que torna
-  // o Início uma tela de "o que fazer agora" em vez de só números.
-  const atrasadas = demands.filter(isOverdue);
-  const aguardandoSemAtraso = demands.filter((d) => d.status === "aguardando_ministerio" && !isOverdue(d));
-  const precisaDeAtencao = [...atrasadas, ...aguardandoSemAtraso].slice(0, 8);
+  // Progresso real por marcos (não decorativo) pras primeiras campanhas
+  // ativas — é isso que vira a barra de progresso no lugar do
+  // fase/saúde em texto puro.
+  const campanhasComProgresso = await Promise.all(
+    campanhasAtivas.slice(0, 4).map(async (c) => ({
+      campaign: c,
+      progresso: calculateProgress(await getMilestonesForCampaign(c.id)),
+    }))
+  );
 
   const monthlyStats = getMonthlyDemandStats(demands);
   const statusBreakdown = getStatusBreakdown(demands);
@@ -53,76 +59,60 @@ export default async function DashboardPage() {
         Situação geral de {ministry.name}.
       </p>
 
-      {precisaDeAtencao.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-amber-900">
-              Precisa da sua atenção ({precisaDeAtencao.length})
-            </h2>
-            <Link href="/dashboard/demandas" className="text-xs text-amber-800 hover:underline">
-              ver todas as demandas
-            </Link>
-          </div>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {precisaDeAtencao.map((d) => (
-              <li key={d.id} className="rounded-lg bg-white/70 px-3 py-2 text-sm">
-                <Link href={`/dashboard/demandas/${d.id}`} className="font-medium text-neutral-800 hover:underline">
-                  {d.titulo}
-                </Link>
-                <p className="text-xs text-neutral-500">
-                  {isOverdue(d) ? (
-                    <span className="font-medium text-rose-600">atrasada · prazo {formatDate(d.prazo_acordado)}</span>
-                  ) : (
-                    <>{STATUS_LABEL[d.status] ?? d.status} · prazo {formatDate(d.prazo_acordado)}</>
-                  )}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard label="Demandas ativas" value={resumo.abertas} accent="brand" />
         <MetricCard label="Concluídas" value={resumo.concluidas} accent="green" />
-        <MetricCard label="Atrasadas" value={resumo.atrasadas} accent="red" />
         <MetricCard label="Aguardando ministério" value={resumo.aguardandoMinisterio} accent="amber" />
-        <MetricCard label="Aguardando aprovação" value={resumo.aguardandoAprovacao} accent="sky" />
         <MetricCard label="Campanhas ativas" value={campanhasAtivas.length} accent="violet" />
       </div>
 
-      <DashboardCharts
-        monthlyStats={monthlyStats}
-        statusBreakdown={statusBreakdown}
-        saudeBreakdown={saudeBreakdown}
-      />
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <p className="mb-2 text-sm font-semibold text-neutral-700">Taxa de conclusão</p>
+          <ConclusionGauge total={resumo.total} concluidas={resumo.concluidas} />
+          <p className="mt-2 text-xs text-neutral-400">
+            {resumo.concluidas} de {resumo.total} demandas concluídas
+          </p>
+        </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-800">Campanhas ativas</h2>
             <Link href="/dashboard/campanhas" className="text-xs text-brand-600 hover:underline">
               ver todas
             </Link>
           </div>
-          {campanhasAtivas.length === 0 ? (
+          {campanhasComProgresso.length === 0 ? (
             <p className="text-sm text-neutral-400">Nenhuma campanha ativa no momento.</p>
           ) : (
-            <ul className="space-y-3">
-              {campanhasAtivas.slice(0, 5).map((c) => (
-                <li key={c.id} className="text-sm">
-                  <Link href={`/dashboard/campanhas/${c.id}`} className="font-medium text-neutral-800 hover:underline">
-                    {c.nome}
-                  </Link>
-                  <p className="text-xs text-neutral-400">
-                    {FASE_LABEL[c.fase] ?? c.fase} · {SAUDE_LABEL[c.saude] ?? c.saude}
-                  </p>
+            <ul className="space-y-4">
+              {campanhasComProgresso.map(({ campaign, progresso }) => (
+                <li key={campaign.id}>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Link
+                      href={`/dashboard/campanhas/${campaign.id}`}
+                      className="truncate text-sm font-medium text-neutral-800 hover:underline"
+                    >
+                      {campaign.nome}
+                    </Link>
+                    <span className="shrink-0 text-xs text-neutral-400">
+                      {progresso === null ? "sem marcos" : `${progresso}%`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                    <div
+                      className="h-full rounded-full bg-brand-500"
+                      style={{ width: `${progresso ?? 0}%` }}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
+      </div>
 
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-800">Próximas entregas e prazos</h2>
@@ -148,7 +138,7 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm lg:col-span-2">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-800">Entregas recentes</h2>
             <Link href="/dashboard/entregas" className="text-xs text-brand-600 hover:underline">
@@ -158,23 +148,37 @@ export default async function DashboardPage() {
           {entregasRecentes.length === 0 ? (
             <p className="text-sm text-neutral-400">Nenhuma entrega registrada ainda.</p>
           ) : (
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ul className="space-y-3">
               {entregasRecentes.map((e) => (
-                <li key={e.id} className="text-sm">
-                  {e.link_principal ? (
-                    <a href={e.link_principal} target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
-                      {e.titulo}
-                    </a>
-                  ) : (
-                    <span className="font-medium text-neutral-800">{e.titulo}</span>
-                  )}
-                  <p className="text-xs text-neutral-400">{formatDate(e.data_entrega)}</p>
+                <li key={e.id} className="flex items-center gap-2 text-sm">
+                  <span className="text-base">📎</span>
+                  <div className="min-w-0">
+                    {e.link_principal ? (
+                      <a
+                        href={e.link_principal}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate font-medium text-brand-600 hover:underline"
+                      >
+                        {e.titulo}
+                      </a>
+                    ) : (
+                      <span className="truncate font-medium text-neutral-800">{e.titulo}</span>
+                    )}
+                    <p className="text-xs text-neutral-400">{formatDate(e.data_entrega)}</p>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
       </div>
+
+      <DashboardCharts
+        monthlyStats={monthlyStats}
+        statusBreakdown={statusBreakdown}
+        saudeBreakdown={saudeBreakdown}
+      />
     </div>
   );
 }
