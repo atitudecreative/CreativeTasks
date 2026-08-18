@@ -67,14 +67,6 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <p className="mb-2 text-sm font-semibold text-neutral-700">Taxa de conclusão</p>
-          <ConclusionGauge total={resumo.total} concluidas={resumo.concluidas} />
-          <p className="mt-2 text-xs text-neutral-400">
-            {resumo.concluidas} de {resumo.total} demandas concluídas
-          </p>
-        </section>
-
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-800">Campanhas ativas</h2>
@@ -109,6 +101,11 @@ export default async function DashboardPage() {
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <p className="mb-2 text-sm font-semibold text-neutral-700">Taxa de conclusão</p>
+          <ConclusionGauge total={resumo.total} concluidas={resumo.concluidas} />
         </section>
       </div>
 
