@@ -19,7 +19,7 @@ export type MonthlyDemandStat = { month: string; label: string; total: number; c
 export type StatusBreakdownItem = { status: string; label: string; count: number; color: string };
 export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+export function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
       <p className="mb-4 text-sm font-semibold text-neutral-700">{title}</p>
