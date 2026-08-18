@@ -13,6 +13,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  RadialBarChart,
+  RadialBar,
 } from "recharts";
 
 export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
@@ -118,6 +120,36 @@ export function SaudePieChart({ data }: { data: SaudeBreakdownItem[] }) {
         </PieChart>
       </ResponsiveContainer>
       <PieLegend items={data} />
+    </div>
+  );
+}
+
+// Anel de progresso grande com a % de demandas concluídas sobre o total —
+// pensado como o elemento mais "chamativo" da tela, não só mais um gráfico
+// no meio dos outros. Dado real (não é decorativo): total e concluídas já
+// vêm calculados em summarizeDemands().
+export function ConclusionGauge({ total, concluidas }: { total: number; concluidas: number }) {
+  const pct = total > 0 ? Math.round((concluidas / total) * 100) : 0;
+  const data = [{ name: "conclusão", value: pct, fill: "rgb(var(--brand-500))" }];
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <ResponsiveContainer width="100%" height={180}>
+        <RadialBarChart
+          data={data}
+          startAngle={90}
+          endAngle={-270}
+          innerRadius="72%"
+          outerRadius="100%"
+          barSize={14}
+        >
+          <RadialBar dataKey="value" cornerRadius={20} background={{ fill: "#f5f5f4" }} />
+        </RadialBarChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute flex flex-col items-center">
+        <span className="text-3xl font-bold text-brand-700">{pct}%</span>
+        <span className="text-[11px] text-neutral-400">concluído</span>
+      </div>
     </div>
   );
 }
