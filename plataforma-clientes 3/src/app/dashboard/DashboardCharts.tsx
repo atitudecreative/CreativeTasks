@@ -13,8 +13,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  RadialBarChart,
-  RadialBar,
 } from "recharts";
 
 export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
@@ -124,32 +122,40 @@ export function SaudePieChart({ data }: { data: SaudeBreakdownItem[] }) {
   );
 }
 
-// Anel de progresso grande com a % de demandas concluídas sobre o total —
-// pensado como o elemento mais "chamativo" da tela, não só mais um gráfico
-// no meio dos outros. Dado real (não é decorativo): total e concluídas já
-// vêm calculados em summarizeDemands().
+// Círculo de conclusão: concluídas x restantes, em um gráfico de pizza
+// (não em número de porcentagem) — pensado como o elemento mais
+// "chamativo" da tela. Dado real (não é decorativo): total e concluídas
+// já vêm calculados em summarizeDemands().
 export function ConclusionGauge({ total, concluidas }: { total: number; concluidas: number }) {
-  const pct = total > 0 ? Math.round((concluidas / total) * 100) : 0;
-  const data = [{ name: "conclusão", value: pct, fill: "rgb(var(--brand-500))" }];
+  const restantes = Math.max(total - concluidas, 0);
+  const data =
+    total > 0
+      ? [
+          { name: "Concluídas", value: concluidas, color: "rgb(var(--brand-500))" },
+          { name: "Em andamento", value: restantes, color: "#e7e5e4" },
+        ]
+      : [{ name: "Sem demandas", value: 1, color: "#e7e5e4" }];
 
   return (
-    <div className="relative flex items-center justify-center">
+    <div>
       <ResponsiveContainer width="100%" height={180}>
-        <RadialBarChart
-          data={data}
-          startAngle={90}
-          endAngle={-270}
-          innerRadius="72%"
-          outerRadius="100%"
-          barSize={14}
-        >
-          <RadialBar dataKey="value" cornerRadius={20} background={{ fill: "#f5f5f4" }} />
-        </RadialBarChart>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>
+            {data.map((d) => (
+              <Cell key={d.name} fill={d.color} stroke="white" strokeWidth={2} />
+            ))}
+          </Pie>
+          <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
+        </PieChart>
       </ResponsiveContainer>
-      <div className="pointer-events-none absolute flex flex-col items-center">
-        <span className="text-3xl font-bold text-brand-700">{pct}%</span>
-        <span className="text-[11px] text-neutral-400">concluído</span>
-      </div>
+      {total > 0 && (
+        <PieLegend
+          items={[
+            { label: "Concluídas", count: concluidas, color: "rgb(var(--brand-500))" },
+            { label: "Em andamento", count: restantes, color: "#e7e5e4" },
+          ]}
+        />
+      )}
     </div>
   );
 }
