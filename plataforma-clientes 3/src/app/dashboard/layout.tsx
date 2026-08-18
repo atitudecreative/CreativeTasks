@@ -41,7 +41,8 @@ export default async function DashboardLayout({
     ? {
         backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.45)), url(${ministry.capa_url})`,
         backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundPosition: "top center",
+        backgroundRepeat: "no-repeat" as const,
       }
     : undefined;
 
