@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveMinistrySafe } from "./ministries";
 import {
   BRAND_SHADES,
   WALNUT_SHADES,
@@ -10,12 +11,9 @@ import {
 
 export type SiteTheme = { brandColor: string; walnutColor: string; logoUrl: string | null };
 
-// Cor "própria" do usuário logado — cada campo fica null se a pessoa
-// nunca escolheu uma cor pessoal (aí vale o padrão do site).
-export type UserThemeOverride = { brandColor: string | null; walnutColor: string | null };
-
-// Tema padrão do site: usado na tela de login (sem usuário logado) e
-// como fallback pra quem nunca escolheu uma cor própria.
+// Tema padrão do site: usado na tela de login (sem usuário logado, sem
+// ministério ativo) e como fallback pra qualquer ministério que ainda
+// não tenha cor própria definida.
 export const getSiteTheme = cache(async (): Promise<SiteTheme> => {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -30,43 +28,22 @@ export const getSiteTheme = cache(async (): Promise<SiteTheme> => {
   return { brandColor: data.brand_color, walnutColor: data.walnut_color, logoUrl: data.logo_url ?? null };
 });
 
-// Cor pessoal do usuário logado (colunas em profiles), sem aplicar
-// fallback nenhum — usado na tela de Aparência pra saber se a pessoa já
-// customizou algo ou não.
-export const getMyThemeOverride = cache(async (): Promise<UserThemeOverride> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { brandColor: null, walnutColor: null };
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("brand_color, walnut_color")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return {
-    brandColor: data?.brand_color ?? null,
-    walnutColor: data?.walnut_color ?? null,
-  };
-});
-
-// Tema "efetivo" pra renderizar em qualquer página: cor pessoal do
-// usuário logado, com fallback pra cor padrão do site campo a campo (dá
-// pra ter customizado só a principal e deixar a secundária no padrão,
-// por exemplo). Sem usuário logado (tela de login), sempre o padrão do
-// site — é essa a função que o layout raiz chama.
+// Tema "efetivo" pra renderizar em qualquer página: cor do ministério
+// ativo (definida pela Comunicação em /dashboard/admin/ministerios/[id]),
+// com fallback pra cor padrão do site campo a campo (dá pra um ministério
+// ter customizado só a principal e deixar a secundária no padrão, por
+// exemplo). Sem usuário logado ou sem ministério ativo (tela de login,
+// Comunicação sem nenhum ministério cadastrado), sempre o padrão do site
+// — é essa a função que o layout raiz chama.
 export const getEffectiveTheme = cache(async (): Promise<SiteTheme> => {
   const site = await getSiteTheme();
-  const override = await getMyThemeOverride();
+  const ministry = await getActiveMinistrySafe();
 
   return {
-    brandColor: override.brandColor ?? site.brandColor,
-    walnutColor: override.walnutColor ?? site.walnutColor,
-    // Logo não é pessoal — é uma identidade de marca única (definida em
-    // /dashboard/admin/marca), sempre a do site.
+    brandColor: ministry?.brand_color ?? site.brandColor,
+    walnutColor: ministry?.walnut_color ?? site.walnutColor,
+    // Logo não é por ministério — é uma identidade de marca única
+    // (definida em /dashboard/admin/marca), sempre a do site.
     logoUrl: site.logoUrl,
   };
 });
