@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 
-// Aparência virou preferência pessoal (cada usuário mexe na própria),
-// não faz mais sentido dentro da Administração — só redireciona quem
-// tinha essa página salva/linkada pro novo lugar.
+// Aparência agora se edita por ministério, dentro da tela de edição em
+// Ministérios (cadastro) — não existe mais uma tela de aparência
+// separada. Só redireciona quem tinha essa página salva/linkada.
 export default function AdminAparenciaRedirect() {
-  redirect("/dashboard/aparencia");
+  redirect("/dashboard/admin/ministerios");
 }
