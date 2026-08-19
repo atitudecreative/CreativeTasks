@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
+import { isValidHex } from "@/lib/theme";
 
 const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB — foto de fundo pode ser um pouco maior que um PNG de logo
 
@@ -177,6 +178,61 @@ export async function removeMinistryCapa(formData: FormData) {
 
   revalidatePath(`/dashboard/admin/ministerios/${ministryId}`);
   revalidatePath("/dashboard", "layout");
+}
+
+// Cor principal/secundária desse ministério (migration 0024) — substitui
+// a antiga preferência pessoal por usuário. Só a Comunicação define,
+// aqui na edição do ministério; vale pra todo mundo que tiver esse
+// ministério como ativo na sessão.
+export async function updateMinistryTheme(
+  _prevState: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
+  await requireComunicacao();
+
+  const ministryId = String(formData.get("ministryId") ?? "");
+  const brandColor = String(formData.get("brandColor") ?? "").trim();
+  const walnutColor = String(formData.get("walnutColor") ?? "").trim();
+
+  if (!ministryId) {
+    return { error: "Ministério inválido." };
+  }
+  if (!isValidHex(brandColor) || !isValidHex(walnutColor)) {
+    return { error: "Cor inválida — use o seletor ou um código hex tipo #f3701c." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ministries")
+    .update({ brand_color: brandColor, walnut_color: walnutColor, updated_at: new Date().toISOString() })
+    .eq("id", ministryId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/admin/ministerios/${ministryId}`);
+  // "layout" revalida o site inteiro — a cor é lida uma vez no layout
+  // raiz e injetada como CSS, não recalculada por página.
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
+// Remove a cor própria do ministério (volta a usar a cor padrão do site).
+export async function resetMinistryTheme(formData: FormData) {
+  await requireComunicacao();
+
+  const ministryId = String(formData.get("ministryId") ?? "");
+  if (!ministryId) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("ministries")
+    .update({ brand_color: null, walnut_color: null, updated_at: new Date().toISOString() })
+    .eq("id", ministryId);
+
+  revalidatePath(`/dashboard/admin/ministerios/${ministryId}`);
+  revalidatePath("/", "layout");
 }
 
 export async function deleteMinistry(formData: FormData) {
