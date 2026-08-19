@@ -9,7 +9,6 @@ const LINKS = [
   { href: "/dashboard/campanhas", label: "Campanhas e eventos" },
   { href: "/dashboard/entregas", label: "Entregas e arquivos" },
   { href: "/dashboard/acesso", label: "Meu acesso" },
-  { href: "/dashboard/aparencia", label: "Aparência" },
 ];
 
 const ADMIN_LINKS = [
