@@ -16,6 +16,12 @@ export type Ministry = {
   // Imagem de fundo do menu lateral quando esse é o ministério ativo —
   // configurada só pela Comunicação, na edição do ministério.
   capa_url: string | null;
+  // Cor principal e secundária desse ministério (migration 0024) — usada
+  // como tema efetivo da sessão quando ele é o ministério ativo, com
+  // fallback pra cor padrão do site quando null. Substitui a antiga
+  // preferência pessoal por usuário (aba "Aparência", removida).
+  brand_color: string | null;
+  walnut_color: string | null;
 };
 
 // Versão completa, usada na tela de edição — inclui os campos de contato
@@ -89,7 +95,9 @@ export const getUserMemberships = cache(async (): Promise<MinistryMembership[]> 
 
   const { data, error } = await supabase
     .from("ministry_members")
-    .select("role, ministries(id, name, slug, sigla, description, categoria, status, capa_url)")
+    .select(
+      "role, ministries(id, name, slug, sigla, description, categoria, status, capa_url, brand_color, walnut_color)"
+    )
     .eq("user_id", user.id);
 
   if (error) {
@@ -109,7 +117,7 @@ export const getAllMinistries = cache(async (): Promise<Ministry[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ministries")
-    .select("id, name, slug, sigla, description, categoria, status, capa_url")
+    .select("id, name, slug, sigla, description, categoria, status, capa_url, brand_color, walnut_color")
     .order("name");
 
   if (error) {
@@ -130,7 +138,7 @@ export async function getAllMinistriesWithCounts(): Promise<MinistryWithCounts[]
   const [{ data: ministries, error }, { data: members }, { data: demands }] = await Promise.all([
     supabase
       .from("ministries")
-      .select("id, name, slug, sigla, description, categoria, status, capa_url")
+      .select("id, name, slug, sigla, description, categoria, status, capa_url, brand_color, walnut_color")
       .order("name"),
     supabase.from("ministry_members").select("ministry_id"),
     supabase.from("demands").select("ministry_id"),
@@ -162,7 +170,7 @@ export async function getMinistryById(id: string): Promise<MinistryDetail | null
   const { data, error } = await supabase
     .from("ministries")
     .select(
-      "id, name, slug, sigla, description, categoria, status, capa_url, pastor_responsavel, ponto_focal_ministerio, ponto_focal_comunicacao, centro_custo"
+      "id, name, slug, sigla, description, categoria, status, capa_url, brand_color, walnut_color, pastor_responsavel, ponto_focal_ministerio, ponto_focal_comunicacao, centro_custo"
     )
     .eq("id", id)
     .maybeSingle();
@@ -211,6 +219,36 @@ export const getCurrentMinistry = cache(async (): Promise<{
     if (all.length === 0) return { ministry: null, role: null, user };
     const active = all.find((m) => m.id === activeId) ?? all[0];
     return { ministry: active, role: null, user };
+  }
+
+  return null;
+});
+
+// Mesma lógica de "ministério ativo" do getCurrentMinistry, mas SEM
+// redirecionar quando não tem usuário logado — feita especificamente pra
+// ser chamada do layout raiz (src/app/layout.tsx), que também renderiza
+// a tela de login. Usada só pra resolver a cor do tema efetivo da
+// sessão (ver src/lib/data/theme.ts); qualquer outro uso deve preferir
+// getCurrentMinistry/requireMinistry, que garantem acesso de verdade.
+export const getActiveMinistrySafe = cache(async (): Promise<Ministry | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const comunicacao = isComunicacaoGlobal(user);
+  const memberships = await getUserMemberships();
+
+  const cookieStore = await cookies();
+  const activeId = cookieStore.get(ACTIVE_MINISTRY_COOKIE)?.value;
+
+  if (memberships.length > 0) {
+    const active = memberships.find((m) => m.ministry.id === activeId) ?? memberships[0];
+    return active.ministry;
+  }
+
+  if (comunicacao) {
+    const all = await getAllMinistries();
+    if (all.length === 0) return null;
+    return all.find((m) => m.id === activeId) ?? all[0];
   }
 
   return null;
