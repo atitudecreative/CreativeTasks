@@ -32,7 +32,7 @@ export default async function CampanhasPage() {
           Nenhuma campanha ou evento cadastrado ainda.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-4">
           {campaigns.map((c) => (
             <Link
               key={c.id}
@@ -40,7 +40,10 @@ export default async function CampanhasPage() {
               className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm hover:border-neutral-300"
             >
               {c.capa_url && (
-                <div className="h-28 w-full bg-cover bg-center" style={{ backgroundImage: `url(${c.capa_url})` }} />
+                <div
+                  className="aspect-video w-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${c.capa_url})` }}
+                />
               )}
               <div className="p-5">
                 <div className="mb-2 flex items-start justify-between gap-2">
