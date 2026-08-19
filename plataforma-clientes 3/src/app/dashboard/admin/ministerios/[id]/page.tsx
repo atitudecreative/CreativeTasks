@@ -1,15 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireComunicacao, getMinistryById } from "@/lib/data/ministries";
+import { getSiteTheme } from "@/lib/data/theme";
 import { createClient } from "@/lib/supabase/server";
 import { EditMinistryForm } from "../EditMinistryForm";
 import { DeleteMinistryButton } from "../DeleteMinistryButton";
 import { CapaUploadForm } from "../CapaUploadForm";
+import { MinistryThemeForm } from "../MinistryThemeForm";
 
 export default async function EditMinistryPage({ params }: { params: Promise<{ id: string }> }) {
   await requireComunicacao();
   const { id } = await params;
-  const ministry = await getMinistryById(id);
+  const [ministry, siteTheme] = await Promise.all([getMinistryById(id), getSiteTheme()]);
   if (!ministry) notFound();
 
   const supabase = await createClient();
@@ -34,6 +36,17 @@ export default async function EditMinistryPage({ params }: { params: Promise<{ i
 
       <div className="mb-6">
         <CapaUploadForm ministryId={ministry.id} ministryName={ministry.name} currentCapaUrl={ministry.capa_url} />
+      </div>
+
+      <div className="mb-6">
+        <MinistryThemeForm
+          ministryId={ministry.id}
+          initialBrand={ministry.brand_color ?? siteTheme.brandColor}
+          initialWalnut={ministry.walnut_color ?? siteTheme.walnutColor}
+          siteBrand={siteTheme.brandColor}
+          siteWalnut={siteTheme.walnutColor}
+          hasCustom={Boolean(ministry.brand_color || ministry.walnut_color)}
+        />
       </div>
 
       <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
