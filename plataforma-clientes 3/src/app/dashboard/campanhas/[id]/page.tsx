@@ -8,11 +8,13 @@ import {
   FASE_LABEL,
   SAUDE_LABEL,
 } from "@/lib/data/campaigns";
-import { STATUS_LABEL } from "@/lib/data/demands";
+import { STATUS_LABEL, summarizeDemands, getStatusBreakdown, isOverdue } from "@/lib/data/demands";
 import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { DeliverableCard } from "@/components/DeliverableCard";
+import { MetricCard } from "@/components/MetricCard";
 import { MilestoneTimeline } from "./MilestoneTimeline";
+import { ChartCard, StatusPieChart } from "../../DashboardCharts";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -43,14 +45,23 @@ export default async function CampanhaDetailPage({
   const proximoMarco = milestones.find((m) => !m.concluido);
   // Só aprovação de entregas fica aqui — edição da campanha em si (info +
   // capa) agora é só via admin, em /dashboard/admin/campanhas-pendentes.
-  // Esta tela é o dashboard público do evento: leitura + demandas relacionadas.
+  // Esta tela é o dashboard público do evento: números + dados + demandas
+  // relacionadas, sem controles de edição.
   const canApprove = isComunicacaoGlobal(currentUser);
 
+  const resumoDemandas = summarizeDemands(demands);
+  const statusBreakdown = getStatusBreakdown(demands);
+  const demandasOrdenadas = [...demands].sort((a, b) => {
+    if (!a.prazo_acordado) return 1;
+    if (!b.prazo_acordado) return -1;
+    return a.prazo_acordado.localeCompare(b.prazo_acordado);
+  });
+
   return (
-    <div className="max-w-2xl">
+    <div>
       {campaign.capa_url && (
         <div
-          className="mb-6 h-40 w-full rounded-2xl bg-cover bg-center"
+          className="mb-6 h-48 w-full rounded-2xl bg-cover bg-center"
           style={{ backgroundImage: `url(${campaign.capa_url})` }}
         />
       )}
@@ -61,72 +72,87 @@ export default async function CampanhaDetailPage({
         {FASE_LABEL[campaign.fase] ?? campaign.fase} · {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
       </p>
 
-      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-medium text-neutral-700">Progresso por marcos</p>
-          <p className="text-sm font-semibold text-neutral-900">
-            {progress === null ? "sem marcos definidos" : `${progress}%`}
-          </p>
-        </div>
-        {progress !== null && (
-          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-            <div className="h-full bg-brand-600" style={{ width: `${progress}%` }} />
-          </div>
-        )}
-        {proximoMarco && (
-          <p className="mt-2 text-xs text-neutral-500">Próximo marco: {proximoMarco.nome}</p>
-        )}
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <MetricCard label="Demandas" value={resumoDemandas.total} accent="brand" />
+        <MetricCard label="Concluídas" value={resumoDemandas.concluidas} accent="green" />
+        <MetricCard label="Atrasadas" value={resumoDemandas.atrasadas} accent="red" />
+        <MetricCard label="Em andamento" value={resumoDemandas.abertas} accent="violet" />
       </div>
 
-      <div className="mb-6 space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        {campaign.objetivo_estrategico && (
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Objetivo estratégico</p>
-            <p className="text-sm text-neutral-800">{campaign.objetivo_estrategico}</p>
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-neutral-700">Progresso por marcos</p>
+              <p className="text-sm font-semibold text-neutral-900">
+                {progress === null ? "sem marcos definidos" : `${progress}%`}
+              </p>
+            </div>
+            {progress !== null && (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+                <div className="h-full bg-brand-600" style={{ width: `${progress}%` }} />
+              </div>
+            )}
+            {proximoMarco && (
+              <p className="mt-2 text-xs text-neutral-500">Próximo marco: {proximoMarco.nome}</p>
+            )}
           </div>
-        )}
-        {campaign.escopo_macro && (
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Escopo macro</p>
-            <p className="text-sm text-neutral-800">{campaign.escopo_macro}</p>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Início</p>
-            <p className="text-sm text-neutral-800">{formatDate(campaign.data_inicio)}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Término</p>
-            <p className="text-sm text-neutral-800">{formatDate(campaign.data_termino)}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Orçamento planejado</p>
-            <p className="text-sm text-neutral-800">{formatMoney(campaign.orcamento_planejado)}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-neutral-400">Orçamento aprovado</p>
-            <p className="text-sm text-neutral-800">{formatMoney(campaign.orcamento_aprovado)}</p>
-          </div>
-        </div>
-      </div>
 
-      {milestones.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="mb-4 text-sm font-medium text-neutral-700">Linha do tempo</p>
-          <MilestoneTimeline milestones={milestones} />
+          {milestones.length > 0 && (
+            <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <p className="mb-4 text-sm font-medium text-neutral-700">Linha do tempo</p>
+              <MilestoneTimeline milestones={milestones} />
+            </div>
+          )}
+
+          <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            {campaign.objetivo_estrategico && (
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Objetivo estratégico</p>
+                <p className="text-sm text-neutral-800">{campaign.objetivo_estrategico}</p>
+              </div>
+            )}
+            {campaign.escopo_macro && (
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Escopo macro</p>
+                <p className="text-sm text-neutral-800">{campaign.escopo_macro}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Início</p>
+                <p className="text-sm text-neutral-800">{formatDate(campaign.data_inicio)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Término</p>
+                <p className="text-sm text-neutral-800">{formatDate(campaign.data_termino)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Orçamento planejado</p>
+                <p className="text-sm text-neutral-800">{formatMoney(campaign.orcamento_planejado)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-400">Orçamento aprovado</p>
+                <p className="text-sm text-neutral-800">{formatMoney(campaign.orcamento_aprovado)}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+
+        <ChartCard title="Demandas por status">
+          <StatusPieChart data={statusBreakdown} />
+        </ChartCard>
+      </div>
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <p className="mb-3 text-sm font-medium text-neutral-700">
           Demandas vinculadas {demands.length > 0 && `(${demands.length})`}
         </p>
-        {demands.length === 0 ? (
+        {demandasOrdenadas.length === 0 ? (
           <p className="text-sm text-neutral-400">Nenhuma demanda vinculada a esta campanha ainda.</p>
         ) : (
           <ul className="space-y-2">
-            {demands.map((d) => (
+            {demandasOrdenadas.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-2 text-sm">
                 <Link
                   href={`/dashboard/demandas/${d.id}`}
@@ -135,7 +161,9 @@ export default async function CampanhaDetailPage({
                   {d.titulo}
                 </Link>
                 <span className="shrink-0 text-xs text-neutral-400">
+                  {isOverdue(d) && <span className="mr-1.5 font-medium text-rose-600">atrasada ·</span>}
                   {STATUS_LABEL[d.status] ?? d.status}
+                  {d.prazo_acordado && ` · prazo ${formatDate(d.prazo_acordado)}`}
                 </span>
               </li>
             ))}
