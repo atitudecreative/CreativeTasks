@@ -13,6 +13,7 @@ import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { DeliverableCard } from "@/components/DeliverableCard";
 import { MilestoneTimeline } from "./MilestoneTimeline";
+import { EditCampaignForm } from "./EditCampaignForm";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -41,15 +42,25 @@ export default async function CampanhaDetailPage({
   ]);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
-  const canApprove = isComunicacaoGlobal(currentUser);
+  const isComunicacao = isComunicacaoGlobal(currentUser);
+  const canApprove = isComunicacao;
 
   return (
     <div className="max-w-2xl">
+      {campaign.capa_url && (
+        <div
+          className="mb-6 h-40 w-full rounded-2xl bg-cover bg-center"
+          style={{ backgroundImage: `url(${campaign.capa_url})` }}
+        />
+      )}
+
       <p className="mb-1 text-xs font-medium text-neutral-400">{campaign.identificador}</p>
       <h1 className="mb-1 text-xl font-semibold text-neutral-900">{campaign.nome}</h1>
       <p className="mb-6 text-sm text-neutral-500">
         {FASE_LABEL[campaign.fase] ?? campaign.fase} · {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
       </p>
+
+      {isComunicacao && <EditCampaignForm campaign={campaign} />}
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
