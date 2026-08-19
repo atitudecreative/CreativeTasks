@@ -32,7 +32,7 @@ export default async function CampanhasPage() {
           Nenhuma campanha ou evento cadastrado ainda.
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           {campaigns.map((c) => (
             <Link
               key={c.id}
