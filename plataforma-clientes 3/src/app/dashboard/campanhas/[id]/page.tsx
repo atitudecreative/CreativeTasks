@@ -13,7 +13,6 @@ import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { DeliverableCard } from "@/components/DeliverableCard";
 import { MilestoneTimeline } from "./MilestoneTimeline";
-import { EditCampaignForm } from "./EditCampaignForm";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -42,8 +41,10 @@ export default async function CampanhaDetailPage({
   ]);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
-  const isComunicacao = isComunicacaoGlobal(currentUser);
-  const canApprove = isComunicacao;
+  // Só aprovação de entregas fica aqui — edição da campanha em si (info +
+  // capa) agora é só via admin, em /dashboard/admin/campanhas-pendentes.
+  // Esta tela é o dashboard público do evento: leitura + demandas relacionadas.
+  const canApprove = isComunicacaoGlobal(currentUser);
 
   return (
     <div className="max-w-2xl">
@@ -59,8 +60,6 @@ export default async function CampanhaDetailPage({
       <p className="mb-6 text-sm text-neutral-500">
         {FASE_LABEL[campaign.fase] ?? campaign.fase} · {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
       </p>
-
-      {isComunicacao && <EditCampaignForm campaign={campaign} />}
 
       <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
