@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
 import { SAUDE_LABEL, SAUDE_COLOR_HEX } from "@/lib/campaignOptions";
-export { TIPO_LABEL, SAUDE_LABEL } from "@/lib/campaignOptions";
+export { TIPO_LABEL, TIPO_OPTIONS, FASE_LABEL, FASE_OPTIONS, SAUDE_LABEL, SAUDE_OPTIONS } from "@/lib/campaignOptions";
 
 export type Campaign = {
   id: string;
@@ -31,6 +31,9 @@ export type Campaign = {
   // (ou dentro de "sem pasta", quando folder_id é null).
   folder_id: string | null;
   posicao: number;
+  // Arte de capa (migration 0023) — banner exibido no topo da tela de
+  // detalhe da campanha. Null = sem capa, mostra só o cabeçalho de texto.
+  capa_url: string | null;
 };
 
 export type PendingCampaign = Campaign & {
@@ -53,17 +56,6 @@ export type Milestone = {
   concluido: boolean;
   data_prevista: string | null;
   data_conclusao: string | null;
-};
-
-export const FASE_LABEL: Record<string, string> = {
-  descoberta_briefing: "Descoberta e briefing",
-  planejamento: "Planejamento",
-  criacao: "Criação",
-  producao: "Produção",
-  aprovacao: "Aprovação",
-  distribuicao_execucao: "Distribuição ou execução",
-  monitoramento: "Monitoramento",
-  encerramento_aprendizado: "Encerramento e aprendizado",
 };
 
 export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
@@ -108,7 +100,7 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao, capa_url"
     )
     .in("id", campaignIds)
     .eq("publicada", true)
@@ -136,7 +128,7 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
     supabase
       .from("campaigns")
       .select(
-        "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao"
+        "id, identificador, ministry_id, nome, tipo, fase, saude, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, publicada, origem, folder_id, posicao, capa_url"
       )
       .order("posicao", { ascending: true })
       .order("nome", { ascending: true }),
@@ -216,7 +208,7 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, identificador, ministry_id, nome, tipo, fase, saude, objetivo_estrategico, escopo_macro, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, resultados_observacoes, publicada, origem, folder_id, posicao"
+      "id, identificador, ministry_id, nome, tipo, fase, saude, objetivo_estrategico, escopo_macro, data_inicio, data_termino, data_evento, orcamento_planejado, orcamento_aprovado, investimento_realizado, resultados_observacoes, publicada, origem, folder_id, posicao, capa_url"
     )
     .eq("id", id)
     .maybeSingle();
