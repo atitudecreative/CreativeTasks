@@ -37,18 +37,23 @@ export default async function CampanhasPage() {
             <Link
               key={c.id}
               href={`/dashboard/campanhas/${c.id}`}
-              className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm hover:border-neutral-300"
+              className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm hover:border-neutral-300"
             >
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <p className="font-medium text-neutral-800">{c.nome}</p>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${SAUDE_BADGE[c.saude] ?? "bg-neutral-100 text-neutral-600"}`}>
-                  {SAUDE_LABEL[c.saude] ?? c.saude}
-                </span>
+              {c.capa_url && (
+                <div className="h-28 w-full bg-cover bg-center" style={{ backgroundImage: `url(${c.capa_url})` }} />
+              )}
+              <div className="p-5">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <p className="font-medium text-neutral-800">{c.nome}</p>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${SAUDE_BADGE[c.saude] ?? "bg-neutral-100 text-neutral-600"}`}>
+                    {SAUDE_LABEL[c.saude] ?? c.saude}
+                  </span>
+                </div>
+                <p className="mb-3 text-xs text-neutral-400">{FASE_LABEL[c.fase] ?? c.fase}</p>
+                <p className="text-xs text-neutral-500">
+                  Orçamento aprovado: {formatMoney(c.orcamento_aprovado)}
+                </p>
               </div>
-              <p className="mb-3 text-xs text-neutral-400">{FASE_LABEL[c.fase] ?? c.fase}</p>
-              <p className="text-xs text-neutral-500">
-                Orçamento aprovado: {formatMoney(c.orcamento_aprovado)}
-              </p>
             </Link>
           ))}
         </div>
