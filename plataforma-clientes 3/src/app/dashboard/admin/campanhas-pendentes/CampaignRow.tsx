@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useFormState, useFormStatus } from "react-dom";
 import {
   setCampaignVisibility,
-  updateCampaignMeta,
   deleteCampaign,
   moveCampaignToFolder,
   swapCampaignPositions,
 } from "./actions";
-import { TIPO_OPTIONS, TIPO_LABEL } from "@/lib/campaignOptions";
+import { TIPO_LABEL } from "@/lib/campaignOptions";
 
 export type CampaignRowData = {
   id: string;
@@ -44,19 +41,6 @@ function VisibilityToggle({ id, publicada }: { id: string; publicada: boolean })
         />
       </button>
     </form>
-  );
-}
-
-function SaveButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-    >
-      {pending ? "Salvando..." : "Salvar"}
-    </button>
   );
 }
 
@@ -94,57 +78,6 @@ export function CampaignRow({
   prevId?: string;
   nextId?: string;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [state, formAction] = useFormState(updateCampaignMeta, { error: null as string | null });
-
-  if (editing) {
-    return (
-      <div className="border-b border-neutral-50 px-4 py-3 last:border-0">
-        <form
-          action={async (formData) => {
-            await formAction(formData);
-            setEditing(false);
-          }}
-          className="flex flex-wrap items-end gap-2"
-        >
-          <input type="hidden" name="id" value={campaign.id} />
-          <div className="min-w-[12rem] flex-1">
-            <label className="mb-1 block text-xs font-medium text-neutral-500">Nome</label>
-            <input
-              name="nome"
-              defaultValue={campaign.nome}
-              required
-              className="w-full rounded-lg border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-500">Tipo</label>
-            <select
-              name="tipo"
-              defaultValue={campaign.tipo}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            >
-              {TIPO_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <SaveButton />
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            className="text-xs text-neutral-500 hover:underline"
-          >
-            Cancelar
-          </button>
-        </form>
-        {state?.error && <p className="mt-1 text-xs text-red-600">{state.error}</p>}
-      </div>
-    );
-  }
-
   return (
     <div className="flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
       <div className="flex shrink-0 flex-col">
@@ -208,13 +141,12 @@ export function CampaignRow({
         </form>
       )}
 
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
+      <Link
+        href={`/dashboard/admin/campanhas-pendentes/${campaign.id}`}
         className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
       >
         Editar
-      </button>
+      </Link>
 
       <form
         action={deleteCampaign}
