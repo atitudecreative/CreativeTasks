@@ -21,7 +21,7 @@ export default async function EntregasPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Entregas e arquivos</h1>
+      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Arquivos Importantes</h1>
       <p className="mb-6 text-sm text-neutral-500">
         Biblioteca de peças, materiais e links finais de {ministry.name}. Toda entrega é um link
         (Drive, YouTube, etc.) — nada fica hospedado no portal.
