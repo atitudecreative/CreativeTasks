@@ -3,6 +3,7 @@
 import {
   ResponsiveContainer,
   ComposedChart,
+  BarChart,
   Bar,
   Line,
   XAxis,
@@ -18,6 +19,7 @@ import {
 export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
 export type StatusBreakdownItem = { status: string; label: string; count: number; color: string };
 export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
+export type BudgetSummaryItem = { label: string; value: number; color: string };
 
 export function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -119,6 +121,42 @@ export function SaudePieChart({ data }: { data: SaudeBreakdownItem[] }) {
       </ResponsiveContainer>
       <PieLegend items={data} />
     </div>
+  );
+}
+
+// Barras comparando planejado x aprovado x investido em cima de todas
+// as campanhas do ministério — no lugar do gráfico de "campanhas por
+// saúde" (categórico, pouco acionável sozinho). Dado real: vem de
+// getBudgetSummary() em cima das campanhas já buscadas.
+export function CampaignBudgetChart({ data }: { data: BudgetSummaryItem[] }) {
+  const hasValue = data.some((d) => d.value > 0);
+  if (!hasValue) return <EmptyChart label="Nenhum orçamento cadastrado nas campanhas ainda." />;
+
+  const formatMoney = (value: number) =>
+    value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
+        <YAxis
+          tick={{ fontSize: 11, fill: "#78716c" }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+        />
+        <Tooltip
+          contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+          formatter={(value) => formatMoney(Number(value))}
+        />
+        <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={70}>
+          {data.map((d) => (
+            <Cell key={d.label} fill={d.color} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
