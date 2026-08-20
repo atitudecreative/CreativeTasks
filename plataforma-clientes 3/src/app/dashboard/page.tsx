@@ -122,7 +122,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricChip label="Demandas ativas" value={resumo.abertas} accent="brand" />
           <MetricChip label="Concluídas" value={resumo.concluidas} accent="green" />
-          <MetricChip label="Horas trabalhadas" value={`${horasTrabalhadas.toFixed(1)}h`} accent="amber" />
+          <MetricChip label="Estimativa de horas trabalhadas" value={`${horasTrabalhadas.toFixed(1)}h`} accent="amber" />
           <MetricChip label="Campanhas ativas" value={campanhasAtivas.length} accent="violet" />
         </div>
       </div>
