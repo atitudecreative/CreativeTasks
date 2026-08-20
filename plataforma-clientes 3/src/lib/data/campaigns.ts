@@ -77,6 +77,23 @@ export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
     .sort((a, b) => b.count - a.count);
 }
 
+export type BudgetSummaryItem = { label: string; value: number; color: string };
+
+// Soma planejado x aprovado x investido em cima de todas as campanhas
+// recebidas (sem filtrar por saúde) — visão financeira do Início, no
+// lugar do gráfico de "campanhas por saúde" (pouco acionável sozinho).
+export function getBudgetSummary(campaigns: Campaign[]): BudgetSummaryItem[] {
+  const planejado = campaigns.reduce((sum, c) => sum + (c.orcamento_planejado ?? 0), 0);
+  const aprovado = campaigns.reduce((sum, c) => sum + (c.orcamento_aprovado ?? 0), 0);
+  const investido = campaigns.reduce((sum, c) => sum + (c.investimento_realizado ?? 0), 0);
+
+  return [
+    { label: "Planejado", value: planejado, color: "#a8a29e" },
+    { label: "Aprovado", value: aprovado, color: "rgb(var(--brand-500))" },
+    { label: "Investido", value: investido, color: "#4ade80" },
+  ];
+}
+
 export async function getCampaignsForMinistry(ministryId: string): Promise<Campaign[]> {
   const supabase = await createClient();
 
