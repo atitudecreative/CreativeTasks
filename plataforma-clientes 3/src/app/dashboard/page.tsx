@@ -7,13 +7,13 @@ import {
   getStatusBreakdown,
   STATUS_LABEL,
 } from "@/lib/data/demands";
-import { getCampaignsForMinistry, getSaudeBreakdown } from "@/lib/data/campaigns";
+import { getCampaignsForMinistry, getBudgetSummary } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import {
   ChartCard,
   DemandasPorMesChart,
   StatusPieChart,
-  SaudePieChart,
+  CampaignBudgetChart,
 } from "./DashboardCharts";
 
 const TIMEZONE = "America/Sao_Paulo";
@@ -112,7 +112,7 @@ export default async function DashboardPage() {
 
   const monthlyStats = getMonthlyDemandStats(demands);
   const statusBreakdown = getStatusBreakdown(demands);
-  const saudeBreakdown = getSaudeBreakdown(campaigns);
+  const budgetSummary = getBudgetSummary(campaigns);
 
   return (
     <div>
@@ -203,8 +203,8 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      <ChartCard title="Campanhas por saúde">
-        <SaudePieChart data={saudeBreakdown} />
+      <ChartCard title="Orçamento das campanhas">
+        <CampaignBudgetChart data={budgetSummary} />
       </ChartCard>
     </div>
   );
