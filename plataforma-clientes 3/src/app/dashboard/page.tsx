@@ -169,7 +169,7 @@ export default async function DashboardPage() {
 
         <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-800">Entregas recentes</h2>
+            <h2 className="text-sm font-semibold text-neutral-800">Arquivos Importantes</h2>
             <Link href="/dashboard/entregas" className="text-xs text-brand-600 hover:underline">
               ver todas
             </Link>
