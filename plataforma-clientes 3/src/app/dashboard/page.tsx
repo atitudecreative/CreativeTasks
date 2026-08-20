@@ -94,7 +94,10 @@ export default async function DashboardPage() {
   ]);
 
   const resumo = summarizeDemands(demands);
-  const campanhasAtivas = campaigns.filter((c) => c.saude !== "concluida");
+  // Mesma contagem exibida na aba "Campanhas e eventos" (sem filtrar por
+  // saúde) — antes essa métrica excluía as concluídas e ficava menor do
+  // que o total de cards mostrados naquela aba.
+  const campanhasAtivas = campaigns;
 
   // Horas trabalhadas = soma da duração estipulada (15min–2h30) de cada
   // demanda já concluída.
