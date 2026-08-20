@@ -7,7 +7,7 @@ const LINKS = [
   { href: "/dashboard", label: "Início" },
   { href: "/dashboard/demandas", label: "Demandas" },
   { href: "/dashboard/campanhas", label: "Campanhas e eventos" },
-  { href: "/dashboard/entregas", label: "Entregas e arquivos" },
+  { href: "/dashboard/entregas", label: "Arquivos Importantes" },
   { href: "/dashboard/acesso", label: "Meu acesso" },
 ];
 
