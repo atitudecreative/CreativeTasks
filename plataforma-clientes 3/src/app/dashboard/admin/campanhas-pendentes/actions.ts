@@ -271,3 +271,48 @@ export async function swapCampaignPositions(formData: FormData) {
 
   revalidateCampaignPaths();
 }
+
+// ---------------------------------------------------------------
+// Meta Ads (migration 0025) — o sync (scripts/sync-meta-ads.mjs) casa
+// campanha do Meta com campanha do portal por nome; quando não bate,
+// fica na fila "sem vínculo" aqui embaixo pra Comunicação resolver à
+// mão. `matched_manualmente = true` marca a decisão como definitiva —
+// o próximo sync NUNCA sobrescreve um vínculo (ou uma decisão de "sem
+// vínculo mesmo") feito manualmente.
+// ---------------------------------------------------------------
+
+export async function linkMetaCampaign(formData: FormData) {
+  await requireComunicacao();
+
+  const metaAdCampaignId = String(formData.get("metaAdCampaignId") ?? "");
+  const campaignId = String(formData.get("campaignId") ?? "") || null;
+  if (!metaAdCampaignId) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("meta_ad_campaigns")
+    .update({ campaign_id: campaignId, matched_manualmente: true })
+    .eq("id", metaAdCampaignId);
+
+  revalidateCampaignPaths(campaignId ?? undefined);
+}
+
+export async function unlinkMetaCampaign(formData: FormData) {
+  await requireComunicacao();
+
+  const metaAdCampaignId = String(formData.get("metaAdCampaignId") ?? "");
+  const previousCampaignId = String(formData.get("previousCampaignId") ?? "") || undefined;
+  if (!metaAdCampaignId) return;
+
+  const supabase = await createClient();
+  // Fica marcada como revisada (matched_manualmente = true) mesmo sem
+  // campanha nenhuma — assim não volta a aparecer na fila "sem vínculo"
+  // depois de decidido que essa campanha do Meta não corresponde a
+  // nada no portal.
+  await supabase
+    .from("meta_ad_campaigns")
+    .update({ campaign_id: null, matched_manualmente: true })
+    .eq("id", metaAdCampaignId);
+
+  revalidateCampaignPaths(previousCampaignId);
+}
