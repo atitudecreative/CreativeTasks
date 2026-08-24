@@ -1,12 +1,16 @@
 import { requireComunicacao } from "@/lib/data/ministries";
 import { getAllCampaignsAdmin, getAllCampaignFoldersAdmin } from "@/lib/data/campaigns";
+import { getUnmatchedMetaCampaigns, getAllCampaignNamesForLinking } from "@/lib/data/metaAds";
 import { CampaignsAdminTable } from "./CampaignsAdminTable";
+import { MetaCampaignMatcher } from "./MetaCampaignMatcher";
 
 export default async function CampanhasAtivasPage() {
   await requireComunicacao();
-  const [campaigns, folders] = await Promise.all([
+  const [campaigns, folders, unmatchedMetaCampaigns, portalCampaignNames] = await Promise.all([
     getAllCampaignsAdmin(),
     getAllCampaignFoldersAdmin(),
+    getUnmatchedMetaCampaigns(),
+    getAllCampaignNamesForLinking(),
   ]);
 
   return (
@@ -22,6 +26,8 @@ export default async function CampanhasAtivasPage() {
         demandas continuam sincronizando normalmente independente da campanha estar
         visível ou não.
       </p>
+
+      <MetaCampaignMatcher metaCampaigns={unmatchedMetaCampaigns} portalCampaigns={portalCampaignNames} />
 
       <CampaignsAdminTable campaigns={campaigns} folders={folders} />
     </div>
