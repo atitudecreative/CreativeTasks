@@ -10,6 +10,7 @@ import {
 } from "@/lib/data/campaigns";
 import { STATUS_LABEL, summarizeDemands, getStatusBreakdown, isOverdue } from "@/lib/data/demands";
 import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
+import { getMetaCampaignsForCampaign, summarizeMetaMetrics } from "@/lib/data/metaAds";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { DeliverableCard } from "@/components/DeliverableCard";
 import { MetricCard } from "@/components/MetricCard";
@@ -35,12 +36,14 @@ export default async function CampanhaDetailPage({
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
 
-  const [milestones, demands, deliverables, currentUser] = await Promise.all([
+  const [milestones, demands, deliverables, metaCampaigns, currentUser] = await Promise.all([
     getMilestonesForCampaign(id),
     getDemandsForCampaign(id),
     getDeliverablesForCampaign(id),
+    getMetaCampaignsForCampaign(id),
     getCurrentUser(),
   ]);
+  const metaMetrics = summarizeMetaMetrics(metaCampaigns);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
   // Só aprovação de entregas fica aqui — edição da campanha em si (info +
@@ -78,6 +81,23 @@ export default async function CampanhaDetailPage({
         <MetricCard label="Atrasadas" value={resumoDemandas.atrasadas} accent="red" />
         <MetricCard label="Em andamento" value={resumoDemandas.abertas} accent="violet" />
       </div>
+
+      {metaCampaigns.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-sm font-medium text-neutral-700">Alcance real (Meta Ads)</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <MetricCard label="Alcance" value={metaMetrics.alcance.toLocaleString("pt-BR")} accent="sky" />
+            <MetricCard label="Impressões" value={metaMetrics.impressoes.toLocaleString("pt-BR")} accent="sky" />
+            <MetricCard label="Cliques" value={metaMetrics.cliques.toLocaleString("pt-BR")} accent="sky" />
+            <MetricCard label="Investido" value={formatMoney(metaMetrics.investimento)} accent="sky" />
+          </div>
+          {metaCampaigns.length > 1 && (
+            <p className="mt-3 text-xs text-neutral-400">
+              Soma de {metaCampaigns.length} campanhas do Meta Ads vinculadas a este evento.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
