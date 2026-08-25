@@ -17,8 +17,11 @@ import {
 } from "recharts";
 import type { MetaWeeklyStat, MetaDemographicItem, MetaAd } from "@/lib/data/metaAds";
 
+// Cores puxadas da identidade visual da própria plataforma (variáveis
+// CSS de brand/walnut, que mudam por ministério — ver tailwind.config.ts)
+// em vez de tons fixos desconectados do resto do portal.
 const GENDER_COLORS: Record<string, string> = {
-  female: "#d4a373",
+  female: "rgb(var(--walnut-400))",
   male: "rgb(var(--brand-500))",
   unknown: "#a8a29e",
 };
@@ -83,9 +86,9 @@ export function MetaWeeklyChart({ data }: { data: MetaWeeklyStat[] }) {
             type="monotone"
             dataKey="vendas"
             name="Vendas"
-            stroke="#d4a373"
+            stroke="rgb(var(--walnut-500))"
             strokeWidth={2.5}
-            dot={{ r: 4, fill: "#d4a373" }}
+            dot={{ r: 4, fill: "rgb(var(--walnut-500))" }}
             activeDot={{ r: 6 }}
             connectNulls
           />
