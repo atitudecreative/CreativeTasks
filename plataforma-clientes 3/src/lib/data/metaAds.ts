@@ -66,10 +66,7 @@ export function summarizeMetaMetrics(rows: MetaAdCampaign[]) {
     investimento,
     vendas,
     vendasDisponivel,
-    ctr: impressoes > 0 ? (cliques / impressoes) * 100 : null,
-    cpc: cliques > 0 ? investimento / cliques : null,
-    cpm: impressoes > 0 ? (investimento / impressoes) * 1000 : null,
-    cpa: vendas != null && vendas > 0 ? investimento / vendas : null,
+    ...deriveMetaKpis({ investimento, impressoes, cliques, vendas }),
   };
 }
 
@@ -91,8 +88,29 @@ export type MetaWeeklyStat = {
   semana_inicio: string;
   semana_fim: string;
   investimento: number;
+  impressoes: number;
+  cliques: number;
   vendas: number | null;
 };
+
+// Deriva CTR/CPC/CPM/CPA em cima de um total (semana única ou soma de
+// várias) — mesma fórmula de summarizeMetaMetrics, mas reaproveitável
+// pro filtro de semana no relatório (calculado no cliente, sem nova
+// consulta ao banco).
+export function deriveMetaKpis(totals: {
+  investimento: number;
+  impressoes: number;
+  cliques: number;
+  vendas: number | null;
+}) {
+  const { investimento, impressoes, cliques, vendas } = totals;
+  return {
+    ctr: impressoes > 0 ? (cliques / impressoes) * 100 : null,
+    cpc: cliques > 0 ? investimento / cliques : null,
+    cpm: impressoes > 0 ? (investimento / impressoes) * 1000 : null,
+    cpa: vendas != null && vendas > 0 ? investimento / vendas : null,
+  };
+}
 
 export type MetaDemographicItem = {
   chave: string;
@@ -148,7 +166,7 @@ export async function getMetaWeeklyStatsForCampaign(campaignId: string): Promise
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("meta_ad_campaign_weekly")
-    .select("semana_inicio, semana_fim, investimento, vendas")
+    .select("semana_inicio, semana_fim, investimento, impressoes, cliques, vendas")
     .in("meta_campaign_id", metaCampaignIds)
     .order("semana_inicio", { ascending: true });
 
@@ -161,12 +179,16 @@ export async function getMetaWeeklyStatsForCampaign(campaignId: string): Promise
   for (const row of data ?? []) {
     const existing = byWeek.get(row.semana_inicio);
     const investimento = (existing?.investimento ?? 0) + (row.investimento ?? 0);
+    const impressoes = (existing?.impressoes ?? 0) + (row.impressoes ?? 0);
+    const cliques = (existing?.cliques ?? 0) + (row.cliques ?? 0);
     const vendas =
       existing?.vendas != null || row.vendas != null ? (existing?.vendas ?? 0) + (row.vendas ?? 0) : null;
     byWeek.set(row.semana_inicio, {
       semana_inicio: row.semana_inicio,
       semana_fim: row.semana_fim,
       investimento,
+      impressoes,
+      cliques,
       vendas,
     });
   }
