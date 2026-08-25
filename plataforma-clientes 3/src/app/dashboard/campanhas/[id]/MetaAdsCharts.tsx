@@ -15,7 +15,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import type { MetaWeeklyStat, MetaDemographicItem } from "@/lib/data/metaAds";
+import type { MetaWeeklyStat, MetaDemographicItem, MetaAd } from "@/lib/data/metaAds";
 
 const GENDER_COLORS: Record<string, string> = {
   female: "#d4a373",
@@ -128,6 +128,80 @@ export function MetaGenderChart({ data }: { data: MetaDemographicItem[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+// Ranking de investimento por criativo (anúncio) — barra horizontal,
+// maior investimento primeiro, com uma medalha no #1. Igual à ideia do
+// "Investimento por Criativo" do exemplo, com as cores da plataforma.
+export function MetaAdsRanking({ ads }: { ads: MetaAd[] }) {
+  const ranked = [...ads]
+    .filter((a) => a.investimento != null && a.investimento > 0)
+    .sort((a, b) => (b.investimento ?? 0) - (a.investimento ?? 0));
+
+  if (ranked.length === 0) return <EmptyChart label="Ainda sem investimento por criativo sincronizado." />;
+
+  const max = ranked[0].investimento ?? 1;
+
+  return (
+    <div className="space-y-2.5">
+      {ranked.map((ad, i) => (
+        <div key={ad.id}>
+          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+            <span className="flex items-center gap-1.5 truncate font-medium text-neutral-700">
+              {i === 0 && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                  Top #1
+                </span>
+              )}
+              <span className="truncate">{ad.nome}</span>
+            </span>
+            <span className="shrink-0 font-semibold text-neutral-800">{formatMoney(ad.investimento ?? 0)}</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+            <div
+              className="h-full rounded-full bg-brand-500"
+              style={{ width: `${Math.max(((ad.investimento ?? 0) / max) * 100, 3)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Resumo por faixa etária em barras horizontais (investido x vendas),
+// igual ao "35-44 anos (Público Principal)" do exemplo — a faixa com
+// mais investimento leva a etiqueta "Público Principal".
+export function MetaAgeSummaryList({ data }: { data: MetaDemographicItem[] }) {
+  if (data.length === 0) return null;
+
+  const ranked = [...data].sort((a, b) => b.investimento - a.investimento);
+  const max = ranked[0]?.investimento || 1;
+
+  return (
+    <div className="mb-4 space-y-3">
+      {ranked.map((d, i) => (
+        <div key={d.chave}>
+          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+            <span className="font-medium text-neutral-700">
+              {d.chave} anos {i === 0 && <span className="text-neutral-400">(público principal)</span>}
+            </span>
+            <span className="text-neutral-500">
+              {d.vendas != null ? `${d.vendas} vendas · ` : ""}
+              {formatMoney(d.investimento)}
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.max((d.investimento / max) * 100, 3)}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
