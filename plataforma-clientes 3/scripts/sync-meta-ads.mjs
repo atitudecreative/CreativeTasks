@@ -127,7 +127,7 @@ async function fetchAdsInsights(adAccountId) {
 async function fetchWeeklyInsights(adAccountId) {
   const url = new URL(`${META_API}/act_${adAccountId}/insights`);
   url.searchParams.set("level", "campaign");
-  url.searchParams.set("fields", "campaign_id,spend,actions");
+  url.searchParams.set("fields", "campaign_id,spend,impressions,clicks,actions");
   url.searchParams.set("time_increment", "7");
   url.searchParams.set("date_preset", "maximum");
   url.searchParams.set("limit", "200");
@@ -197,6 +197,8 @@ async function upsertWeekly(weeklyRows) {
       semana_inicio: row.date_start,
       semana_fim: row.date_stop,
       investimento: row.spend != null ? Number(row.spend) : null,
+      impressoes: row.impressions != null ? Number(row.impressions) : null,
+      cliques: row.clicks != null ? Number(row.clicks) : null,
       vendas: extractPurchases(row.actions),
       synced_at: new Date().toISOString(),
     }));
