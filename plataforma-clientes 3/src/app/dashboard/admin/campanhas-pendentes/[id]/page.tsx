@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireComunicacao } from "@/lib/data/ministries";
-import { getCampaignById } from "@/lib/data/campaigns";
+import { requireComunicacao, getAllMinistries } from "@/lib/data/ministries";
+import { getCampaignById, getCampaignManualMinistryIds } from "@/lib/data/campaigns";
 import { EditCampaignForm } from "./EditCampaignForm";
 
 export default async function EditCampanhaPage({
@@ -11,7 +11,11 @@ export default async function EditCampanhaPage({
 }) {
   await requireComunicacao();
   const { id } = await params;
-  const campaign = await getCampaignById(id);
+  const [campaign, ministries, manualMinistryIds] = await Promise.all([
+    getCampaignById(id),
+    getAllMinistries(),
+    getCampaignManualMinistryIds(id),
+  ]);
   if (!campaign) notFound();
 
   return (
@@ -27,7 +31,7 @@ export default async function EditCampanhaPage({
         </Link>
       </p>
 
-      <EditCampaignForm campaign={campaign} />
+      <EditCampaignForm campaign={campaign} ministries={ministries} manualMinistryIds={manualMinistryIds} />
     </div>
   );
 }
