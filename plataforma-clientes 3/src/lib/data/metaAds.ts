@@ -1,4 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { deriveMetaKpis } from "@/lib/metaAdsMath";
+import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
+export { deriveMetaKpis } from "@/lib/metaAdsMath";
+export type { MetaMetricsSummary } from "@/lib/metaAdsMath";
 
 export type MetaAdCampaign = {
   id: string;
@@ -47,7 +51,7 @@ export async function getMetaCampaignsForCampaign(campaignId: string): Promise<M
 // Meta — usado quando mais de uma campanha do Meta está ligada ao mesmo
 // evento do portal. Também calcula as métricas derivadas (CTR, CPC, CPM,
 // CPA) igual ao relatório de agência, na mesma tela.
-export function summarizeMetaMetrics(rows: MetaAdCampaign[]) {
+export function summarizeMetaMetrics(rows: MetaAdCampaign[]): MetaMetricsSummary {
   const alcance = rows.reduce((sum, r) => sum + (r.alcance ?? 0), 0);
   const impressoes = rows.reduce((sum, r) => sum + (r.impressoes ?? 0), 0);
   const cliques = rows.reduce((sum, r) => sum + (r.cliques ?? 0), 0);
@@ -92,25 +96,6 @@ export type MetaWeeklyStat = {
   cliques: number;
   vendas: number | null;
 };
-
-// Deriva CTR/CPC/CPM/CPA em cima de um total (semana única ou soma de
-// várias) — mesma fórmula de summarizeMetaMetrics, mas reaproveitável
-// pro filtro de semana no relatório (calculado no cliente, sem nova
-// consulta ao banco).
-export function deriveMetaKpis(totals: {
-  investimento: number;
-  impressoes: number;
-  cliques: number;
-  vendas: number | null;
-}) {
-  const { investimento, impressoes, cliques, vendas } = totals;
-  return {
-    ctr: impressoes > 0 ? (cliques / impressoes) * 100 : null,
-    cpc: cliques > 0 ? investimento / cliques : null,
-    cpm: impressoes > 0 ? (investimento / impressoes) * 1000 : null,
-    cpa: vendas != null && vendas > 0 ? investimento / vendas : null,
-  };
-}
 
 export type MetaDemographicItem = {
   chave: string;
