@@ -1,8 +1,13 @@
 // Sincroniza campanhas do Meta Ads (Marketing API) pra dentro da tabela
-// `meta_ad_campaigns` — traz alcance/impressões/cliques/investimento reais
-// e tenta casar cada campanha do Meta com uma campanha/evento do portal
-// pelo NOME (mesma normalização — trim + minúsculo — já usada pra tag do
-// Asana virar campanha).
+// `meta_ad_campaigns` — traz alcance/impressões/cliques/investimento/vendas
+// reais e tenta casar cada campanha do Meta com uma campanha/evento do
+// portal pelo NOME (mesma normalização — trim + minúsculo — já usada pra
+// tag do Asana virar campanha). Também traz, por campanha do Meta: uma
+// linha por ANÚNCIO/criativo (`meta_ads`), investido x vendas por semana
+// (`meta_ad_campaign_weekly`) e investido x vendas por gênero/idade
+// (`meta_ad_campaign_demografia`) — pra alimentar o relatório completo no
+// dashboard da campanha, no estilo do relatório de agência (migration
+// 0027).
 //
 // Roda FORA do Next.js — é um script standalone pra ser executado
 // manualmente ou por um agendador (cron, GitHub Actions, etc). Nunca é
@@ -41,6 +46,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const META_API = "https://graph.facebook.com/v19.0";
 
+// Ordem de preferência dos tipos de conversão que a API do Meta pode
+// devolver em `actions` — varia conforme como o Pixel/Conversions API foi
+// configurado no site. Pega o primeiro tipo que aparecer com valor; se
+// nenhum aparecer, `vendas` fica null (não zero) — "não rastreado" é
+// diferente de "zero vendas", e a tela mostra "não disponível" nesse caso.
+const PURCHASE_ACTION_TYPES = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"];
+
+function extractPurchases(actions) {
+  if (!Array.isArray(actions)) return null;
+  for (const type of PURCHASE_ACTION_TYPES) {
+    const row = actions.find((a) => a.action_type === type);
+    if (row?.value != null) return Math.round(Number(row.value));
+  }
+  return null;
+}
+
 async function fetchAllPages(initialUrl) {
   const results = [];
   let url = initialUrl;
@@ -73,7 +94,7 @@ async function fetchCampaigns(adAccountId) {
 async function fetchInsightsByCampaign(adAccountId) {
   const url = new URL(`${META_API}/act_${adAccountId}/insights`);
   url.searchParams.set("level", "campaign");
-  url.searchParams.set("fields", "campaign_id,reach,impressions,clicks,spend");
+  url.searchParams.set("fields", "campaign_id,reach,impressions,clicks,spend,actions");
   url.searchParams.set("date_preset", "maximum");
   url.searchParams.set("limit", "100");
   url.searchParams.set("access_token", META_ACCESS_TOKEN);
@@ -82,6 +103,50 @@ async function fetchInsightsByCampaign(adAccountId) {
   const map = new Map();
   for (const row of rows) map.set(row.campaign_id, row);
   return map;
+}
+
+// Um request só, nível "ad" — uma linha por anúncio/criativo, com o
+// campaign_id de volta pra ligar na campanha certa. Alimenta a "Tabela
+// completa por criativo" do dashboard.
+async function fetchAdsInsights(adAccountId) {
+  const url = new URL(`${META_API}/act_${adAccountId}/insights`);
+  url.searchParams.set("level", "ad");
+  url.searchParams.set(
+    "fields",
+    "ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc,cpm,actions"
+  );
+  url.searchParams.set("date_preset", "maximum");
+  url.searchParams.set("limit", "200");
+  url.searchParams.set("access_token", META_ACCESS_TOKEN);
+  return fetchAllPages(url.toString());
+}
+
+// Investido x vendas por semana, por campanha — time_increment=7 faz a
+// própria API do Meta devolver uma linha por semana (com date_start/
+// date_stop) em vez de eu ter que somar dia a dia aqui.
+async function fetchWeeklyInsights(adAccountId) {
+  const url = new URL(`${META_API}/act_${adAccountId}/insights`);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("fields", "campaign_id,spend,actions");
+  url.searchParams.set("time_increment", "7");
+  url.searchParams.set("date_preset", "maximum");
+  url.searchParams.set("limit", "200");
+  url.searchParams.set("access_token", META_ACCESS_TOKEN);
+  return fetchAllPages(url.toString());
+}
+
+// Investido x vendas quebrado por gênero OU por faixa etária —
+// `breakdown` é "gender" ou "age", os dois nomes que a API do Meta
+// reconhece em breakdowns=.
+async function fetchDemographicInsights(adAccountId, breakdown) {
+  const url = new URL(`${META_API}/act_${adAccountId}/insights`);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("fields", "campaign_id,spend,actions");
+  url.searchParams.set("breakdowns", breakdown);
+  url.searchParams.set("date_preset", "maximum");
+  url.searchParams.set("limit", "200");
+  url.searchParams.set("access_token", META_ACCESS_TOKEN);
+  return fetchAllPages(url.toString());
 }
 
 // Mesmo mapa nome (minúsculo, sem espaço nas pontas) -> id já usado no
@@ -96,12 +161,82 @@ async function loadCampaignMap() {
   return map;
 }
 
+async function upsertAds(adsRows) {
+  if (adsRows.length === 0) return;
+
+  const payload = adsRows.map((row) => {
+    const spend = row.spend != null ? Number(row.spend) : null;
+    const impressions = row.impressions != null ? Number(row.impressions) : null;
+    const clicks = row.clicks != null ? Number(row.clicks) : null;
+    return {
+      meta_ad_id: row.ad_id,
+      meta_campaign_id: row.campaign_id,
+      nome: row.ad_name ?? "(sem nome)",
+      investimento: spend,
+      impressoes: impressions,
+      cliques: clicks,
+      ctr: row.ctr != null ? Number(row.ctr) : null,
+      cpc: row.cpc != null ? Number(row.cpc) : null,
+      cpm: row.cpm != null ? Number(row.cpm) : null,
+      vendas: extractPurchases(row.actions),
+      synced_at: new Date().toISOString(),
+    };
+  });
+
+  const { error } = await supabase.from("meta_ads").upsert(payload, { onConflict: "meta_ad_id" });
+  if (error) console.warn(`  Não consegui salvar anúncios do Meta: ${error.message}`);
+}
+
+async function upsertWeekly(weeklyRows) {
+  if (weeklyRows.length === 0) return;
+
+  const payload = weeklyRows
+    .filter((row) => row.date_start && row.date_stop)
+    .map((row) => ({
+      meta_campaign_id: row.campaign_id,
+      semana_inicio: row.date_start,
+      semana_fim: row.date_stop,
+      investimento: row.spend != null ? Number(row.spend) : null,
+      vendas: extractPurchases(row.actions),
+      synced_at: new Date().toISOString(),
+    }));
+
+  const { error } = await supabase
+    .from("meta_ad_campaign_weekly")
+    .upsert(payload, { onConflict: "meta_campaign_id,semana_inicio" });
+  if (error) console.warn(`  Não consegui salvar a evolução semanal: ${error.message}`);
+}
+
+async function upsertDemografia(rows, tipo, chaveField) {
+  if (rows.length === 0) return;
+
+  const payload = rows
+    .filter((row) => row[chaveField])
+    .map((row) => ({
+      meta_campaign_id: row.campaign_id,
+      tipo,
+      chave: row[chaveField],
+      investimento: row.spend != null ? Number(row.spend) : null,
+      vendas: extractPurchases(row.actions),
+      synced_at: new Date().toISOString(),
+    }));
+
+  const { error } = await supabase
+    .from("meta_ad_campaign_demografia")
+    .upsert(payload, { onConflict: "meta_campaign_id,tipo,chave" });
+  if (error) console.warn(`  Não consegui salvar a demografia (${tipo}): ${error.message}`);
+}
+
 async function syncAdAccount(adAccountId, campaignMap) {
   console.log(`\n=== Conta de anúncios act_${adAccountId} ===`);
 
-  const [campaigns, insightsByCampaign] = await Promise.all([
+  const [campaigns, insightsByCampaign, adsRows, weeklyRows, genderRows, ageRows] = await Promise.all([
     fetchCampaigns(adAccountId),
     fetchInsightsByCampaign(adAccountId),
+    fetchAdsInsights(adAccountId),
+    fetchWeeklyInsights(adAccountId),
+    fetchDemographicInsights(adAccountId, "gender"),
+    fetchDemographicInsights(adAccountId, "age"),
   ]);
 
   const { data: existingRows, error: existingError } = await supabase
@@ -144,6 +279,7 @@ async function syncAdAccount(adAccountId, campaignMap) {
         impressoes: insight?.impressions != null ? Number(insight.impressions) : null,
         cliques: insight?.clicks != null ? Number(insight.clicks) : null,
         investimento: insight?.spend != null ? Number(insight.spend) : null,
+        vendas: extractPurchases(insight?.actions),
         data_inicio: c.start_time ? c.start_time.slice(0, 10) : null,
         data_termino: c.stop_time ? c.stop_time.slice(0, 10) : null,
         synced_at: new Date().toISOString(),
@@ -156,8 +292,16 @@ async function syncAdAccount(adAccountId, campaignMap) {
     }
   }
 
+  await upsertAds(adsRows);
+  await upsertWeekly(weeklyRows);
+  await upsertDemografia(genderRows, "genero", "gender");
+  await upsertDemografia(ageRows, "idade", "age");
+
   console.log(
     `  ${campaigns.length} campanha(s) do Meta — ${matched} casada(s) com uma campanha do portal, ${unmatched} sem vínculo (link manual em Campanhas ativas).`
+  );
+  console.log(
+    `  ${adsRows.length} anúncio(s), ${weeklyRows.length} linha(s) semanais, ${genderRows.length} linha(s) de gênero, ${ageRows.length} linha(s) de idade.`
   );
 }
 
