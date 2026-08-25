@@ -7,7 +7,7 @@ import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
 import type { MetaAdCampaign, MetaAd, MetaWeeklyStat, MetaDemographicItem } from "@/lib/data/metaAds";
 import { MetaWeeklyChart, MetaGenderChart, MetaAgeChart, MetaAdsRanking, MetaAgeSummaryList } from "./MetaAdsCharts";
 import { MetaAdsTable } from "./MetaAdsTable";
-import { IconTrendingUp } from "./icons";
+import { IconTrendingUp, IconWallet, IconCheckCircle, IconTarget, IconDownload, IconPrinter } from "./icons";
 
 type Tab = "visao" | "criativos" | "publico";
 
@@ -88,7 +88,7 @@ export function CampaignMetaReport({
     <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
             <IconTrendingUp className="h-4.5 w-4.5" />
           </span>
           <div>
@@ -111,22 +111,24 @@ export function CampaignMetaReport({
           <button
             type="button"
             onClick={() => downloadAdsCsv(metaAds, campaignNome)}
-            className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+            className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
           >
+            <IconDownload className="h-3.5 w-3.5" />
             Exportar CSV
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-700 hover:shadow"
           >
+            <IconPrinter className="h-3.5 w-3.5" />
             Imprimir / PDF
           </button>
         </div>
       </div>
 
-      {/* Abas */}
-      <div className="mb-4 flex gap-1 border-b border-neutral-100">
+      {/* Abas — controle segmentado, mesma lógica visual do resto do portal */}
+      <div className="mb-4 inline-flex rounded-full bg-neutral-100 p-1">
         {(
           [
             ["visao", "Visão geral"],
@@ -138,10 +140,8 @@ export function CampaignMetaReport({
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`rounded-t-lg px-3 py-2 text-xs font-medium transition ${
-              tab === key
-                ? "border-b-2 border-brand-600 text-brand-700"
-                : "text-neutral-400 hover:text-neutral-600"
+            className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+              tab === key ? "bg-white text-brand-700 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
             }`}
           >
             {label}
@@ -151,14 +151,14 @@ export function CampaignMetaReport({
 
       {/* Filtro por semana */}
       {metaWeekly.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="mb-5 flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setSelectedWeek("total")}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
               selectedWeek === "total"
-                ? "border-brand-500 bg-brand-50 text-brand-700"
-                : "border-neutral-200 text-neutral-500 hover:border-neutral-300"
+                ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
             }`}
           >
             Todo o período
@@ -170,8 +170,8 @@ export function CampaignMetaReport({
               onClick={() => setSelectedWeek(w.semana_inicio)}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                 selectedWeek === w.semana_inicio
-                  ? "border-brand-500 bg-brand-50 text-brand-700"
-                  : "border-neutral-200 text-neutral-500 hover:border-neutral-300"
+                  ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                  : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
               }`}
             >
               {formatWeekLabel(w.semana_inicio)}
@@ -182,17 +182,18 @@ export function CampaignMetaReport({
 
       {/* KPIs */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <MetricCard label="Investido" value={formatMoney(kpis.investimento)} accent="sky" />
+        <MetricCard label="Investido" value={formatMoney(kpis.investimento)} accent="brand" icon={<IconWallet className="h-4 w-4" />} />
         <MetricCard
           label="Vendas"
           value={kpis.vendasDisponivel ? (kpis.vendas ?? 0).toLocaleString("pt-BR") : "—"}
           hint={kpis.vendasDisponivel ? undefined : "sem rastreamento configurado"}
-          accent="sky"
+          accent="green"
+          icon={<IconCheckCircle className="h-4 w-4" />}
         />
-        <MetricCard label="CPA" value={kpis.cpa != null ? formatMoney(kpis.cpa) : "—"} accent="sky" />
-        <MetricCard label="CTR" value={kpis.ctr != null ? `${kpis.ctr.toFixed(2)}%` : "—"} accent="sky" />
-        <MetricCard label="CPM" value={kpis.cpm != null ? formatMoney(kpis.cpm) : "—"} accent="sky" />
-        <MetricCard label="CPC" value={kpis.cpc != null ? formatMoney(kpis.cpc) : "—"} accent="sky" />
+        <MetricCard label="CPA" value={kpis.cpa != null ? formatMoney(kpis.cpa) : "—"} accent="amber" icon={<IconTarget className="h-4 w-4" />} />
+        <MetricCard label="CTR" value={kpis.ctr != null ? `${kpis.ctr.toFixed(2)}%` : "—"} accent="walnut" />
+        <MetricCard label="CPM" value={kpis.cpm != null ? formatMoney(kpis.cpm) : "—"} accent="walnut" />
+        <MetricCard label="CPC" value={kpis.cpc != null ? formatMoney(kpis.cpc) : "—"} accent="walnut" />
       </div>
 
       <p className="mb-6 text-xs text-neutral-400">
