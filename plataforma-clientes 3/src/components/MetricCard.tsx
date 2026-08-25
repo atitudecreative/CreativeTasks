@@ -12,19 +12,29 @@ export function MetricCard({
   value,
   hint,
   accent = "brand",
+  icon,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   accent?: keyof typeof ACCENT_CLASSES;
+  // Ícone opcional (svg de 16-18px) — mostrado num chip colorido no
+  // canto superior direito do card. Sem isso, o card renderiza igual a
+  // antes (compatível com todo uso já existente).
+  icon?: React.ReactNode;
 }) {
   const colors = ACCENT_CLASSES[accent] ?? ACCENT_CLASSES.brand;
 
   return (
     <div className={`rounded-2xl border border-t-4 border-neutral-200 bg-white p-5 shadow-sm ${colors.border}`}>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-        {label}
-      </p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
+        {icon && (
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${colors.bg} ${colors.text}`}>
+            {icon}
+          </span>
+        )}
+      </div>
       <p className={`text-3xl font-bold ${colors.text}`}>{value}</p>
       {hint && <p className="mt-1 text-xs text-neutral-400">{hint}</p>}
     </div>
