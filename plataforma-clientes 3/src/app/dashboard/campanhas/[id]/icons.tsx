@@ -127,3 +127,22 @@ export function IconTrendingUp({ className = base }: IconProps) {
     </svg>
   );
 }
+
+export function IconDownload({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3.5v11.5M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M4.5 16.5v2.5A1.5 1.5 0 0 0 6 20.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5" />
+    </svg>
+  );
+}
+
+export function IconPrinter({ className = base }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 8.5v-5h11v5" />
+      <rect x="3.5" y="8.5" width="17" height="8" rx="1.75" />
+      <path d="M6.5 14.5h11v6h-11v-6Z" />
+    </svg>
+  );
+}
