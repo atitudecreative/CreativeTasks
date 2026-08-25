@@ -41,6 +41,10 @@ export type PendingCampaign = Campaign & {
   // essa campanha — pode ter mais de um (é o sentido de tag global).
   ministryNames: string[];
   demandCount: number;
+  // IDs dos ministérios liberados manualmente pra essa campanha
+  // (migration 0026, campaign_ministries) — usado pra pré-marcar os
+  // checkboxes na tela de edição.
+  manualMinistryIds: string[];
 };
 
 export type CampaignFolder = {
@@ -100,18 +104,28 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   // Campanha não pertence mais a um ministério só — uma tag pode
   // aparecer em vários (migration 0018). Um ministério vê uma campanha
   // se tiver AO MENOS uma demanda sua vinculada a ela (e ela estiver
-  // publicada), não só quando ele é o "ministério de origem".
-  const { data: linkRows, error: linkError } = await supabase
-    .from("demand_campaigns")
-    .select("campaign_id, demands!inner(ministry_id)")
-    .eq("demands.ministry_id", ministryId);
+  // publicada), OU se a Comunicação liberou manualmente esse
+  // ministério pra ela (migration 0026, campaign_ministries) — as duas
+  // fontes se somam.
+  const [{ data: linkRows, error: linkError }, { data: manualRows, error: manualError }] = await Promise.all([
+    supabase
+      .from("demand_campaigns")
+      .select("campaign_id, demands!inner(ministry_id)")
+      .eq("demands.ministry_id", ministryId),
+    supabase.from("campaign_ministries").select("campaign_id").eq("ministry_id", ministryId),
+  ]);
 
   if (linkError) {
     console.error("Erro ao buscar campanhas do ministério:", linkError.message);
     return [];
   }
+  if (manualError) {
+    console.error("Erro ao buscar liberações manuais de campanha:", manualError.message);
+  }
 
-  const campaignIds = Array.from(new Set((linkRows ?? []).map((r) => r.campaign_id)));
+  const campaignIds = Array.from(
+    new Set([...(linkRows ?? []).map((r) => r.campaign_id), ...(manualRows ?? []).map((r) => r.campaign_id)])
+  );
   if (campaignIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -163,12 +177,13 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
 
   const demandCounts = new Map<string, number>();
   const ministryIdsByCampaign = new Map<string, Set<string>>();
+  const manualMinistryIdsByCampaign = new Map<string, string[]>();
 
   if (ids.length > 0) {
-    const { data: linkRows, error: linkError } = await supabase
-      .from("demand_campaigns")
-      .select("campaign_id, demands(ministry_id)")
-      .in("campaign_id", ids);
+    const [{ data: linkRows, error: linkError }, { data: manualRows, error: manualError }] = await Promise.all([
+      supabase.from("demand_campaigns").select("campaign_id, demands(ministry_id)").in("campaign_id", ids),
+      supabase.from("campaign_ministries").select("campaign_id, ministry_id").in("campaign_id", ids),
+    ]);
 
     if (linkError) {
       console.error("Erro ao contar demandas por campanha:", linkError.message);
@@ -184,6 +199,16 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
         }
       }
     }
+
+    if (manualError) {
+      console.error("Erro ao buscar liberações manuais de campanha:", manualError.message);
+    } else {
+      for (const row of manualRows ?? []) {
+        const list = manualMinistryIdsByCampaign.get(row.campaign_id) ?? [];
+        list.push(row.ministry_id);
+        manualMinistryIdsByCampaign.set(row.campaign_id, list);
+      }
+    }
   }
 
   return rows
@@ -197,9 +222,28 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
         ...c,
         ministryNames,
         demandCount: demandCounts.get(c.id) ?? 0,
+        manualMinistryIds: manualMinistryIdsByCampaign.get(c.id) ?? [],
       };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+// IDs dos ministérios liberados manualmente pra uma campanha específica
+// (migration 0026) — usado na tela de edição pra pré-marcar os
+// checkboxes de visibilidade.
+export async function getCampaignManualMinistryIds(campaignId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("campaign_ministries")
+    .select("ministry_id")
+    .eq("campaign_id", campaignId);
+
+  if (error) {
+    console.error("Erro ao buscar liberações manuais da campanha:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r) => r.ministry_id);
 }
 
 // Todas as pastas de campanha — agora globais (migration 0018), não
