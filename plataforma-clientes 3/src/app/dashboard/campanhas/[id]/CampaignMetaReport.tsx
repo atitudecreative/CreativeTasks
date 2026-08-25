@@ -7,6 +7,7 @@ import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
 import type { MetaAdCampaign, MetaAd, MetaWeeklyStat, MetaDemographicItem } from "@/lib/data/metaAds";
 import { MetaWeeklyChart, MetaGenderChart, MetaAgeChart, MetaAdsRanking, MetaAgeSummaryList } from "./MetaAdsCharts";
 import { MetaAdsTable } from "./MetaAdsTable";
+import { IconTrendingUp } from "./icons";
 
 type Tab = "visao" | "criativos" | "publico";
 
@@ -84,23 +85,26 @@ export function CampaignMetaReport({
   }, [selectedWeek, metaMetrics, metaWeekly]);
 
   return (
-    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Relatório de performance · Meta Ads
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                publicada ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"
-              }`}
-            >
-              {publicada ? "Ativa" : "Oculta"}
-            </span>
-            {metaCampaigns.length > 1 && (
-              <span className="text-xs text-neutral-400">Soma de {metaCampaigns.length} campanhas do Meta vinculadas</span>
-            )}
+    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+            <IconTrendingUp className="h-4.5 w-4.5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-neutral-800">Relatório de performance · Meta Ads</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  publicada ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"
+                }`}
+              >
+                {publicada ? "Ativa" : "Oculta"}
+              </span>
+              {metaCampaigns.length > 1 && (
+                <span className="text-xs text-neutral-400">Soma de {metaCampaigns.length} campanhas do Meta vinculadas</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -197,35 +201,50 @@ export function CampaignMetaReport({
       </p>
 
       {tab === "visao" && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Evolução semanal</p>
-            <MetaWeeklyChart data={metaWeekly} />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="rounded-xl border border-neutral-100 p-4 lg:col-span-2">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Evolução semanal</p>
+              <MetaWeeklyChart data={metaWeekly} />
+            </div>
+            <div className="rounded-xl border border-neutral-100 p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
+              <MetaGenderChart data={metaDemographics.genero} />
+            </div>
           </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
-            <MetaGenderChart data={metaDemographics.genero} />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border border-neutral-100 p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Investimento por criativo</p>
+              <MetaAdsRanking ads={metaAds} />
+            </div>
+            <div className="rounded-xl border border-neutral-100 p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Distribuição por idade</p>
+              <MetaAgeSummaryList data={metaDemographics.idade} />
+              <MetaAgeChart data={metaDemographics.idade} />
+            </div>
           </div>
         </div>
       )}
 
       {tab === "criativos" && (
         <div className="space-y-6">
-          <div>
+          <div className="rounded-xl border border-neutral-100 p-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Investimento por criativo</p>
             <MetaAdsRanking ads={metaAds} />
           </div>
-          <MetaAdsTable ads={metaAds} />
+          <div className="rounded-xl border border-neutral-100 p-4">
+            <MetaAdsTable ads={metaAds} />
+          </div>
         </div>
       )}
 
       {tab === "publico" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div>
+          <div className="rounded-xl border border-neutral-100 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
             <MetaGenderChart data={metaDemographics.genero} />
           </div>
-          <div>
+          <div className="rounded-xl border border-neutral-100 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Distribuição por idade</p>
             <MetaAgeSummaryList data={metaDemographics.idade} />
             <MetaAgeChart data={metaDemographics.idade} />
