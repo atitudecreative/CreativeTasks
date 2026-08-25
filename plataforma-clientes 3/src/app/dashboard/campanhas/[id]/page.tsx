@@ -10,12 +10,20 @@ import {
 } from "@/lib/data/campaigns";
 import { STATUS_LABEL, summarizeDemands, getStatusBreakdown, isOverdue } from "@/lib/data/demands";
 import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
-import { getMetaCampaignsForCampaign, summarizeMetaMetrics } from "@/lib/data/metaAds";
+import {
+  getMetaCampaignsForCampaign,
+  summarizeMetaMetrics,
+  getMetaAdsForCampaign,
+  getMetaWeeklyStatsForCampaign,
+  getMetaDemographicsForCampaign,
+} from "@/lib/data/metaAds";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { DeliverableCard } from "@/components/DeliverableCard";
 import { MetricCard } from "@/components/MetricCard";
 import { MilestoneTimeline } from "./MilestoneTimeline";
 import { ChartCard, StatusPieChart } from "../../DashboardCharts";
+import { MetaWeeklyChart, MetaGenderChart, MetaAgeChart } from "./MetaAdsCharts";
+import { MetaAdsTable } from "./MetaAdsTable";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "não definido";
@@ -36,13 +44,17 @@ export default async function CampanhaDetailPage({
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
 
-  const [milestones, demands, deliverables, metaCampaigns, currentUser] = await Promise.all([
-    getMilestonesForCampaign(id),
-    getDemandsForCampaign(id),
-    getDeliverablesForCampaign(id),
-    getMetaCampaignsForCampaign(id),
-    getCurrentUser(),
-  ]);
+  const [milestones, demands, deliverables, metaCampaigns, metaAds, metaWeekly, metaDemographics, currentUser] =
+    await Promise.all([
+      getMilestonesForCampaign(id),
+      getDemandsForCampaign(id),
+      getDeliverablesForCampaign(id),
+      getMetaCampaignsForCampaign(id),
+      getMetaAdsForCampaign(id),
+      getMetaWeeklyStatsForCampaign(id),
+      getMetaDemographicsForCampaign(id),
+      getCurrentUser(),
+    ]);
   const metaMetrics = summarizeMetaMetrics(metaCampaigns);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
@@ -84,18 +96,59 @@ export default async function CampanhaDetailPage({
 
       {metaCampaigns.length > 0 && (
         <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="mb-4 text-sm font-medium text-neutral-700">Alcance real (Meta Ads)</p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <MetricCard label="Alcance" value={metaMetrics.alcance.toLocaleString("pt-BR")} accent="sky" />
-            <MetricCard label="Impressões" value={metaMetrics.impressoes.toLocaleString("pt-BR")} accent="sky" />
-            <MetricCard label="Cliques" value={metaMetrics.cliques.toLocaleString("pt-BR")} accent="sky" />
-            <MetricCard label="Investido" value={formatMoney(metaMetrics.investimento)} accent="sky" />
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-700">Relatório de performance (Meta Ads)</p>
+            {metaCampaigns.length > 1 && (
+              <p className="text-xs text-neutral-400">Soma de {metaCampaigns.length} campanhas do Meta vinculadas.</p>
+            )}
           </div>
-          {metaCampaigns.length > 1 && (
-            <p className="mt-3 text-xs text-neutral-400">
-              Soma de {metaCampaigns.length} campanhas do Meta Ads vinculadas a este evento.
+
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <MetricCard label="Investido" value={formatMoney(metaMetrics.investimento)} accent="sky" />
+            <MetricCard
+              label="Vendas"
+              value={metaMetrics.vendasDisponivel ? (metaMetrics.vendas ?? 0).toLocaleString("pt-BR") : "—"}
+              hint={metaMetrics.vendasDisponivel ? undefined : "sem rastreamento configurado"}
+              accent="sky"
+            />
+            <MetricCard
+              label="CPA"
+              value={metaMetrics.cpa != null ? formatMoney(metaMetrics.cpa) : "—"}
+              accent="sky"
+            />
+            <MetricCard
+              label="CTR"
+              value={metaMetrics.ctr != null ? `${metaMetrics.ctr.toFixed(2)}%` : "—"}
+              accent="sky"
+            />
+            <MetricCard label="CPM" value={metaMetrics.cpm != null ? formatMoney(metaMetrics.cpm) : "—"} accent="sky" />
+            <MetricCard label="CPC" value={metaMetrics.cpc != null ? formatMoney(metaMetrics.cpc) : "—"} accent="sky" />
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:text-xs">
+            <p className="text-xs text-neutral-400">
+              Alcance {metaMetrics.alcance.toLocaleString("pt-BR")} · Impressões{" "}
+              {metaMetrics.impressoes.toLocaleString("pt-BR")} · Cliques {metaMetrics.cliques.toLocaleString("pt-BR")}
             </p>
-          )}
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Evolução semanal</p>
+              <MetaWeeklyChart data={metaWeekly} />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
+              <MetaGenderChart data={metaDemographics.genero} />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por idade</p>
+            <MetaAgeChart data={metaDemographics.idade} />
+          </div>
+
+          <MetaAdsTable ads={metaAds} />
         </div>
       )}
 
