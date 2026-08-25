@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { MetricCard } from "@/components/MetricCard";
-import { deriveMetaKpis } from "@/lib/data/metaAds";
+import { deriveMetaKpis } from "@/lib/metaAdsMath";
+import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
 import type { MetaAdCampaign, MetaAd, MetaWeeklyStat, MetaDemographicItem } from "@/lib/data/metaAds";
 import { MetaWeeklyChart, MetaGenderChart, MetaAgeChart, MetaAdsRanking, MetaAgeSummaryList } from "./MetaAdsCharts";
 import { MetaAdsTable } from "./MetaAdsTable";
@@ -58,7 +59,7 @@ export function CampaignMetaReport({
   campaignNome: string;
   publicada: boolean;
   metaCampaigns: MetaAdCampaign[];
-  metaMetrics: ReturnType<typeof import("@/lib/data/metaAds").summarizeMetaMetrics>;
+  metaMetrics: MetaMetricsSummary;
   metaWeekly: MetaWeeklyStat[];
   metaDemographics: { genero: MetaDemographicItem[]; idade: MetaDemographicItem[] };
   metaAds: MetaAd[];
