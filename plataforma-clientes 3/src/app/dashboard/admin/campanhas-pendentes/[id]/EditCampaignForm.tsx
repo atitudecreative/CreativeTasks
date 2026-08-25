@@ -2,9 +2,15 @@
 
 import { useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import { updateCampaignDetails, uploadCampaignCapa, removeCampaignCapa } from "../actions";
+import {
+  updateCampaignDetails,
+  uploadCampaignCapa,
+  removeCampaignCapa,
+  setCampaignMinistryVisibility,
+} from "../actions";
 import { TIPO_OPTIONS, FASE_OPTIONS, SAUDE_OPTIONS } from "@/lib/campaignOptions";
 import type { Campaign } from "@/lib/data/campaigns";
+import type { Ministry } from "@/lib/data/ministries";
 
 function SaveButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -78,6 +84,72 @@ function CapaBlock({ campaign }: { campaign: Campaign }) {
           )}
         </div>
         {state.error && <p className="text-xs text-rose-600">{state.error}</p>}
+      </form>
+    </div>
+  );
+}
+
+// Escolha manual de quais ministérios veem essa campanha, além dos que
+// já enxergam automaticamente por terem demanda vinculada (migration
+// 0026). Soma à regra automática — desmarcar aqui não tira o acesso de
+// quem já tem demanda ali, só cancela uma liberação manual anterior.
+function VisibilityBlock({
+  campaign,
+  ministries,
+  manualMinistryIds,
+}: {
+  campaign: Campaign;
+  ministries: Ministry[];
+  manualMinistryIds: string[];
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(manualMinistryIds));
+  const [saved, setSaved] = useState(false);
+
+  function toggle(id: string) {
+    setSaved(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+      <p className="mb-1 text-sm font-medium text-neutral-700">Visibilidade por ministério</p>
+      <p className="mb-4 text-xs text-neutral-500">
+        Ministérios com demanda vinculada a essa campanha já a veem automaticamente. Marque
+        aqui outros ministérios que também devem ver o dashboard desse evento, mesmo sem
+        demanda própria ainda.
+      </p>
+
+      <form
+        action={(formData) => {
+          setCampaignMinistryVisibility(formData);
+          setSaved(true);
+        }}
+      >
+        <input type="hidden" name="campaignId" value={campaign.id} />
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {ministries.map((m) => (
+            <label key={m.id} className="flex items-center gap-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                name="ministryId"
+                value={m.id}
+                checked={selected.has(m.id)}
+                onChange={() => toggle(m.id)}
+                className="h-4 w-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
+              />
+              {m.name}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveButton label="Salvar visibilidade" />
+          {saved && <span className="text-xs text-green-600">Salvo.</span>}
+        </div>
       </form>
     </div>
   );
@@ -247,10 +319,19 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
   );
 }
 
-export function EditCampaignForm({ campaign }: { campaign: Campaign }) {
+export function EditCampaignForm({
+  campaign,
+  ministries,
+  manualMinistryIds,
+}: {
+  campaign: Campaign;
+  ministries: Ministry[];
+  manualMinistryIds: string[];
+}) {
   return (
     <div>
       <CapaBlock campaign={campaign} />
+      <VisibilityBlock campaign={campaign} ministries={ministries} manualMinistryIds={manualMinistryIds} />
       <InfoForm campaign={campaign} />
     </div>
   );
