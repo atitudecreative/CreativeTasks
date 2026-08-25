@@ -36,7 +36,6 @@ import {
   IconPaperclip,
   IconMessage,
   IconCheckCircle,
-  IconAlertTriangle,
   IconTrendingUp,
 } from "./icons";
 
@@ -119,53 +118,74 @@ export default async function CampanhaDetailPage({
         Campanhas e eventos
       </Link>
 
-      {/* Hero — banner em 16:9 (fullHD), com a imagem de capa ou um
-          gradiente da identidade visual quando não há capa cadastrada. */}
-      <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-3xl shadow-sm">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={
-            campaign.capa_url
-              ? { backgroundImage: `url(${campaign.capa_url})` }
-              : { background: "linear-gradient(135deg, rgb(var(--walnut-900)), rgb(var(--brand-700)))" }
-          }
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.78) 100%)" }}
-        />
-        <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {campaign.identificador && (
-              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-                {campaign.identificador}
+      {/* Hero — banner (imagem de capa, ou gradiente da identidade visual
+          quando não há capa) ocupando as 4 primeiras colunas, com as 3
+          métricas principais da campanha empilhadas na 5ª coluna, cada
+          uma ocupando uma "linha" — dá a leitura de um grid de 3 linhas
+          por 5 colunas, banner + números lado a lado na mesma altura. */}
+      <div className="mb-6 grid grid-cols-5 gap-4">
+        <div className="relative col-span-5 aspect-video overflow-hidden rounded-3xl shadow-sm sm:col-span-4">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={
+              campaign.capa_url
+                ? { backgroundImage: `url(${campaign.capa_url})` }
+                : { background: "linear-gradient(135deg, rgb(var(--walnut-900)), rgb(var(--brand-700)))" }
+            }
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.78) 100%)" }}
+          />
+          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {campaign.identificador && (
+                <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                  {campaign.identificador}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: saudeColor }} />
+                {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
               </span>
-            )}
-            <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: saudeColor }} />
-              {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
-            </span>
-            <span
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur-sm ${
-                campaign.publicada ? "border-green-300/40 bg-green-400/20 text-green-50" : "border-white/25 bg-white/10 text-white"
-              }`}
-            >
-              {campaign.publicada ? "Ativa" : "Oculta"}
-            </span>
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur-sm ${
+                  campaign.publicada ? "border-green-300/40 bg-green-400/20 text-green-50" : "border-white/25 bg-white/10 text-white"
+                }`}
+              >
+                {campaign.publicada ? "Ativa" : "Oculta"}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold leading-tight text-white sm:text-4xl">{campaign.nome}</h1>
+            <p className="mt-1.5 text-sm text-white/70">
+              {TIPO_LABEL[campaign.tipo] ?? campaign.tipo} · {FASE_LABEL[campaign.fase] ?? campaign.fase}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold leading-tight text-white sm:text-4xl">{campaign.nome}</h1>
-          <p className="mt-1.5 text-sm text-white/70">
-            {TIPO_LABEL[campaign.tipo] ?? campaign.tipo} · {FASE_LABEL[campaign.fase] ?? campaign.fase}
-          </p>
         </div>
-      </div>
 
-      {/* Visão geral rápida da campanha (demandas) */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <MetricCard label="Demandas" value={resumoDemandas.total} accent="brand" icon={<IconListChecks className="h-4 w-4" />} />
-        <MetricCard label="Concluídas" value={resumoDemandas.concluidas} accent="green" icon={<IconCheckCircle className="h-4 w-4" />} />
-        <MetricCard label="Atrasadas" value={resumoDemandas.atrasadas} accent="red" icon={<IconAlertTriangle className="h-4 w-4" />} />
-        <MetricCard label="Em andamento" value={resumoDemandas.abertas} accent="violet" icon={<IconTrendingUp className="h-4 w-4" />} />
+        <div className="col-span-5 grid grid-cols-3 gap-4 sm:col-span-1 sm:grid-cols-1 sm:grid-rows-3">
+          <MetricCard
+            label="Demandas"
+            value={resumoDemandas.total}
+            accent="brand"
+            icon={<IconListChecks className="h-4 w-4" />}
+            className="flex h-full flex-col justify-center"
+          />
+          <MetricCard
+            label="Concluídas"
+            value={resumoDemandas.concluidas}
+            accent="green"
+            icon={<IconCheckCircle className="h-4 w-4" />}
+            className="flex h-full flex-col justify-center"
+          />
+          <MetricCard
+            label="Em andamento"
+            value={resumoDemandas.abertas}
+            accent="walnut"
+            icon={<IconTrendingUp className="h-4 w-4" />}
+            className="flex h-full flex-col justify-center"
+          />
+        </div>
       </div>
 
       {metaCampaigns.length > 0 && (
