@@ -36,18 +36,18 @@ export function MetricCard({
 
   return (
     <div
-      className={`rounded-xl border border-t-4 border-neutral-200 bg-white p-4 shadow-sm ${colors.border} ${className}`}
+      className={`min-w-0 overflow-hidden rounded-xl border border-t-4 border-neutral-200 bg-white p-4 shadow-sm ${colors.border} ${className}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
+        <p className="truncate text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
         {icon && (
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white ${colors.solid}`}>
             {icon}
           </span>
         )}
       </div>
-      <p className={`text-[1.75rem] font-bold leading-tight ${colors.text}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-neutral-400">{hint}</p>}
+      <p className={`break-words text-2xl font-bold leading-tight ${colors.text}`}>{value}</p>
+      {hint && <p className="mt-1 truncate text-xs text-neutral-400">{hint}</p>}
     </div>
   );
 }
