@@ -11,22 +11,49 @@ export function MetaCampaignMatcher({
   metaCampaigns: MetaAdCampaign[];
   portalCampaigns: { id: string; nome: string }[];
 }) {
+  // Começa aberta (pra não esconder algo que precisa de ação), mas pode
+  // ser recolhida — a lista costuma crescer e tomar a tela toda enquanto
+  // ninguém vincula as campanhas antigas.
+  const [open, setOpen] = useState(true);
+
   if (metaCampaigns.length === 0) return null;
 
   return (
     <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
-      <p className="mb-1 text-sm font-semibold text-amber-900">
-        Campanhas do Meta Ads sem vínculo ({metaCampaigns.length})
-      </p>
-      <p className="mb-4 text-xs text-amber-800">
-        O sync não achou uma campanha do portal com o mesmo nome pra essas — escolha manualmente
-        ou marque como "sem correspondência" pra parar de aparecer aqui.
-      </p>
-      <div className="divide-y divide-amber-200/70">
-        {metaCampaigns.map((mc) => (
-          <MetaCampaignRow key={mc.id} metaCampaign={mc} portalCampaigns={portalCampaigns} />
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="text-sm font-semibold text-amber-900">
+          Campanhas do Meta Ads sem vínculo ({metaCampaigns.length})
+        </span>
+        <svg
+          className={`h-4 w-4 shrink-0 text-amber-700 transition-transform ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <p className="mb-4 mt-1 text-xs text-amber-800">
+            O sync não achou uma campanha do portal com o mesmo nome pra essas — escolha manualmente
+            ou marque como "sem correspondência" pra parar de aparecer aqui.
+          </p>
+          <div className="divide-y divide-amber-200/70">
+            {metaCampaigns.map((mc) => (
+              <MetaCampaignRow key={mc.id} metaCampaign={mc} portalCampaigns={portalCampaigns} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
