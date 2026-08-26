@@ -70,8 +70,7 @@ export function MetaAdsTable({ ads }: { ads: MetaAd[] }) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-neutral-700">Tabela completa por criativo ({ads.length})</p>
+      <div className="mb-3 flex items-center justify-end gap-3">
         <input
           type="text"
           value={search}
