@@ -5,7 +5,7 @@ import {
   ComposedChart,
   BarChart,
   Bar,
-  Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,8 +13,10 @@ import {
   Legend,
   PieChart,
   Pie,
+  Sector,
   Cell,
 } from "recharts";
+import type { PieSectorDataItem } from "recharts/types/polar/Pie";
 import type { MetaWeeklyStat, MetaDemographicItem, MetaAd } from "@/lib/data/metaAds";
 
 // Cores puxadas da identidade visual da própria plataforma (variáveis
@@ -34,14 +36,21 @@ const GENDER_LABEL: Record<string, string> = {
 
 const AGE_ORDER = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
 
+// Fundo por trás do plot — mesmo tratamento em todo gráfico (linha,
+// coluna, pizza), pra dar mais contraste contra o card branco.
+function ChartBackdrop({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-lg bg-neutral-50 p-2">{children}</div>;
+}
+
 function EmptyChart({ label }: { label: string }) {
   return <div className="flex h-56 items-center justify-center text-sm text-neutral-400">{label}</div>;
 }
 
-// Investido x vendas por semana — mesma ideia do relatório de agência
-// (barra = investido, linha = vendas). Some vendas ficarem null quando o
-// Pixel/Conversions API não está configurado — nesse caso só mostra a
-// barra de investido.
+// Investido x vendas por semana — barra = investido, área preenchida =
+// vendas (em vez de só uma linha fina, a área embaixo da linha vem
+// pintada com um degradê, pra ficar mais fácil de ler a tendência).
+// Some vendas ficarem null quando o Pixel/Conversions API não está
+// configurado — nesse caso só mostra a barra de investido.
 export function MetaWeeklyChart({ data }: { data: MetaWeeklyStat[] }) {
   if (data.length === 0) return <EmptyChart label="Ainda sem histórico semanal sincronizado." />;
 
@@ -56,45 +65,81 @@ export function MetaWeeklyChart({ data }: { data: MetaWeeklyStat[] }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
-        <YAxis
-          yAxisId="left"
-          tick={{ fontSize: 11, fill: "#78716c" }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
-        />
-        {temVendas && (
-          <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: "#78716c" }} axisLine={false} tickLine={false} />
-        )}
-        <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-          formatter={(value, name) =>
-            name === "Investido"
-              ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
-              : [value, name]
-          }
-        />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar yAxisId="left" dataKey="investimento" name="Investido" fill="rgb(var(--brand-500))" radius={[6, 6, 0, 0]} maxBarSize={40} />
-        {temVendas && (
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="vendas"
-            name="Vendas"
-            stroke="rgb(var(--walnut-500))"
-            strokeWidth={2.5}
-            dot={{ r: 4, fill: "rgb(var(--walnut-500))" }}
-            activeDot={{ r: 6 }}
-            connectNulls
+    <ChartBackdrop>
+      <ResponsiveContainer width="100%" height={260}>
+        <ComposedChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="areaVendas" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(var(--walnut-400))" stopOpacity={0.55} />
+              <stop offset="100%" stopColor="rgb(var(--walnut-400))" stopOpacity={0.03} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#d6d3d1" }} tickLine={false} />
+          <YAxis
+            yAxisId="left"
+            tick={{ fontSize: 11, fill: "#78716c" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
           />
-        )}
-      </ComposedChart>
-    </ResponsiveContainer>
+          {temVendas && (
+            <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: "#78716c" }} axisLine={false} tickLine={false} />
+          )}
+          <Tooltip
+            cursor={{ fill: "rgba(0,0,0,0.045)" }}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+            formatter={(value, name) =>
+              name === "Investido"
+                ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
+                : [value, name]
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar
+            yAxisId="left"
+            dataKey="investimento"
+            name="Investido"
+            fill="rgb(var(--brand-500))"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={40}
+            animationDuration={500}
+          />
+          {temVendas && (
+            <Area
+              yAxisId="right"
+              type="monotone"
+              dataKey="vendas"
+              name="Vendas"
+              stroke="rgb(var(--walnut-500))"
+              strokeWidth={2.5}
+              fill="url(#areaVendas)"
+              dot={{ r: 4, fill: "rgb(var(--walnut-500))", strokeWidth: 0 }}
+              activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2 }}
+              connectNulls
+              animationDuration={600}
+            />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </ChartBackdrop>
+  );
+}
+
+// Fatia "estourando" um pouco pra fora quando o mouse passa em cima —
+// dá a sensação de resposta/animação que gráfico estático não tem.
+function ActiveSlice(props: PieSectorDataItem) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={(outerRadius ?? 0) + 6}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+    />
   );
 }
 
@@ -109,19 +154,30 @@ export function MetaGenderChart({ data }: { data: MetaDemographicItem[] }) {
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={200}>
-        <PieChart>
-          <Pie data={chartData} dataKey="investimento" nameKey="label" innerRadius={50} outerRadius={85} paddingAngle={2}>
-            {chartData.map((d) => (
-              <Cell key={d.chave} fill={d.color} stroke="white" strokeWidth={2} />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-            formatter={(value) => Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+      <ChartBackdrop>
+        <ResponsiveContainer width="100%" height={200}>
+          <PieChart>
+            <Pie
+              data={chartData}
+              dataKey="investimento"
+              nameKey="label"
+              innerRadius={50}
+              outerRadius={82}
+              paddingAngle={2}
+              activeShape={ActiveSlice}
+              animationDuration={500}
+            >
+              {chartData.map((d) => (
+                <Cell key={d.chave} fill={d.color} stroke="white" strokeWidth={2} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+              formatter={(value) => Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartBackdrop>
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
         {chartData.map((d) => (
           <li key={d.chave} className="flex items-center gap-1.5 text-xs text-neutral-600">
@@ -168,7 +224,7 @@ export function MetaAdsRanking({ ads }: { ads: MetaAd[] }) {
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
             <div
-              className="h-full rounded-full bg-brand-500"
+              className="h-full rounded-full bg-brand-500 transition-all duration-500"
               style={{ width: `${Math.max(((ad.investimento ?? 0) / max) * 100, 3)}%` }}
             />
           </div>
@@ -201,7 +257,10 @@ export function MetaAgeSummaryList({ data }: { data: MetaDemographicItem[] }) {
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.max((d.investimento / max) * 100, 3)}%` }} />
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all duration-500"
+              style={{ width: `${Math.max((d.investimento / max) * 100, 3)}%` }}
+            />
           </div>
         </div>
       ))}
@@ -222,26 +281,29 @@ export function MetaAgeChart({ data }: { data: MetaDemographicItem[] }) {
   });
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-        <XAxis dataKey="chave" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
-        <YAxis
-          tick={{ fontSize: 11, fill: "#78716c" }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
-        />
-        <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-          formatter={(value, name) =>
-            name === "Investido"
-              ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
-              : [value, name]
-          }
-        />
-        <Bar dataKey="investimento" name="Investido" fill="rgb(var(--brand-500))" radius={[6, 6, 0, 0]} maxBarSize={50} />
-      </BarChart>
-    </ResponsiveContainer>
+    <ChartBackdrop>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+          <XAxis dataKey="chave" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#d6d3d1" }} tickLine={false} />
+          <YAxis
+            tick={{ fontSize: 11, fill: "#78716c" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(0,0,0,0.045)" }}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+            formatter={(value, name) =>
+              name === "Investido"
+                ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
+                : [value, name]
+            }
+          />
+          <Bar dataKey="investimento" name="Investido" fill="rgb(var(--brand-500))" radius={[6, 6, 0, 0]} maxBarSize={50} animationDuration={500} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartBackdrop>
   );
 }
