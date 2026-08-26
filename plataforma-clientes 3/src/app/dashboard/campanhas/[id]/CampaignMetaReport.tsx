@@ -20,6 +20,18 @@ function formatWeekLabel(semanaInicio: string) {
   return new Date(semanaInicio + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+// Painel padrão dos gráficos aqui dentro — borda + rótulo em caixa alta,
+// sempre com o mesmo padding/raio, pra tudo alinhar em grid sem sobras
+// de espaço diferentes entre um card e outro.
+function Panel({ title, className = "", children }: { title: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl border border-neutral-100 bg-neutral-50/40 p-4 ${className}`}>
+      <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{title}</p>
+      {children}
+    </div>
+  );
+}
+
 // CSV simples (separador ;, igual ao padrão do Excel em pt-BR) — sem
 // biblioteca nenhuma, só um Blob baixado direto no navegador.
 function downloadAdsCsv(ads: MetaAd[], campaignNome: string) {
@@ -85,10 +97,11 @@ export function CampaignMetaReport({
   }, [selectedWeek, metaMetrics, metaWeekly]);
 
   return (
-    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+      {/* Cabeçalho */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white">
             <IconTrendingUp className="h-4.5 w-4.5" />
           </span>
           <div>
@@ -127,66 +140,68 @@ export function CampaignMetaReport({
         </div>
       </div>
 
-      {/* Abas — controle segmentado, mesma lógica visual do resto do portal */}
-      <div className="mb-4 inline-flex rounded-full bg-neutral-100 p-1">
-        {(
-          [
-            ["visao", "Visão geral"],
-            ["criativos", `Criativos (${metaAds.length})`],
-            ["publico", "Análise de público"],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
-              tab === key ? "bg-white text-brand-700 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filtro por semana */}
-      {metaWeekly.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setSelectedWeek("total")}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-              selectedWeek === "total"
-                ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
-                : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
-            }`}
-          >
-            Todo o período
-          </button>
-          {metaWeekly.map((w) => (
+      {/* Abas + filtro de semana, na mesma linha pra economizar altura */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-full bg-neutral-100 p-1">
+          {(
+            [
+              ["visao", "Visão geral"],
+              ["criativos", `Criativos (${metaAds.length})`],
+              ["publico", "Análise de público"],
+            ] as [Tab, string][]
+          ).map(([key, label]) => (
             <button
-              key={w.semana_inicio}
+              key={key}
               type="button"
-              onClick={() => setSelectedWeek(w.semana_inicio)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                selectedWeek === w.semana_inicio
+              onClick={() => setTab(key)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+                tab === key ? "bg-white text-brand-700 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {metaWeekly.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSelectedWeek("total")}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                selectedWeek === "total"
                   ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
                   : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
               }`}
             >
-              {formatWeekLabel(w.semana_inicio)}
+              Todo o período
             </button>
-          ))}
-        </div>
-      )}
+            {metaWeekly.map((w) => (
+              <button
+                key={w.semana_inicio}
+                type="button"
+                onClick={() => setSelectedWeek(w.semana_inicio)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                  selectedWeek === w.semana_inicio
+                    ? "border-brand-500 bg-brand-50 text-brand-700 shadow-sm"
+                    : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
+                }`}
+              >
+                {formatWeekLabel(w.semana_inicio)}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {/* KPIs — grid fixo de 6 colunas em telas médias+, todas as células
+          com a mesma altura/padding (MetricCard cuida disso sozinho). */}
+      <div className="mb-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard label="Investido" value={formatMoney(kpis.investimento)} accent="brand" icon={<IconWallet className="h-4 w-4" />} />
         <MetricCard
           label="Vendas"
           value={kpis.vendasDisponivel ? (kpis.vendas ?? 0).toLocaleString("pt-BR") : "—"}
-          hint={kpis.vendasDisponivel ? undefined : "sem rastreamento configurado"}
+          hint={kpis.vendasDisponivel ? undefined : "sem rastreamento"}
           accent="green"
           icon={<IconCheckCircle className="h-4 w-4" />}
         />
@@ -196,60 +211,53 @@ export function CampaignMetaReport({
         <MetricCard label="CPC" value={kpis.cpc != null ? formatMoney(kpis.cpc) : "—"} accent="walnut" />
       </div>
 
-      <p className="mb-6 text-xs text-neutral-400">
+      <p className="mb-5 text-xs text-neutral-400">
         {kpis.alcance != null && <>Alcance {kpis.alcance.toLocaleString("pt-BR")} · </>}
         Impressões {kpis.impressoes.toLocaleString("pt-BR")} · Cliques {kpis.cliques.toLocaleString("pt-BR")}
       </p>
 
       {tab === "visao" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="rounded-xl border border-neutral-100 p-4 lg:col-span-2">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Evolução semanal</p>
-              <MetaWeeklyChart data={metaWeekly} />
-            </div>
-            <div className="rounded-xl border border-neutral-100 p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
+        <div className="space-y-4">
+          <Panel title="Evolução semanal">
+            <MetaWeeklyChart data={metaWeekly} />
+          </Panel>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Panel title="Público por gênero">
               <MetaGenderChart data={metaDemographics.genero} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border border-neutral-100 p-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Investimento por criativo</p>
-              <MetaAdsRanking ads={metaAds} />
-            </div>
-            <div className="rounded-xl border border-neutral-100 p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Distribuição por idade</p>
+            </Panel>
+            <Panel title="Distribuição por idade">
               <MetaAgeSummaryList data={metaDemographics.idade} />
               <MetaAgeChart data={metaDemographics.idade} />
-            </div>
+            </Panel>
           </div>
+          {/* Barra horizontal — largura total, sem dividir coluna, pra
+              caber o nome de cada criativo sem cortar. */}
+          <Panel title="Investimento por criativo">
+            <MetaAdsRanking ads={metaAds} />
+          </Panel>
         </div>
       )}
 
       {tab === "criativos" && (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-neutral-100 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Investimento por criativo</p>
+        <div className="space-y-4">
+          <Panel title="Investimento por criativo">
             <MetaAdsRanking ads={metaAds} />
-          </div>
-          <div className="rounded-xl border border-neutral-100 p-4">
+          </Panel>
+          <Panel title={`Tabela completa (${metaAds.length})`}>
             <MetaAdsTable ads={metaAds} />
-          </div>
+          </Panel>
         </div>
       )}
 
       {tab === "publico" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-neutral-100 p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Público por gênero</p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel title="Público por gênero">
             <MetaGenderChart data={metaDemographics.genero} />
-          </div>
-          <div className="rounded-xl border border-neutral-100 p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Distribuição por idade</p>
+          </Panel>
+          <Panel title="Distribuição por idade">
             <MetaAgeSummaryList data={metaDemographics.idade} />
             <MetaAgeChart data={metaDemographics.idade} />
-          </div>
+          </Panel>
         </div>
       )}
     </div>
