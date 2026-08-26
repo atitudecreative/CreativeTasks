@@ -13,8 +13,10 @@ import {
   Legend,
   PieChart,
   Pie,
+  Sector,
   Cell,
 } from "recharts";
+import type { PieSectorDataItem } from "recharts/types/polar/Pie";
 
 export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
 export type StatusBreakdownItem = { status: string; label: string; count: number; color: string };
@@ -36,6 +38,30 @@ function EmptyChart({ label }: { label: string }) {
   );
 }
 
+// Fundo por trás do plot — mesmo tratamento em todo gráfico (linha,
+// coluna, pizza) em toda a plataforma, pra dar mais contraste contra o
+// card branco que já envolve o gráfico.
+function ChartBackdrop({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-lg bg-neutral-50 p-2">{children}</div>;
+}
+
+// Fatia "estourando" um pouco pra fora quando o mouse passa em cima —
+// dá uma resposta visual ao hover que gráfico de pizza estático não tem.
+function ActiveSlice(props: PieSectorDataItem) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={(outerRadius ?? 0) + 6}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+    />
+  );
+}
+
 function PieLegend({ items }: { items: { label: string; count: number; color: string }[] }) {
   return (
     <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
@@ -53,34 +79,39 @@ export function DemandasPorMesChart({ data }: { data: MonthlyDemandStat[] }) {
   if (data.length === 0) return <EmptyChart label="Sem demandas com prazo definido pra mostrar." />;
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#78716c" }} axisLine={false} tickLine={false} />
-        <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-          labelStyle={{ fontWeight: 600, color: "#292524" }}
-        />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar
-          dataKey="total"
-          name="Total de demandas"
-          fill="rgb(var(--brand-500))"
-          radius={[6, 6, 0, 0]}
-          maxBarSize={40}
-        />
-        <Line
-          type="monotone"
-          dataKey="concluidas"
-          name="Concluídas"
-          stroke="#4ade80"
-          strokeWidth={2.5}
-          dot={{ r: 4, fill: "#4ade80" }}
-          activeDot={{ r: 6 }}
-        />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <ChartBackdrop>
+      <ResponsiveContainer width="100%" height={260}>
+        <ComposedChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#78716c" }} axisLine={false} tickLine={false} />
+          <Tooltip
+            cursor={{ fill: "rgba(0,0,0,0.045)" }}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+            labelStyle={{ fontWeight: 600, color: "#292524" }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar
+            dataKey="total"
+            name="Total de demandas"
+            fill="rgb(var(--brand-500))"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={40}
+            animationDuration={500}
+          />
+          <Line
+            type="monotone"
+            dataKey="concluidas"
+            name="Concluídas"
+            stroke="#4ade80"
+            strokeWidth={2.5}
+            dot={{ r: 4, fill: "#4ade80" }}
+            activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+            animationDuration={600}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </ChartBackdrop>
   );
 }
 
@@ -89,16 +120,27 @@ export function StatusPieChart({ data }: { data: StatusBreakdownItem[] }) {
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={220}>
-        <PieChart>
-          <Pie data={data} dataKey="count" nameKey="label" innerRadius={50} outerRadius={85} paddingAngle={2}>
-            {data.map((d) => (
-              <Cell key={d.status} fill={d.color} stroke="white" strokeWidth={2} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
-        </PieChart>
-      </ResponsiveContainer>
+      <ChartBackdrop>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="count"
+              nameKey="label"
+              innerRadius={50}
+              outerRadius={85}
+              paddingAngle={2}
+              activeShape={ActiveSlice}
+              animationDuration={500}
+            >
+              {data.map((d) => (
+                <Cell key={d.status} fill={d.color} stroke="white" strokeWidth={2} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartBackdrop>
       <PieLegend items={data} />
     </div>
   );
@@ -109,16 +151,27 @@ export function SaudePieChart({ data }: { data: SaudeBreakdownItem[] }) {
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={220}>
-        <PieChart>
-          <Pie data={data} dataKey="count" nameKey="label" innerRadius={50} outerRadius={85} paddingAngle={2}>
-            {data.map((d) => (
-              <Cell key={d.saude} fill={d.color} stroke="white" strokeWidth={2} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
-        </PieChart>
-      </ResponsiveContainer>
+      <ChartBackdrop>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="count"
+              nameKey="label"
+              innerRadius={50}
+              outerRadius={85}
+              paddingAngle={2}
+              activeShape={ActiveSlice}
+              animationDuration={500}
+            >
+              {data.map((d) => (
+                <Cell key={d.saude} fill={d.color} stroke="white" strokeWidth={2} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartBackdrop>
       <PieLegend items={data} />
     </div>
   );
@@ -136,27 +189,30 @@ export function CampaignBudgetChart({ data }: { data: BudgetSummaryItem[] }) {
     value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
-        <YAxis
-          tick={{ fontSize: 11, fill: "#78716c" }}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
-        />
-        <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-          formatter={(value) => formatMoney(Number(value))}
-        />
-        <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={70}>
-          {data.map((d) => (
-            <Cell key={d.label} fill={d.color} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <ChartBackdrop>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#e7e5e4" }} tickLine={false} />
+          <YAxis
+            tick={{ fontSize: 11, fill: "#78716c" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(0,0,0,0.045)" }}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
+            formatter={(value) => formatMoney(Number(value))}
+          />
+          <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={70} animationDuration={500}>
+            {data.map((d) => (
+              <Cell key={d.label} fill={d.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartBackdrop>
   );
 }
 
@@ -176,16 +232,27 @@ export function ConclusionGauge({ total, concluidas }: { total: number; concluid
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={180}>
-        <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>
-            {data.map((d) => (
-              <Cell key={d.name} fill={d.color} stroke="white" strokeWidth={2} />
-            ))}
-          </Pie>
-          <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
-        </PieChart>
-      </ResponsiveContainer>
+      <ChartBackdrop>
+        <ResponsiveContainer width="100%" height={180}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={50}
+              outerRadius={85}
+              paddingAngle={2}
+              activeShape={ActiveSlice}
+              animationDuration={500}
+            >
+              {data.map((d) => (
+                <Cell key={d.name} fill={d.color} stroke="white" strokeWidth={2} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartBackdrop>
       {total > 0 && (
         <PieLegend
           items={[
