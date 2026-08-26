@@ -1,14 +1,14 @@
-const ACCENT_CLASSES: Record<string, { border: string; text: string; bg: string }> = {
-  brand: { border: "border-t-brand-500", text: "text-brand-700", bg: "bg-brand-50" },
-  green: { border: "border-t-green-500", text: "text-green-700", bg: "bg-green-50" },
-  red: { border: "border-t-rose-500", text: "text-rose-700", bg: "bg-rose-50" },
-  amber: { border: "border-t-amber-500", text: "text-amber-700", bg: "bg-amber-50" },
+const ACCENT_CLASSES: Record<string, { border: string; text: string; solid: string }> = {
+  brand: { border: "border-t-brand-500", text: "text-brand-700", solid: "bg-brand-600" },
+  green: { border: "border-t-green-500", text: "text-green-700", solid: "bg-green-600" },
+  red: { border: "border-t-rose-500", text: "text-rose-700", solid: "bg-rose-600" },
+  amber: { border: "border-t-amber-500", text: "text-amber-700", solid: "bg-amber-500" },
   // Segunda cor da identidade da plataforma (walnut) — usada no lugar de
   // tons genéricos (azul, violeta) em cards que não têm um significado
   // semântico próprio (alerta, sucesso etc.), pra ficar coerente com o
   // resto do portal.
-  walnut: { border: "border-t-walnut-500", text: "text-walnut-700", bg: "bg-walnut-50" },
-  violet: { border: "border-t-violet-500", text: "text-violet-700", bg: "bg-violet-50" },
+  walnut: { border: "border-t-walnut-500", text: "text-walnut-700", solid: "bg-walnut-600" },
+  violet: { border: "border-t-violet-500", text: "text-violet-700", solid: "bg-violet-600" },
 };
 
 export function MetricCard({
@@ -36,17 +36,17 @@ export function MetricCard({
 
   return (
     <div
-      className={`rounded-2xl border border-t-4 border-neutral-200 bg-white p-5 shadow-sm ${colors.border} ${className}`}
+      className={`rounded-xl border border-t-4 border-neutral-200 bg-white p-4 shadow-sm ${colors.border} ${className}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
         {icon && (
-          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${colors.bg} ${colors.text}`}>
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white ${colors.solid}`}>
             {icon}
           </span>
         )}
       </div>
-      <p className={`text-3xl font-bold ${colors.text}`}>{value}</p>
+      <p className={`text-[1.75rem] font-bold leading-tight ${colors.text}`}>{value}</p>
       {hint && <p className="mt-1 text-xs text-neutral-400">{hint}</p>}
     </div>
   );
