@@ -51,9 +51,9 @@ function formatMoney(value: number | null) {
 
 function SectionHeader({ icon, title, right }: { icon: React.ReactNode; title: string; right?: React.ReactNode }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="mb-3 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">{icon}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-white">{icon}</span>
         <p className="text-sm font-semibold text-neutral-800">{title}</p>
       </div>
       {right}
@@ -123,7 +123,7 @@ export default async function CampanhaDetailPage({
           métricas principais da campanha empilhadas na 5ª coluna, cada
           uma ocupando uma "linha" — dá a leitura de um grid de 3 linhas
           por 5 colunas, banner + números lado a lado na mesma altura. */}
-      <div className="mb-6 grid grid-cols-5 gap-4">
+      <div className="mb-5 grid grid-cols-5 gap-4">
         <div className="relative col-span-5 aspect-video overflow-hidden rounded-3xl shadow-sm sm:col-span-4">
           <div
             className="absolute inset-0 bg-cover bg-center"
@@ -200,10 +200,10 @@ export default async function CampanhaDetailPage({
         />
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
           {(progress !== null || milestones.length > 0) && (
-            <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <SectionHeader
                 icon={<IconFlag className="h-4 w-4" />}
                 title="Marcos e progresso"
@@ -233,7 +233,7 @@ export default async function CampanhaDetailPage({
           )}
 
           {temSobreEvento && (
-            <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <SectionHeader icon={<IconTarget className="h-4 w-4" />} title="Sobre o evento" />
 
               {campaign.objetivo_estrategico && (
@@ -282,7 +282,7 @@ export default async function CampanhaDetailPage({
           )}
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
           <SectionHeader
             icon={<IconListChecks className="h-4 w-4" />}
             title="Demandas vinculadas"
@@ -311,7 +311,7 @@ export default async function CampanhaDetailPage({
       </div>
 
       {deliverables.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
           <SectionHeader
             icon={<IconPaperclip className="h-4 w-4" />}
             title="Entregas dessa campanha"
@@ -326,7 +326,7 @@ export default async function CampanhaDetailPage({
       )}
 
       {campaign.resultados_observacoes && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
           <SectionHeader icon={<IconMessage className="h-4 w-4" />} title="Resultados e observações" />
           <p className="text-sm text-neutral-800">{campaign.resultados_observacoes}</p>
         </div>
