@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
@@ -180,6 +181,37 @@ export async function removeCampaignCapa(formData: FormData) {
   await supabase.from("campaigns").update({ capa_url: null }).eq("id", campaignId);
 
   revalidateCampaignPaths(campaignId);
+}
+
+// Cria uma campanha do zero, na mão — pra quando a origem automática (tag
+// do Asana) não está disponível ou está falhando (ex: sync fora do ar).
+// `ministryId` aqui é só o "ministério de origem" registrado na criação,
+// igual ao que a tag do Asana registra — não é dono exclusivo, é só de
+// onde partiu o cadastro. Nasce oculta (publicada = false, default da
+// coluna) e sem pasta, igual a qualquer campanha nova.
+export async function createCampaign(formData: FormData) {
+  await requireComunicacao();
+
+  const nome = String(formData.get("nome") ?? "").trim();
+  const tipo = String(formData.get("tipo") ?? "campanha");
+  const ministryId = String(formData.get("ministryId") ?? "");
+
+  if (!nome || !ministryId) return;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("campaigns")
+    .insert({ nome, tipo, ministry_id: ministryId })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error(`Erro ao criar campanha manualmente ("${nome}"):`, error?.message);
+    return;
+  }
+
+  revalidateCampaignPaths(data.id);
+  redirect(`/dashboard/admin/campanhas-pendentes/${data.id}`);
 }
 
 export async function deleteCampaign(formData: FormData) {
