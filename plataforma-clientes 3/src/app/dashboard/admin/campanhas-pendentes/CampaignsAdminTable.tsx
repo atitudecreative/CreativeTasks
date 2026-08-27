@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { CampaignRow, type CampaignRowData } from "./CampaignRow";
 import { FolderBlock } from "./FolderBlock";
-import { createCampaignFolder } from "./actions";
+import { createCampaignFolder, createCampaign } from "./actions";
+import { TIPO_OPTIONS } from "@/lib/campaignOptions";
+// Só o tipo — importar um valor desse módulo arrastaria @/lib/supabase/server
+// (next/headers) pro bundle do cliente. Ver metaAdsMath.ts pro mesmo padrão.
+import type { Ministry } from "@/lib/data/ministries";
 
 // Tags viraram globais (migration 0018) — uma campanha não pertence mais
 // a um ministério só, então a lista não agrupa mais por ministério.
@@ -45,6 +49,70 @@ function NewFolderForm() {
         placeholder="Nome da pasta, ex: Festa da Roça"
         className="w-56 rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
       />
+      <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+        Criar
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:underline">
+        Cancelar
+      </button>
+    </form>
+  );
+}
+
+// Cria campanha do zero, na mão — pensado pro caso do sync do Asana estar
+// fora do ar/travado e a Comunicação não poder esperar a tag virar
+// campanha sozinha. Some pro mesmo lugar de sempre (editar campanha) assim
+// que criada, pra completar os outros campos (fase, orçamento, etc.).
+function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-brand-600 hover:underline"
+      >
+        + Nova campanha
+      </button>
+    );
+  }
+
+  return (
+    <form action={createCampaign} className="flex flex-wrap items-center gap-2">
+      <input
+        name="nome"
+        required
+        autoFocus
+        placeholder="Nome da campanha, ex: nome da tag do Asana"
+        className="w-64 rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      />
+      <select
+        name="tipo"
+        defaultValue="campanha"
+        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      >
+        {TIPO_OPTIONS.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+      <select
+        name="ministryId"
+        required
+        defaultValue=""
+        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      >
+        <option value="" disabled>
+          Ministério de origem...
+        </option>
+        {ministries.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+      </select>
       <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
         Criar
       </button>
@@ -98,9 +166,11 @@ function Section({
 export function CampaignsAdminTable({
   campaigns,
   folders,
+  ministries,
 }: {
   campaigns: AdminCampaignRow[];
   folders: AdminCampaignFolder[];
+  ministries: Ministry[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "ativas" | "ocultas">("");
@@ -144,7 +214,8 @@ export function CampaignsAdminTable({
         <span className="text-xs text-neutral-400">
           {filtered.length} de {campaigns.length}
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
+          <NewCampaignForm ministries={ministries} />
           <NewFolderForm />
         </div>
       </div>
