@@ -30,13 +30,29 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ASANA_ACCESS_TOKEN) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Quantas linhas vão em cada chamada de upsert/insert/select em lote.
+// Não tem relação com limite de linhas do Postgres — é só um tamanho de
+// payload razoável por requisição HTTP (nem muitas chamadas pequenas,
+// nem um payload gigante numa só). Ajustável se algum dia precisar.
+const BATCH_SIZE = 300;
+
+function chunk(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) chunks.push(array.slice(i, i + size));
+  return chunks;
+}
+
 // A base cresceu muito depois que o sync passou a descer recursivamente
 // pelas subtarefas (uma tarefa "guarda-chuva" chegou a ter 1500+ filhas) —
-// isso multiplicou o número de idas e vindas ao banco, e de vez em quando
-// uma dessas operações esbarra num "statement timeout" passageiro (carga
-// momentânea, não um erro real de dado). Em vez de deixar isso derrubar a
-// sincronização inteira, tenta de novo algumas vezes com uma pequena
-// pausa antes de desistir.
+// isso multiplicava o número de idas e vindas ao banco (uma consulta +
+// uma escrita POR TAREFA), e de vez em quando uma dessas operações
+// esbarrava num "statement timeout" — não porque o banco estivesse com
+// algum defeito, mas porque milhares de chamadas em sequência, uma de
+// cada vez, é carga pesada demais desse jeito. A correção de verdade foi
+// reescrever a gravação em LOTES (ver upsertDemandsBatch/linkParents/
+// syncAllDemandCampaignLinks abaixo) — isso aqui continua existindo só
+// como segurança extra pra um lote que ainda assim esbarre numa
+// lentidão passageira do banco.
 async function withRetry(operationFn, { attempts = 3, delayMs = 2000, label = "" } = {}) {
   let result;
   for (let i = 0; i < attempts; i++) {
@@ -120,6 +136,43 @@ async function fetchSubtasks(taskGid) {
   return tasks;
 }
 
+// Trava de segurança: uma hierarquia de subtarefas do Asana não deveria
+// nunca chegar nem perto disso, mas evita recursão descontrolada (ex: se
+// algum dado vier estranho) travar a sincronização inteira.
+const MAX_SUBTASK_DEPTH = 15;
+
+// Busca a árvore INTEIRA de tarefas (topo + subtarefas, recursivamente)
+// direto do Asana, sem tocar no banco ainda — isso é só o lado "leitura da
+// API do Asana" do sync, separado de propósito da parte "gravar no
+// Postgres" (ver syncMinistry). Cada entrada guarda o gid do pai no Asana
+// (não o id da demanda — esse só existe depois de gravar), pra resolver o
+// parent_demand_id de verdade numa fase posterior, depois que todo mundo
+// já tem um id real no banco.
+async function collectTaskTree(topLevelTasks) {
+  const flat = [];
+
+  async function walk(tasks, parentAsanaGid, depth) {
+    if (depth >= MAX_SUBTASK_DEPTH) {
+      console.warn(`  Profundidade máxima (${MAX_SUBTASK_DEPTH}) atingida, parando de descer aqui.`);
+      return;
+    }
+    for (const t of tasks) {
+      flat.push({ task: t, parentAsanaGid });
+      try {
+        const subtasks = await fetchSubtasks(t.gid);
+        if (subtasks.length > 0) await walk(subtasks, t.gid, depth + 1);
+      } catch (err) {
+        console.error(
+          `  Erro ao buscar subtarefas de "${t.name}" (${t.gid}) no Asana: ${err.message}. Pulando essa ramificação.`
+        );
+      }
+    }
+  }
+
+  await walk(topLevelTasks, null, 0);
+  return flat;
+}
+
 // Busca TODAS as campanhas já cadastradas (de qualquer ministério) e
 // monta um mapa nome (minúsculo) -> id. Global, não por ministério: uma
 // tag com o mesmo nome em projetos do Asana de ministérios diferentes
@@ -148,7 +201,9 @@ async function loadCampaignMap() {
 // existir (de outro ministério ou do mesmo), reaproveita a campanha —
 // `ministryId` aqui só define o "ministério de origem" registrado na
 // criação, não um dono exclusivo. Tarefas sem tag ficam sem campanha
-// vinculada.
+// vinculada. Fica sequencial mesmo (não em lote): o número de tags
+// DISTINTAS por rodada é pequeno comparado ao número de tarefas, e
+// `campaignMap` já evita reconsultar/reinserir a mesma tag duas vezes.
 async function ensureCampaignId(ministryId, tagName, campaignMap) {
   const key = tagName.trim().toLowerCase();
   if (campaignMap.has(key)) return campaignMap.get(key);
@@ -175,171 +230,146 @@ async function ensureCampaignId(ministryId, tagName, campaignMap) {
   return data.id;
 }
 
-// Garante que demand_campaigns reflita exatamente as tags atuais da
-// tarefa: adiciona vínculo novo, remove vínculo de tag que foi tirada no
-// Asana.
-async function syncDemandCampaignLinks(demandId, desiredCampaignIds) {
-  const { data: existingLinks, error: existingError } = await supabase
-    .from("demand_campaigns")
-    .select("campaign_id")
-    .eq("demand_id", demandId);
+// ---------------------------------------------------------------
+// Gravação em lote (substitui o antigo "uma consulta + uma escrita por
+// tarefa"). Pra um projeto com milhares de tarefas isso derrubava o
+// número de idas e vindas ao banco de milhares pra só algumas dezenas —
+// era a causa real dos "statement timeout" recorrentes no sync, não um
+// defeito do banco em si.
+// ---------------------------------------------------------------
 
-  if (existingError) {
-    console.warn(`  Não consegui ler campanhas vinculadas da demanda: ${existingError.message}`);
-    return;
-  }
-
-  const existingIds = new Set((existingLinks ?? []).map((r) => r.campaign_id));
-  const desiredIds = new Set(desiredCampaignIds);
-
-  const toAdd = [...desiredIds].filter((id) => !existingIds.has(id));
-  const toRemove = [...existingIds].filter((id) => !desiredIds.has(id));
-
-  if (toAdd.length > 0) {
-    const { error: insertError } = await supabase
-      .from("demand_campaigns")
-      .insert(toAdd.map((campaignId) => ({ demand_id: demandId, campaign_id: campaignId })));
-
-    if (insertError) {
-      console.warn(`  Não consegui vincular demanda à campanha: ${insertError.message}`);
-    }
-  }
-
-  if (toRemove.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("demand_campaigns")
-      .delete()
-      .eq("demand_id", demandId)
-      .in("campaign_id", toRemove);
-
-    if (deleteError) {
-      console.warn(`  Não consegui remover vínculo de campanha antiga: ${deleteError.message}`);
-    }
-  }
-}
-
-// Grava UMA tarefa do Asana (de topo ou subtarefa) como linha de `demands`
-// e sincroniza seus vínculos de tag/campanha. `parentDemandId` é null pra
-// tarefa de topo, ou o id da demanda pai quando `task` é uma subtarefa —
-// é isso que faz a aba Demandas mostrar só o card pai e o detalhe da
-// demanda listar as filhas com o status de cada uma.
-//
-// Existe um gatilho que gera `identificador` (DEM-YYYY-NNNN) só em INSERT.
-// Um upsert "cego" dispararia esse gatilho pra toda linha, inclusive as
-// que já existem e só vão virar UPDATE — desperdiçando números da
-// sequence à toa e, se a sequence já estiver dessincronizada dos dados
-// (ex: edição manual no Table Editor), gerando colisão. Por isso aqui a
-// gente separa: linha que já existe (mesmo ministry_id + asana_task_gid)
-// leva um UPDATE de verdade, sem tocar em identificador; só linha nova
-// passa por INSERT. Campos preenchidos manualmente no portal (escopo,
-// observação publicada etc.) não são tocados.
-async function upsertTaskAsDemand(ministryId, task, campaignMap, parentDemandId) {
-  const row = {
-    ministry_id: ministryId,
-    asana_task_gid: task.gid,
-    titulo: task.name,
-    status: task.completed ? "concluida" : "em_producao",
-    prazo_acordado: task.due_on ?? null,
-    link_origem: task.permalink_url ?? null,
-    observacao_interna: task.assignee?.name
-      ? `Sincronizado do Asana. Responsável no Asana: ${task.assignee.name}.`
-      : "Sincronizado do Asana.",
-    fonte_externa: "asana",
-    parent_demand_id: parentDemandId,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data: existing, error: findError } = await withRetry(
-    () =>
-      supabase
-        .from("demands")
-        .select("id")
-        .eq("ministry_id", row.ministry_id)
-        .eq("asana_task_gid", row.asana_task_gid)
-        .maybeSingle(),
-    { label: `buscar demanda existente (${row.titulo})` }
-  );
-
-  if (findError) {
-    throw new Error(`Erro ao verificar demanda existente (${row.titulo}): ${findError.message}`);
-  }
-
-  let demandId = existing?.id ?? null;
-
-  if (existing) {
-    const { error: updateError } = await withRetry(
-      () => supabase.from("demands").update(row).eq("id", existing.id),
-      { label: `atualizar demanda (${row.titulo})` }
-    );
-    if (updateError) {
-      throw new Error(`Erro ao atualizar demanda ${row.titulo}: ${updateError.message}`);
-    }
-  } else {
-    const { data: inserted, error: insertError } = await withRetry(
-      () => supabase.from("demands").insert(row).select("id").single(),
-      { label: `criar demanda (${row.titulo})` }
+// Grava (cria ou atualiza) todas as demandas de uma vez, em lotes, via
+// upsert nativo do Postgres (ON CONFLICT ministry_id+asana_task_gid).
+// Não manda `identificador` no payload de propósito: numa linha nova o
+// gatilho `set_demand_identificador` gera um valor normalmente (mesmo
+// comportamento de sempre); numa linha que já existe, como o upsert do
+// PostgREST só atualiza as colunas presentes no payload, o identificador
+// existente NUNCA é tocado — sem precisar checar "já existe?" antes, que
+// era a outra metade das idas e vindas ao banco por tarefa. Retorna o id
+// real (uuid) de cada linha gravada, indexado pelo gid do Asana.
+async function upsertDemandsBatch(rows) {
+  const written = [];
+  for (const batch of chunk(rows, BATCH_SIZE)) {
+    const { data, error } = await withRetry(
+      () =>
+        supabase
+          .from("demands")
+          .upsert(batch, { onConflict: "ministry_id,asana_task_gid" })
+          .select("id, asana_task_gid"),
+      { label: `gravar lote de ${batch.length} demanda(s)` }
     );
 
-    if (insertError) {
-      throw new Error(`Erro ao criar demanda ${row.titulo}: ${insertError.message}`);
+    if (error) {
+      console.error(
+        `  Erro ao gravar um lote de ${batch.length} demanda(s): ${error.message}. Pulando esse lote (${batch
+          .map((r) => r.titulo)
+          .slice(0, 3)
+          .join(", ")}${batch.length > 3 ? ", ..." : ""}).`
+      );
+      continue;
     }
 
-    demandId = inserted.id;
+    written.push(...(data ?? []));
   }
-
-  const tagNames = (task.tags ?? []).map((tag) => tag.name).filter(Boolean);
-
-  if (demandId && tagNames.length > 0) {
-    const campaignIds = [];
-    for (const tagName of tagNames) {
-      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
-      if (campaignId) campaignIds.push(campaignId);
-    }
-    await syncDemandCampaignLinks(demandId, campaignIds);
-  } else if (demandId) {
-    // tarefa ficou sem nenhuma tag — remove todos os vínculos antigos
-    await syncDemandCampaignLinks(demandId, []);
-  }
-
-  return { demandId, completed: task.completed === true };
+  return written;
 }
 
-// Trava de segurança: uma hierarquia de subtarefas do Asana não deveria
-// nunca chegar nem perto disso, mas evita recursão descontrolada (ex: se
-// algum dado vier estranho) travar a sincronização inteira.
-const MAX_SUBTASK_DEPTH = 15;
+// Agora que toda tarefa (pai ou filha) já tem um id real de verdade no
+// banco, resolve o parent_demand_id de cada subtarefa. Agrupado por PAI,
+// não por filha — uma tarefa "guarda-chuva" com 1500 filhas gera UMA
+// chamada (atualizando as 1500 de uma vez via `.in()`), não 1500.
+async function linkParents(flatEntries, gidToId) {
+  const groups = new Map(); // parentDemandId -> [childId, ...]
 
-// Desce recursivamente a árvore de subtarefas: busca as subtarefas de
-// `parentTaskGid`, grava cada uma com `parentDemandId` como pai, e repete
-// pra CADA UMA delas (subtarefa da subtarefa, e assim por diante). `stats`
-// é um objeto compartilhado só pra acumular contadores pro log final sem
-// precisar somar retornos aninhados. Cada subtarefa é isolada num
-// try/catch: se UMA falhar (ex: timeout persistente do Postgres mesmo
-// depois do retry), ela é pulada e reportada no log, sem derrubar as
-// outras — antes, uma tarefa problemática interrompia a sincronização do
-// ministério inteiro (e de todos os ministérios seguintes na fila).
-async function syncSubtasksRecursively(ministryId, parentTaskGid, parentDemandId, campaignMap, stats, depth = 0) {
-  if (depth >= MAX_SUBTASK_DEPTH) {
-    console.warn(`  Profundidade máxima (${MAX_SUBTASK_DEPTH}) atingida em ${parentTaskGid}, parando de descer aqui.`);
-    return;
+  for (const { task, parentAsanaGid } of flatEntries) {
+    if (!parentAsanaGid) continue;
+    const childId = gidToId.get(task.gid);
+    const parentId = gidToId.get(parentAsanaGid);
+    if (!childId || !parentId) continue; // pai ou filha ficou de fora (lote falhou) — pula
+
+    if (!groups.has(parentId)) groups.set(parentId, []);
+    groups.get(parentId).push(childId);
   }
 
-  const subtasks = await fetchSubtasks(parentTaskGid);
-
-  for (const st of subtasks) {
-    try {
-      const { demandId, completed } = await upsertTaskAsDemand(ministryId, st, campaignMap, parentDemandId);
-      stats.demandCount++;
-      stats.subtaskCount++;
-      if (completed) stats.completedCount++;
-
-      if (demandId) {
-        await syncSubtasksRecursively(ministryId, st.gid, demandId, campaignMap, stats, depth + 1);
+  for (const [parentId, childIds] of groups) {
+    for (const idsBatch of chunk(childIds, BATCH_SIZE)) {
+      const { error } = await withRetry(
+        () => supabase.from("demands").update({ parent_demand_id: parentId }).in("id", idsBatch),
+        { label: `linkar ${idsBatch.length} subtarefa(s) ao pai` }
+      );
+      if (error) {
+        console.warn(`  Não consegui linkar ${idsBatch.length} subtarefa(s) ao pai: ${error.message}`);
       }
-    } catch (err) {
-      console.error(`  Erro ao sincronizar subtarefa "${st.name}" (${st.gid}): ${err.message}. Pulando.`);
     }
   }
+}
+
+// Garante que demand_campaigns reflita exatamente as tags atuais de TODAS
+// as tarefas dessa rodada de uma vez — lê os vínculos existentes de todas
+// as demandas envolvidas em lotes, calcula o que falta adicionar/remover,
+// e grava tudo de uma vez (um insert em lote pros novos vínculos; um
+// delete por demanda só pras remoções, que na prática são raras — só
+// acontecem quando uma tag é tirada de uma tarefa no Asana).
+// `desiredLinksByDemandId` precisa ter uma entrada pra CADA demanda dessa
+// rodada, mesmo com Set vazio — é isso que faz uma tarefa que perdeu todas
+// as tags soltar os vínculos antigos.
+async function syncAllDemandCampaignLinks(desiredLinksByDemandId) {
+  const demandIds = [...desiredLinksByDemandId.keys()];
+  if (demandIds.length === 0) return;
+
+  const existingByDemand = new Map(); // demandId -> Set<campaignId>
+  for (const idsBatch of chunk(demandIds, BATCH_SIZE)) {
+    const { data, error } = await withRetry(
+      () => supabase.from("demand_campaigns").select("demand_id, campaign_id").in("demand_id", idsBatch),
+      { label: `ler vínculos de campanha de ${idsBatch.length} demanda(s)` }
+    );
+    if (error) {
+      console.warn(`  Não consegui ler vínculos de campanha existentes: ${error.message}`);
+      continue;
+    }
+    for (const row of data ?? []) {
+      if (!existingByDemand.has(row.demand_id)) existingByDemand.set(row.demand_id, new Set());
+      existingByDemand.get(row.demand_id).add(row.campaign_id);
+    }
+  }
+
+  const toAdd = [];
+  const toRemoveByDemand = new Map();
+
+  for (const [demandId, desiredSet] of desiredLinksByDemandId) {
+    const existingSet = existingByDemand.get(demandId) ?? new Set();
+
+    for (const campaignId of desiredSet) {
+      if (!existingSet.has(campaignId)) toAdd.push({ demand_id: demandId, campaign_id: campaignId });
+    }
+
+    const toRemove = [...existingSet].filter((id) => !desiredSet.has(id));
+    if (toRemove.length > 0) toRemoveByDemand.set(demandId, toRemove);
+  }
+
+  for (const rowsBatch of chunk(toAdd, BATCH_SIZE)) {
+    const { error } = await withRetry(
+      () => supabase.from("demand_campaigns").insert(rowsBatch),
+      { label: `vincular ${rowsBatch.length} demanda(s) a campanha(s)` }
+    );
+    if (error) console.warn(`  Não consegui vincular ${rowsBatch.length} demanda(s) a campanha(s): ${error.message}`);
+  }
+
+  for (const [demandId, campaignIds] of toRemoveByDemand) {
+    const { error } = await withRetry(
+      () => supabase.from("demand_campaigns").delete().eq("demand_id", demandId).in("campaign_id", campaignIds),
+      { label: `remover vínculo(s) de campanha antigos` }
+    );
+    if (error) console.warn(`  Não consegui remover vínculo(s) de campanha antigos: ${error.message}`);
+  }
+}
+
+async function touchDataSource(ministryId) {
+  await supabase
+    .from("data_sources")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("ministry_id", ministryId)
+    .eq("source", "asana");
 }
 
 async function syncMinistry(dataSource, campaignMap) {
@@ -358,50 +388,83 @@ async function syncMinistry(dataSource, campaignMap) {
 
   // Só processa aqui quem NÃO tem `parent` (tarefa de topo de verdade).
   // Quem tem `parent` é uma subtarefa que também foi adicionada como card
-  // do quadro — ela é ignorada neste laço e só entra via
-  // syncSubtasksRecursively, chamado a partir do pai verdadeiro. Sem esse
-  // filtro, ela seria gravada duas vezes (uma vez como se fosse pai, outra
-  // como filha de verdade) e, dependendo da ordem de processamento, o
-  // vínculo certo podia ser sobrescrito de volta pra "sem pai".
-  const tasks = allTasks.filter((t) => !t.parent);
+  // do quadro — ela é ignorada neste laço e só entra via collectTaskTree,
+  // chamado a partir do pai verdadeiro. Sem esse filtro, ela seria gravada
+  // duas vezes (uma vez como se fosse pai, outra como filha de verdade).
+  const topLevelTasks = allTasks.filter((t) => !t.parent);
 
-  const stats = { demandCount: 0, completedCount: 0, subtaskCount: 0 };
+  // Fase 1: busca a árvore inteira (topo + subtarefas) no Asana, sem
+  // tocar no banco ainda.
+  const flatEntries = await collectTaskTree(topLevelTasks);
 
-  for (const t of tasks) {
-    try {
-      const { demandId, completed } = await upsertTaskAsDemand(ministryId, t, campaignMap, null);
-      stats.demandCount++;
-      if (completed) stats.completedCount++;
-
-      if (demandId) {
-        await syncSubtasksRecursively(ministryId, t.gid, demandId, campaignMap, stats);
-      }
-    } catch (err) {
-      console.error(`  Erro ao sincronizar tarefa "${t.name}" (${t.gid}): ${err.message}. Pulando.`);
-    }
+  if (flatEntries.length === 0) {
+    console.log(`  -> nenhuma tarefa encontrada nesse projeto.`);
+    await touchDataSource(ministryId);
+    return;
   }
 
-  const { demandCount, completedCount, subtaskCount } = stats;
-  const openCount = demandCount - completedCount;
+  // Fase 2: grava todas as demandas de uma vez, em lotes — ainda sem
+  // parent_demand_id (não dá pra saber o id real de um pai que também é
+  // novo nessa mesma rodada antes dele já estar gravado).
+  const rows = flatEntries.map(({ task }) => ({
+    ministry_id: ministryId,
+    asana_task_gid: task.gid,
+    titulo: task.name,
+    status: task.completed ? "concluida" : "em_producao",
+    prazo_acordado: task.due_on ?? null,
+    link_origem: task.permalink_url ?? null,
+    observacao_interna: task.assignee?.name
+      ? `Sincronizado do Asana. Responsável no Asana: ${task.assignee.name}.`
+      : "Sincronizado do Asana.",
+    fonte_externa: "asana",
+    updated_at: new Date().toISOString(),
+  }));
 
-  await supabase
-    .from("data_sources")
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq("ministry_id", ministryId)
-    .eq("source", "asana");
+  const written = await upsertDemandsBatch(rows);
+  const gidToId = new Map(written.map((r) => [r.asana_task_gid, r.id]));
+
+  // Fase 3: liga cada subtarefa ao pai certo, agora que todo mundo tem um
+  // id real — agrupado por pai (ver linkParents).
+  await linkParents(flatEntries, gidToId);
+
+  // Fase 4: tags -> campanhas, calculado e gravado de uma vez pra toda a
+  // rodada (ver syncAllDemandCampaignLinks).
+  const desiredLinksByDemandId = new Map();
+  for (const { task } of flatEntries) {
+    const demandId = gidToId.get(task.gid);
+    if (!demandId) continue; // ficou de fora por erro no lote — já foi avisado acima
+
+    const tagNames = (task.tags ?? []).map((t) => t.name).filter(Boolean);
+    const campaignIds = new Set();
+    for (const tagName of tagNames) {
+      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
+      if (campaignId) campaignIds.add(campaignId);
+    }
+    desiredLinksByDemandId.set(demandId, campaignIds);
+  }
+  await syncAllDemandCampaignLinks(desiredLinksByDemandId);
+
+  const demandCount = flatEntries.length;
+  const completedCount = flatEntries.filter((e) => e.task.completed).length;
+  const subtaskCount = flatEntries.filter((e) => e.parentAsanaGid !== null).length;
+  const openCount = demandCount - completedCount;
+  const skippedCount = demandCount - written.length;
+
+  await touchDataSource(ministryId);
 
   console.log(
-    `  -> ${demandCount} demandas (${openCount} em produção, ${completedCount} concluídas, ${subtaskCount} são subtarefas).`
+    `  -> ${written.length}/${demandCount} demandas gravadas (${openCount} em produção, ` +
+      `${completedCount} concluídas, ${subtaskCount} são subtarefas)` +
+      (skippedCount > 0 ? ` — ${skippedCount} não gravada(s) por erro (veja acima).` : ".")
   );
 }
 
 // Trava manual (tabela `sync_lock`, migration 0020) pra impedir duas
-// rodadas do sync correndo ao mesmo tempo — foi confirmado na prática que
-// isso causa timeout em cascata (duas execuções brigando pela mesma linha
-// da `demands`). O UPDATE é atômico: só "ganha" o cadeado quem conseguir
-// mudar `locked` de false (ou destravado há mais de 1h, sinal de rodada
-// anterior que morreu sem liberar) pra true numa única operação — se duas
-// chamadas tentarem ao mesmo tempo, o banco serializa e só uma consegue.
+// rodadas do sync correndo ao mesmo tempo. O UPDATE é atômico: só "ganha"
+// o cadeado quem conseguir mudar `locked` de false (ou destravado há mais
+// de 1h, sinal de rodada anterior que morreu sem liberar) pra true numa
+// única operação — se duas chamadas tentarem ao mesmo tempo, o banco
+// serializa e só uma consegue.
 async function tryAcquireSyncLock() {
   const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -460,12 +523,10 @@ async function main() {
     // a campanha que a primeira acabou de criar em vez de duplicar.
     const campaignMap = await loadCampaignMap();
 
-    // Antes, um erro num ministério (ex: timeout no meio da lista) derrubava
-    // o processo inteiro e nenhum ministério depois dele na fila chegava a
-    // sincronizar naquela rodada. Agora cada ministério é isolado: se um
-    // falhar, fica registrado no log e a rotina segue pros próximos — mas o
-    // job ainda termina com status de erro (exit code 1) se algum falhou, pra
-    // não mascarar o problema no painel do Render.
+    // Cada ministério é isolado: se um falhar (ex: erro genuíno na API do
+    // Asana), fica registrado no log e a rotina segue pros próximos — mas
+    // o job ainda termina com status de erro (exit code 1) se algum
+    // falhou, pra não mascarar o problema no painel do Render.
     let hadError = false;
     for (const source of sources) {
       try {
