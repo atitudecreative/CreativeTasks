@@ -12,7 +12,8 @@
     "lint": "next lint",
     "sync:asana": "node scripts/sync-asana.mjs",
     "sync:meta-ads": "node scripts/sync-meta-ads.mjs",
-    "send:weekly-digest": "node scripts/send-weekly-digest.mjs"
+    "send:weekly-digest": "node scripts/send-weekly-digest.mjs",
+    "test:asana-status": "node --test scripts/asana-status.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

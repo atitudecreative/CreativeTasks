@@ -37,6 +37,72 @@ da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
 delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
 ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
+## De-para de status do Asana (migration 0031)
+
+### O problema
+
+O sync resolvia o status de toda demanda assim:
+
+```js
+status: task.completed ? "concluida" : "em_producao"
+```
+
+A plataforma modela **14 status**, o banco aceita os 14, a interface
+desenha os 14 — e os dados tinham **dois**. Na prática:
+
+- o estágio **"Com o ministério"** (a leitura mais acionável do painel)
+  nunca acontecia, porque nenhum dos três status que o compõem era
+  gravado;
+- `prioridade` e `tipo_servico` nunca eram escritos, então a coluna
+  Prioridade ficava vazia;
+- `data_conclusao` nunca era escrita e `data_solicitacao` caía no
+  `default current_date` da coluna (a data em que o sync rodou), o que
+  tornava **tempo de ciclo incalculável**.
+
+O dado sempre esteve no Asana: a **coluna do quadro** em que o card está.
+O script só não pedia esse campo.
+
+### Como funciona agora
+
+O sync pede `memberships.section.name` (a coluna), `completed_at` e
+`created_at`, e resolve o status nesta ordem:
+
+1. **Concluído no Asana** → `concluida`, esteja em que coluna estiver.
+2. **Regra do ministério** para aquela coluna.
+3. **Regra global** para aquela coluna.
+4. **Nada casou** → `em_producao`, exatamente o comportamento anterior.
+
+Subtarefa não é card de quadro e vem sem coluna — cai no passo 4, que é o
+correto.
+
+### Onde se configura
+
+`/dashboard/admin/asana`. A tela **não pede que ninguém digite nome de
+coluna**: o sync registra em `asana_secoes` toda coluna que encontrou, com
+quantas tarefas tem em cada uma, e a tela oferece essa lista. Cada linha
+mostra de onde veio o valor em vigor (regra do ministério, regra global ou
+padrão) — sem isso ninguém entende por que dois quadros com a mesma coluna
+se comportam diferente.
+
+A migration já cadastra regras globais para os nomes de coluna mais comuns
+em quadro de agência em português, para a tela não nascer vazia. Tudo é
+editável e apagável pela interface.
+
+### Testes
+
+A regra de status é a decisão mais sensível do pipeline — é ela que define
+em que estágio cada demanda aparece para o cliente. A lógica pura vive em
+`scripts/asana-status.mjs`, separada do I/O justamente para ser testável:
+
+```bash
+npm run test:asana-status
+```
+
+13 testes cobrindo normalização de acento e caixa, precedência
+ministério > global > padrão, card em mais de um projeto, subtarefa sem
+coluna, e a garantia de que um de-para vazio preserva exatamente o
+comportamento anterior.
+
 ## Histórico de status (migration 0030)
 
 A `audit_log` existe desde a migration 0004 e **nunca recebeu uma linha** —

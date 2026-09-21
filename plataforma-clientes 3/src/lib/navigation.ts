@@ -99,6 +99,14 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Cadastro, capa, cor e identidade de cada ministério",
       },
       {
+        href: "/dashboard/admin/asana",
+        label: "Integração Asana",
+        short: "Asana",
+        icon: "Refresh",
+        adminOnly: true,
+        description: "O que cada coluna dos quadros significa no portal",
+      },
+      {
         href: "/dashboard/admin/usuarios",
         label: "Usuários e acessos",
         short: "Usuários",
