@@ -47,6 +47,10 @@ export type MinistryMembership = {
 
 export type CurrentUser = {
   id: string;
+  // E-mail do Supabase Auth. Exposto porque o menu de conta no header
+  // identifica a sessão por ele — `full_name` em profiles é opcional e
+  // fica em branco pra boa parte dos usuários criados pela Comunicação.
+  email: string | null;
   fullName: string | null;
   papelGlobal: "nenhum" | "atendimento" | "gestor_comunicacao" | "administrador_tecnico";
 };
@@ -72,6 +76,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   return {
     id: user.id,
+    email: user.email ?? null,
     fullName: profile?.full_name ?? null,
     papelGlobal: (profile?.papel_global as CurrentUser["papelGlobal"]) ?? "nenhum",
   };
