@@ -307,23 +307,65 @@ async function syncAdAccount(adAccountId, campaignMap) {
   );
 }
 
-async function main() {
-  const adAccountIds = META_AD_ACCOUNT_ID.split(",").map((s) => s.trim()).filter(Boolean);
-  const campaignMap = await loadCampaignMap();
+// Mesma trava manual usada pelo sync do Asana (tabela `sync_lock`, migration
+// 0020, linha "meta-ads" criada na 0029) — impede duas rodadas do sync do
+// Meta Ads correndo ao mesmo tempo (cron duplicado, ou uma rodada manual em
+// cima de uma agendada) e brigando pelos mesmos upserts.
+async function tryAcquireSyncLock() {
+  const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  let hadError = false;
+  const { data, error } = await supabase
+    .from("sync_lock")
+    .update({ locked: true, locked_at: new Date().toISOString() })
+    .eq("id", "meta-ads")
+    .or(`locked.eq.false,locked_at.lt.${staleThreshold}`)
+    .select("id");
 
-  for (const adAccountId of adAccountIds) {
-    try {
-      await syncAdAccount(adAccountId, campaignMap);
-    } catch (err) {
-      hadError = true;
-      console.error(`Erro sincronizando a conta act_${adAccountId}:`, err.message);
-    }
+  if (error) {
+    throw new Error(`Erro ao tentar travar a sincronização: ${error.message}`);
   }
 
-  console.log(hadError ? "\nSync do Meta Ads terminou com erro(s) — veja acima." : "\nSync do Meta Ads concluído.");
-  if (hadError) process.exitCode = 1;
+  return (data ?? []).length > 0;
+}
+
+async function releaseSyncLock() {
+  const { error } = await supabase.from("sync_lock").update({ locked: false }).eq("id", "meta-ads");
+  if (error) {
+    console.warn(`Não consegui destravar a sincronização (não deve travar a próxima rodada, ela ` +
+      `também tenta destravar sozinha se achar o cadeado com mais de 1h): ${error.message}`);
+  }
+}
+
+async function main() {
+  const acquired = await tryAcquireSyncLock();
+  if (!acquired) {
+    console.log(
+      "Já existe uma sincronização do Meta Ads em andamento (ou travada há menos de 1h) — saindo " +
+        "sem fazer nada, pra não rodar em paralelo e brigar pelos mesmos dados."
+    );
+    return;
+  }
+
+  try {
+    const adAccountIds = META_AD_ACCOUNT_ID.split(",").map((s) => s.trim()).filter(Boolean);
+    const campaignMap = await loadCampaignMap();
+
+    let hadError = false;
+
+    for (const adAccountId of adAccountIds) {
+      try {
+        await syncAdAccount(adAccountId, campaignMap);
+      } catch (err) {
+        hadError = true;
+        console.error(`Erro sincronizando a conta act_${adAccountId}:`, err.message);
+      }
+    }
+
+    console.log(hadError ? "\nSync do Meta Ads terminou com erro(s) — veja acima." : "\nSync do Meta Ads concluído.");
+    if (hadError) process.exitCode = 1;
+  } finally {
+    await releaseSyncLock();
+  }
 }
 
 main().catch((err) => {
