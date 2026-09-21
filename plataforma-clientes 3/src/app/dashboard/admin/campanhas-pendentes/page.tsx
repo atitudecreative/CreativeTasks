@@ -19,7 +19,7 @@ export default async function CampanhasAtivasPage() {
       <h1 className="mb-1 text-xl font-semibold text-neutral-900">Campanhas ativas</h1>
       <p className="mb-6 text-sm text-neutral-500">
         Todas as campanhas e eventos, organizados em pastas (útil pra eventos anuais, ex:
-        uma pasta "Festa da Roça" com uma campanha por edição). Uma tag é global: se ela
+        uma pasta &quot;Festa da Roça&quot; com uma campanha por edição). Uma tag é global: se ela
         aparece em mais de um ministério, vira uma campanha só, e cada ministério envolvido
         vê as demandas de todos os outros que compartilham a tag — o nome dos ministérios
         aparece do lado de cada campanha. Toda campanha nasce oculta — use o toggle pra abrir

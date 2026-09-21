@@ -45,7 +45,7 @@ export function MetaCampaignMatcher({
         <>
           <p className="mb-4 mt-1 text-xs text-amber-800">
             O sync não achou uma campanha do portal com o mesmo nome pra essas — escolha manualmente
-            ou marque como "sem correspondência" pra parar de aparecer aqui.
+            ou marque como &quot;sem correspondência&quot; pra parar de aparecer aqui.
           </p>
           <div className="divide-y divide-amber-200/70">
             {metaCampaigns.map((mc) => (

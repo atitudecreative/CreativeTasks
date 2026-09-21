@@ -42,7 +42,7 @@ function ColorPicker({
       {valid && isLowSaturation(value) && (
         <p className="mt-1 text-xs text-amber-600">
           Cor com pouca saturação (quase cinza) — a paleta ainda fica legível, mas pode parecer
-          "sem graça".
+          &quot;sem graça&quot;.
         </p>
       )}
     </div>

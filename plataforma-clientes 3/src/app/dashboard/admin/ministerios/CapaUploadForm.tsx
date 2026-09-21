@@ -33,7 +33,7 @@ export function CapaUploadForm({
     <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
       <p className="mb-1 text-sm font-medium text-neutral-700">Capa do ministério</p>
       <p className="mb-4 text-xs text-neutral-500">
-        Fundo do menu lateral pra quem está com "{ministryName}" como ministério ativo. Vale pra
+        Fundo do menu lateral pra quem está com &quot;{ministryName}&quot; como ministério ativo. Vale pra
         todo mundo vinculado a esse ministério — não é pessoal.
       </p>
 
@@ -98,7 +98,7 @@ export function CapaUploadForm({
       <p className="mt-4 text-xs text-neutral-400">
         Tamanho ideal: algo em torno de 1200×800px (retrato do ministério, foto de um evento,
         textura etc.), na horizontal. A imagem é cortada pra preencher o menu lateral (efeito
-        "cover") e recebe uma camada escura por cima pra manter o texto legível.
+        &quot;cover&quot;) e recebe uma camada escura por cima pra manter o texto legível.
       </p>
     </div>
   );
