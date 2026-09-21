@@ -422,6 +422,14 @@ No SQL Editor do Supabase, rode nesta ordem (pule as que já rodaram antes):
 `0001_init.sql`, `0002_asana_tasks.sql`, `0003_metrics_unique.sql`,
 `0004_portal_ministerios_fase1.sql`.
 
+> **Se um arquivo vier truncado.** Script longo colado no SQL Editor às vezes
+> é cortado no meio, e o Postgres recusa o arquivo inteiro apontando para um
+> lugar onde não há nada de errado (`syntax error at or near ";"` ou
+> `syntax error at end of input`). Para as migrations `0030`, `0031` e `0032`
+> existe uma versão sem comentários, com menos da metade do tamanho, em
+> [`supabase/migrations/para-colar/`](supabase/migrations/para-colar/) — mesmo
+> SQL, e dividida em partes que podem ser coladas uma de cada vez.
+
 Opcionalmente, rode também `supabase/seed.sql` pra ter um ministério,
 campanha e demanda de exemplo.
 

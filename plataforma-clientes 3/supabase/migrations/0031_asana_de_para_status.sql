@@ -38,6 +38,10 @@ create or replace function public.normaliza_secao(texto text)
 returns text
 language sql
 immutable
+-- Sem ponto e vírgula dentro do corpo $$: o corpo de uma função SQL de um
+-- único comando não precisa dele, e assim o arquivo inteiro não tem nenhum
+-- ";" escondido dentro de aspas. Editor web que separa comandos por ";" sem
+-- entender dollar-quoting continua cortando este arquivo nos lugares certos.
 as $$
   select nullif(
     trim(
@@ -50,7 +54,7 @@ as $$
       )
     ),
     ''
-  );
+  )
 $$;
 
 
