@@ -110,6 +110,14 @@ const config: Config = {
           6: token("chart-6"),
           7: token("chart-7"),
           8: token("chart-8"),
+          accent: token("chart-accent"),
+        },
+        stage: {
+          fila: token("stage-fila"),
+          producao: token("stage-producao"),
+          ministerio: token("stage-ministerio"),
+          concluida: token("stage-concluida"),
+          parada: token("stage-parada"),
         },
       },
 

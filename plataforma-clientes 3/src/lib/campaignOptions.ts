@@ -41,12 +41,3 @@ export const SAUDE_OPTIONS = [
 export const SAUDE_LABEL: Record<string, string> = Object.fromEntries(
   SAUDE_OPTIONS.map((s) => [s.value, s.label])
 );
-
-// Hex pros gráficos (recharts pinta via `fill`, não aceita classe Tailwind).
-export const SAUDE_COLOR_HEX: Record<string, string> = {
-  no_caminho: "#4ade80",
-  atencao: "#fbbf24",
-  critica: "#f87171",
-  pausada: "#a8a29e",
-  concluida: "#38bdf8",
-};

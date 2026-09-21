@@ -18,6 +18,7 @@ import { cn } from "./cn";
    ========================================================================= */
 
 export function Section({
+  id,
   title,
   description,
   eyebrow,
@@ -27,6 +28,9 @@ export function Section({
   children,
   as: Tag = "section",
 }: {
+  /** Âncora de rolagem — usado pelo relatório de campanha, que navega
+   *  por links de seção em vez de abas. */
+  id?: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
   eyebrow?: string;
@@ -37,7 +41,7 @@ export function Section({
   as?: "section" | "div";
 }) {
   return (
-    <Tag className={cn("min-w-0", className)}>
+    <Tag id={id} className={cn("min-w-0", className)}>
       {(title || action || eyebrow) && (
         <div className={cn("mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2", headerClassName)}>
           <div className="min-w-0">

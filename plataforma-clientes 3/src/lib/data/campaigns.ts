@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
-import { SAUDE_LABEL, SAUDE_COLOR_HEX } from "@/lib/campaignOptions";
+import { SAUDE_LABEL } from "@/lib/campaignOptions";
+import { SAUDE_COLOR } from "@/lib/statusColors";
 export { TIPO_LABEL, TIPO_OPTIONS, FASE_LABEL, FASE_OPTIONS, SAUDE_LABEL, SAUDE_OPTIONS } from "@/lib/campaignOptions";
 
 export type Campaign = {
@@ -76,12 +77,12 @@ export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
       saude,
       label: SAUDE_LABEL[saude] ?? saude,
       count,
-      color: SAUDE_COLOR_HEX[saude] ?? "#a8a29e",
+      color: SAUDE_COLOR[saude] ?? "rgb(var(--ink-3))",
     }))
     .sort((a, b) => b.count - a.count);
 }
 
-export type BudgetSummaryItem = { label: string; value: number; color: string };
+export type BudgetSummaryItem = { label: string; value: number; emphasis: boolean };
 
 // Soma planejado x aprovado x investido em cima de todas as campanhas
 // recebidas (sem filtrar por saúde) — visão financeira do Início, no
@@ -91,10 +92,14 @@ export function getBudgetSummary(campaigns: Campaign[]): BudgetSummaryItem[] {
   const aprovado = campaigns.reduce((sum, c) => sum + (c.orcamento_aprovado ?? 0), 0);
   const investido = campaigns.reduce((sum, c) => sum + (c.investimento_realizado ?? 0), 0);
 
+  // Forma de ênfase: as três barras são o MESMO conceito em três
+  // momentos, então só "Investido" (o número real) recebe a cor de marca
+  // e as outras duas recuam. Três cores fortes aqui sugeririam que são
+  // grandezas diferentes.
   return [
-    { label: "Planejado", value: planejado, color: "#a8a29e" },
-    { label: "Aprovado", value: aprovado, color: "rgb(var(--brand-500))" },
-    { label: "Investido", value: investido, color: "#4ade80" },
+    { label: "Planejado", value: planejado, emphasis: false },
+    { label: "Aprovado", value: aprovado, emphasis: false },
+    { label: "Investido", value: investido, emphasis: true },
   ];
 }
 

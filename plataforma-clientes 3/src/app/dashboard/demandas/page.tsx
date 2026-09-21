@@ -7,12 +7,15 @@ import {
   PRIORIDADE_LABEL,
 } from "@/lib/data/demands";
 import { getCampaignsForMinistry, getCampaignsForDemandsInMinistry } from "@/lib/data/campaigns";
+import { PageHeader } from "@/components/AppShell";
 import { DemandasExplorer } from "./DemandasExplorer";
 import type { DemandRow } from "./DemandTable";
 
+export const metadata = { title: "Demandas" };
+
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "sem prazo";
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR");
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
 export default async function DemandasPage() {
@@ -45,11 +48,11 @@ export default async function DemandasPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Demandas</h1>
-      <p className="mb-6 text-sm text-neutral-500">
-        Solicitações e entregas da Comunicação para {ministry.name}. Use a busca pra achar
-        uma demanda específica pelo nome, identificador ou campanha.
-      </p>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Demandas"
+        description={`Tudo que a Comunicação está produzindo para ${ministry.name}. Filtre por estágio para ver o que está em produção ou esperando por você.`}
+      />
 
       <DemandasExplorer demands={rows} campaigns={campaigns} />
     </div>
