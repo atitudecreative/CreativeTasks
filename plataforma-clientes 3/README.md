@@ -110,6 +110,29 @@ resumo e antes dos números — quem abre o relatório quer saber "como foi"
 antes de "quanto deu". Ao lado, o painel **"Contra eventos semelhantes"**
 mostra em régua onde este evento cai na faixa usual de cada métrica.
 
+### Visão de carteira e do cliente
+
+`src/lib/carteira.ts` (puro, testado) agrega o perfil de campanha em duas
+leituras que o relatório individual não dá:
+
+- **Painel da Comunicação** (`/dashboard/admin`) — investido e resultados
+  dos últimos 12 meses contra os 12 anteriores, e ranking de eficiência
+  por ministério (custo por resultado **mediano**, não médio).
+- **Início do ministério** (`/dashboard`) — evolução dos eventos
+  publicados, melhor marca, e a eficiência do ministério contra a faixa
+  dos demais.
+
+Duas decisões que valem registrar:
+
+**Zero e "não sei" são coisas diferentes.** `somaOuNull()` devolve `null`
+quando nenhuma campanha tem conversão rastreada, em vez de somar zeros.
+Mostrar "0 resultados" onde não há rastreamento seria afirmar que o evento
+não deu retorno.
+
+**A referência exclui o próprio.** A faixa contra a qual um ministério é
+comparado não inclui as campanhas dele — comparar alguém consigo mesmo não
+diz nada. Há teste específico para isso.
+
 ## De-para de status do Asana (migration 0031)
 
 ### O problema

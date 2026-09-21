@@ -3,9 +3,14 @@ import Link from "next/link";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
 import { getAllCampaignsAdmin } from "@/lib/data/campaigns";
+import { getAllMinistries } from "@/lib/data/ministries";
+import { getUniversoComparacao } from "@/lib/data/campanhaPerfil";
+import { resumirCarteira } from "@/lib/carteira";
+import { RankingEficiencia, VariacaoBadge } from "@/components/intel/LeituraMinisterio";
+import { formatMoney, formatCompact } from "@/lib/metricLanguage";
 import {
   Alert, Badge, Button, EmptyState, Icon, Metric, MetricRow, Panel,
-  Table, TBody, TD, TH, THead, TR, TableScroll, TableEmpty, Avatar, cn,
+  Table, TBody, TD, TH, THead, TR, TableScroll, TableEmpty, Avatar, Section,
 } from "@/components/ui";
 import { PageHeader } from "@/components/AppShell";
 
@@ -29,7 +34,21 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [overview, allCampaigns] = await Promise.all([getAdminOverview(), getAllCampaignsAdmin()]);
+  const [overview, allCampaigns, universo, ministerios] = await Promise.all([
+    getAdminOverview(),
+    getAllCampaignsAdmin(),
+    getUniversoComparacao(),
+    getAllMinistries(),
+  ]);
+
+  // Janela dos últimos 12 meses, comparada com os 12 anteriores. Fixa e
+  // explícita na tela — "variação" sem dizer contra o quê não significa
+  // nada.
+  const hoje = new Date();
+  const fimJanela = hoje.toISOString().slice(0, 10);
+  const inicioJanela = new Date(hoje.getTime() - 364 * 86400000).toISOString().slice(0, 10);
+  const carteira = resumirCarteira(universo, { inicio: inicioJanela, fim: fimJanela });
+  const nomePorMinisterio = new Map(ministerios.map((m) => [m.id, m.name] as const));
 
   const pendingCampaigns = allCampaigns.filter((c) => !c.publicada);
   const totalDemandas = overview.reduce((s, m) => s + m.demandasAtivas, 0);
@@ -107,6 +126,52 @@ export default async function AdminPage() {
           icon={<Icon.Activity className="h-4 w-4" />}
         />
       </MetricRow>
+
+      {/* ---------- Inteligência da carteira ---------- */}
+      {carteira.eventos > 0 && (
+        <Section
+          eyebrow="Carteira"
+          title="Últimos 12 meses"
+          description="Consolidado dos eventos publicados no período, comparado com os 12 meses anteriores."
+          className="mb-6"
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="space-y-4 lg:col-span-1">
+              <Metric
+                label="Investido no período"
+                value={formatMoney(carteira.investimento, true)}
+                icon={<Icon.Wallet className="h-4 w-4" />}
+                footer={
+                  <VariacaoBadge valor={carteira.variacaoInvestimento} rotulo="vs. período anterior" />
+                }
+              />
+              <Metric
+                label="Resultados no período"
+                value={carteira.resultados != null ? formatCompact(carteira.resultados) : "—"}
+                hint={
+                  carteira.resultados == null
+                    ? "nenhuma campanha com conversão rastreada"
+                    : `${carteira.eventos} ${carteira.eventos === 1 ? "evento" : "eventos"} em ${carteira.ministerios} ${carteira.ministerios === 1 ? "ministério" : "ministérios"}`
+                }
+                icon={<Icon.Target className="h-4 w-4" />}
+                footer={
+                  carteira.resultados != null ? (
+                    <VariacaoBadge valor={carteira.variacaoResultados} rotulo="vs. período anterior" />
+                  ) : undefined
+                }
+              />
+            </div>
+
+            <Panel
+              title="Eficiência por ministério"
+              description="Custo por resultado mediano"
+              className="lg:col-span-2"
+            >
+              <RankingEficiencia ranking={carteira.ranking} nomePorMinisterio={nomePorMinisterio} />
+            </Panel>
+          </div>
+        </Section>
+      )}
 
       <Panel title="Ministérios" description="Do mais pressionado para o mais tranquilo" noPadding>
         {overview.length === 0 ? (

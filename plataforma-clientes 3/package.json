@@ -15,7 +15,8 @@
     "send:weekly-digest": "node scripts/send-weekly-digest.mjs",
     "test:asana-status": "node --test scripts/asana-status.test.mjs",
     "test:insights": "node --test src/lib/insights.test.ts",
-    "test": "node --test src/lib/insights.test.ts scripts/asana-status.test.mjs"
+    "test": "node --test src/lib/insights.test.ts src/lib/carteira.test.ts scripts/asana-status.test.mjs",
+    "test:carteira": "node --test src/lib/carteira.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

@@ -10,6 +10,9 @@ import {
 import { getCampaignsForMinistry, getBudgetSummary, SAUDE_LABEL } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { countByStage } from "@/lib/demandStages";
+import { getUniversoComparacao } from "@/lib/data/campanhaPerfil";
+import { lerMinisterio } from "@/lib/carteira";
+import { LeituraMinisterioPanel } from "@/components/intel/LeituraMinisterio";
 import { statusTone, saudeTone, deliverableTone } from "@/lib/statusColors";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import {
@@ -77,11 +80,18 @@ function getTodayLabel() {
 export default async function DashboardPage() {
   const { ministry } = await requireMinistry();
 
-  const [demands, campaigns, deliverables] = await Promise.all([
+  const [demands, campaigns, deliverables, universo] = await Promise.all([
     getDemandsForMinistry(ministry.id),
     getCampaignsForMinistry(ministry.id),
     getDeliverablesForMinistry(ministry.id),
+    // Universo de comparação: o RLS já recorta pro que este usuário pode
+    // ver, então um ministério compara contra o próprio histórico.
+    getUniversoComparacao(),
   ]);
+
+  // Leitura histórica do ministério — a pergunta "como estamos indo",
+  // que o Início não respondia: ele mostrava só o estado de hoje.
+  const leitura = lerMinisterio(ministry.id, universo);
 
   const resumo = summarizeDemands(demands);
   const stages = countByStage(demands.map((d) => d.status));
@@ -260,11 +270,26 @@ export default async function DashboardPage() {
 
       {/* ---------- NÍVEL 4: tendência ---------- */}
       <Section eyebrow="Tendência" title="Como o trabalho evoluiu">
+        <Panel title="Volume por mês" description="Demandas abertas e concluídas">
+          <VolumeChart data={monthlyStats} />
+        </Panel>
+      </Section>
+
+      {/* ---------- NÍVEL 4.5: leitura dos eventos ---------- */}
+      <Section
+        eyebrow="Leitura"
+        title="Como os eventos vêm performando"
+        description="Comparação entre os eventos publicados deste ministério e contra os demais."
+      >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Panel title="Volume por mês" description="Demandas abertas e concluídas" className="lg:col-span-2">
-            <VolumeChart data={monthlyStats} />
+          <Panel title="Histórico de eventos" className="lg:col-span-1">
+            <LeituraMinisterioPanel leitura={leitura} />
           </Panel>
-          <Panel title="Orçamento das campanhas" description="Planejado, aprovado e realizado">
+          <Panel
+            title="Orçamento das campanhas"
+            description="Planejado, aprovado e realizado"
+            className="lg:col-span-2"
+          >
             <BudgetChart data={budgetSummary} />
           </Panel>
         </div>
