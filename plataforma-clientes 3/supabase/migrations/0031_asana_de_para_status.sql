@@ -124,52 +124,31 @@ create unique index if not exists asana_status_map_ministerio_uidx
 --
 -- `on conflict do nothing` pra rodar a migration de novo não sobrescrever
 -- ajuste que a Comunicação já tenha feito.
+--
+-- Escrito como lista de sinônimos POR STATUS (e não uma linha por par)
+-- por dois motivos: agrupa por significado, que é como alguém lê e
+-- revisa isso; e encurta o comando de 46 para 16 linhas — um INSERT
+-- muito longo é o tipo de coisa que chega truncada quando é colado num
+-- editor web, e um truncamento aqui faz o Postgres recusar o arquivo
+-- inteiro com um erro de sintaxe difícil de interpretar.
 insert into asana_status_map (ministry_id, secao_normalizada, status)
-values
-  (null, 'a fazer',                'planejada'),
-  (null, 'backlog',                'recebida'),
-  (null, 'novas',                  'recebida'),
-  (null, 'entrada',                'recebida'),
-  (null, 'solicitacoes',           'recebida'),
-  (null, 'triagem',                'em_triagem'),
-  (null, 'briefing',               'aguardando_briefing'),
-  (null, 'aguardando briefing',    'aguardando_briefing'),
-  (null, 'planejamento',           'planejada'),
-  (null, 'planejadas',             'planejada'),
-  (null, 'fazendo',                'em_producao'),
-  (null, 'em andamento',           'em_producao'),
-  (null, 'em producao',            'em_producao'),
-  (null, 'producao',               'em_producao'),
-  (null, 'em arte',                'em_producao'),
-  (null, 'criacao',                'em_producao'),
-  (null, 'revisao',                'em_revisao_interna'),
-  (null, 'revisao interna',        'em_revisao_interna'),
-  (null, 'em revisao',             'em_revisao_interna'),
-  (null, 'com o cliente',          'aguardando_ministerio'),
-  (null, 'com o ministerio',       'aguardando_ministerio'),
-  (null, 'aguardando cliente',     'aguardando_ministerio'),
-  (null, 'aguardando ministerio',  'aguardando_ministerio'),
-  (null, 'aguardando aprovacao',   'aguardando_aprovacao'),
-  (null, 'para aprovacao',         'aguardando_aprovacao'),
-  (null, 'aprovacao',              'aguardando_aprovacao'),
-  (null, 'ajustes',                'ajustes_solicitados'),
-  (null, 'ajustes solicitados',    'ajustes_solicitados'),
-  (null, 'correcoes',              'ajustes_solicitados'),
-  (null, 'aprovado',               'aprovada'),
-  (null, 'aprovadas',              'aprovada'),
-  (null, 'agendado',               'agendada_ou_publicada'),
-  (null, 'publicado',              'agendada_ou_publicada'),
-  (null, 'no ar',                  'agendada_ou_publicada'),
-  (null, 'feito',                  'concluida'),
-  (null, 'concluido',              'concluida'),
-  (null, 'concluidas',             'concluida'),
-  (null, 'finalizado',             'concluida'),
-  (null, 'entregue',               'concluida'),
-  (null, 'pausado',                'pausada'),
-  (null, 'em espera',              'pausada'),
-  (null, 'standby',                'pausada'),
-  (null, 'cancelado',              'cancelada'),
-  (null, 'canceladas',             'cancelada')
+select null, nome, status
+from (values
+  (array['backlog','novas','entrada','solicitacoes']::text[],              'recebida'::text),
+  (array['triagem'],                                                        'em_triagem'),
+  (array['briefing','aguardando briefing'],                                 'aguardando_briefing'),
+  (array['a fazer','planejamento','planejadas'],                            'planejada'),
+  (array['fazendo','em andamento','em producao','producao','em arte','criacao'], 'em_producao'),
+  (array['revisao','revisao interna','em revisao'],                         'em_revisao_interna'),
+  (array['com o cliente','com o ministerio','aguardando cliente','aguardando ministerio'], 'aguardando_ministerio'),
+  (array['aguardando aprovacao','para aprovacao','aprovacao'],              'aguardando_aprovacao'),
+  (array['ajustes','ajustes solicitados','correcoes'],                      'ajustes_solicitados'),
+  (array['aprovado','aprovadas'],                                           'aprovada'),
+  (array['agendado','publicado','no ar'],                                   'agendada_ou_publicada'),
+  (array['feito','concluido','concluidas','finalizado','entregue'],         'concluida'),
+  (array['pausado','em espera','standby'],                                  'pausada'),
+  (array['cancelado','canceladas'],                                         'cancelada')
+) as t(nomes, status), unnest(t.nomes) as nome
 on conflict do nothing;
 
 
