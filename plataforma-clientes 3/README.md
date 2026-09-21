@@ -37,6 +37,79 @@ da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
 delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
 ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
+## Camada de inteligência (migration 0032)
+
+A plataforma passa a **interpretar** os próprios dados, não só exibi-los.
+"R$ 95 de custo por resultado" vira "R$ 95 — 20% acima da mediana de
+eventos do mesmo tipo, sendo R$ 72 a R$ 88 a faixa usual".
+
+### Onde o cálculo mora
+
+`campanha_perfil` (view, migration 0032) devolve **uma linha por campanha**
+com mídia, demandas, entregas e marcos já agregados. Antes, comparar
+campanhas exigiria carregar tudo e somar num `.reduce()` no Node.
+
+A view usa `security_invoker = true`, então roda com as permissões de quem
+consulta. Isso não é detalhe: **sem esse ajuste, uma view sobre tabelas com
+RLS vaza dado de todos os ministérios para qualquer usuário logado.** O
+efeito colateral é desejável — um ministério compara contra o próprio
+histórico, a Comunicação contra a carteira inteira, e isso sai de graça.
+
+### O motor de regras
+
+`src/lib/insights.ts` é puro: sem Supabase, sem `next/headers`, sem data
+"de agora". Tudo entra por parâmetro, e é isso que permite testar cada
+regra isoladamente.
+
+**Três regras de honestidade, acima de qualquer outra coisa:**
+
+1. **Não inventar.** Nenhuma regra dispara sem os dados que exige. Faltou
+   base, não sai insight — e a tela diz *"dados insuficientes"* em vez de
+   mostrar uma conclusão sem lastro.
+2. **Mediana e quartil, nunca média.** Uma campanha com verba
+   desproporcional destrói uma média e faz todo o resto parecer ruim. A
+   faixa p25–p75 é o que responde de verdade "quanto costuma ser".
+3. **Todo insight carrega o n.** "12% acima da média" sem dizer média de
+   quantos é retórica. Cada insight leva `baseAmostra`, e a interface
+   mostra.
+
+Amostra mínima para uma faixa: **4 campanhas comparáveis** (mesmo `tipo`,
+excluindo a analisada). Abaixo disso o quartil é ruído.
+
+### Regras implementadas
+
+| Regra | Dispara quando | Exige |
+|---|---|---|
+| Quartil (CPA, CTR, CPM, alcance) | valor sai da faixa p25–p75 e difere ≥10% da mediana | 4+ comparáveis |
+| Anomalia investimento × retorno | verba subiu ≥20% e retorno não acompanhou nem 1/3 disso | campanha anterior do ministério, com verba e conversão |
+| Eficiência | verba caiu ≥10% e retorno se manteve | idem |
+| Orçamento | realizado >105% do aprovado, ou <70% com a campanha encerrada | orçamento aprovado |
+| Tendência | resultados **estritamente** crescentes em 3+ eventos | histórico do ministério |
+| Recorde | supera a melhor marca anterior do ministério | 2+ eventos anteriores |
+| Pontualidade | taxa de entrega no prazo fora da faixa usual | 5+ demandas com prazo aferível |
+
+Uma série que oscila **não** é chamada de tendência — isso seria vender
+ruído como padrão.
+
+### Testes
+
+```bash
+npm test          # 40 testes
+npm run test:insights
+```
+
+27 testes só do motor, e boa parte deles verifica que a regra **não**
+dispara: sem amostra, sem rastreamento de conversão, com série oscilante,
+com valor dentro da faixa normal. Rodam com o runner nativo do Node
+(`node --test`), sem dependência nova.
+
+### Onde aparece
+
+Seção **"Leitura automática"** do relatório de evento, logo depois do
+resumo e antes dos números — quem abre o relatório quer saber "como foi"
+antes de "quanto deu". Ao lado, o painel **"Contra eventos semelhantes"**
+mostra em régua onde este evento cai na faixa usual de cada métrica.
+
 ## De-para de status do Asana (migration 0031)
 
 ### O problema

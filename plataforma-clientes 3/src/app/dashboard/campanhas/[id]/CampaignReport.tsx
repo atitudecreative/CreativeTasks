@@ -11,6 +11,9 @@ import { MilestoneTimeline } from "./MilestoneTimeline";
 import { MetaWeeklyChart, MetaGenderChart, MetaAgeChart, MetaAdsRanking } from "./MetaAdsCharts";
 import { MetaAdsTable } from "./MetaAdsTable";
 import { ReportNav, type ReportSection } from "./ReportNav";
+import { InsightList, InsightResumo } from "@/components/intel/InsightList";
+import { ComparacaoPanel } from "@/components/intel/ComparacaoPanel";
+import type { ResultadoInsights, LinhaComparacao } from "@/lib/insights";
 import { WeekPerformance } from "./WeekFilter";
 import { METRICS, formatMoney, formatCompact } from "@/lib/metricLanguage";
 import { statusTone, saudeTone } from "@/lib/statusColors";
@@ -99,6 +102,7 @@ export function CampaignReport({
   resumoDemandas, demandasOrdenadas, progress, proximoMarco, milestones,
   deliverables, canApprove,
   metaCampaigns, metaMetrics, metaWeekly, metaDemographics, metaAds,
+  leitura, comparacoes,
 }: {
   campaignNome: string;
   identificador: string | null;
@@ -128,6 +132,10 @@ export function CampaignReport({
   metaWeekly: MetaWeeklyStat[];
   metaDemographics: { genero: MetaDemographicItem[]; idade: MetaDemographicItem[] };
   metaAds: MetaAd[];
+  /** Leitura automática (motor de insights) — calculada no servidor a
+   *  partir da view campanha_perfil e das campanhas comparáveis. */
+  leitura: ResultadoInsights;
+  comparacoes: LinhaComparacao[];
 }) {
   const hasMeta = metaCampaigns.length > 0;
   const periodo = periodText(dataInicio, dataTermino);
@@ -141,8 +149,11 @@ export function CampaignReport({
       ? (investimento / orcamentoAprovado) * 100
       : null;
 
+  const temLeitura = leitura.insights.length > 0 || comparacoes.length > 0 || leitura.dadosInsuficientes;
+
   const sections: ReportSection[] = [
     { id: "resumo", label: "Resumo", icon: "Sparkles" },
+    ...(temLeitura ? [{ id: "leitura", label: "Leitura", icon: "Activity" as const }] : []),
     ...(hasMeta || investimento != null || orcamentoAprovado != null
       ? [{ id: "resultado", label: "Resultado", icon: "Target" as const }]
       : []),
@@ -293,6 +304,44 @@ export function CampaignReport({
             </Panel>
           </div>
         </Section>
+
+        {/* ================= 1.5 LEITURA AUTOMÁTICA =================
+            Entra logo depois do resumo e ANTES dos números, de propósito:
+            quem abre o relatório quer saber "como foi" antes de "quanto
+            deu". A seção não inventa nada — quando não há base de
+            comparação, ela diz exatamente isso. */}
+        {temLeitura && (
+          <Section
+            id="leitura"
+            as="div"
+            eyebrow="Leitura automática"
+            title="O que os dados dizem"
+            description="Gerado a partir dos próprios registros do portal, comparando este evento com os do mesmo tipo e com o histórico do ministério."
+            className="scroll-mt-28"
+          >
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+              <Panel
+                title="Destaques"
+                className="lg:col-span-3"
+                action={<InsightResumo insights={leitura.insights} />}
+              >
+                <InsightList
+                  insights={leitura.insights}
+                  amostraComparavel={leitura.amostraComparavel}
+                  dadosInsuficientes={leitura.dadosInsuficientes}
+                />
+              </Panel>
+
+              <Panel
+                title="Contra eventos semelhantes"
+                description="Onde este evento cai na faixa usual"
+                className="lg:col-span-2"
+              >
+                <ComparacaoPanel linhas={comparacoes} />
+              </Panel>
+            </div>
+          </Section>
+        )}
 
         {/* ================= 2. RESULTADO ================= */}
         {(hasMeta || investimento != null || orcamentoAprovado != null) && (

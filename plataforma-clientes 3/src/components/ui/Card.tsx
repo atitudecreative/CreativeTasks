@@ -114,7 +114,11 @@ export function Panel({
             {title && <h3 className="truncate text-h4 text-ink">{title}</h3>}
             {description && <p className="mt-0.5 truncate text-caption text-ink-3">{description}</p>}
           </div>
-          {action && <div className="flex shrink-0 items-center gap-1.5">{action}</div>}
+          {/* Sem shrink-0: o cabeçalho já é flex-wrap, então quando a ação
+              não cabe ao lado do título ela desce pra própria linha em vez
+              de empurrar a largura do painel e estourar a página na
+              horizontal. */}
+          {action && <div className="flex min-w-0 flex-wrap items-center gap-1.5">{action}</div>}
         </div>
       )}
       <div className={cn(!noPadding && "p-4 sm:p-5", "min-w-0 flex-1", bodyClassName)}>{children}</div>
