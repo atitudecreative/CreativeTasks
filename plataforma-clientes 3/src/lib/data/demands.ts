@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { STATUS_COLOR_HEX, DEFAULT_STATUS_COLOR_HEX } from "@/lib/statusColors";
+import { statusColor } from "@/lib/statusColors";
 import { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 export { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 
@@ -226,7 +226,7 @@ export function getStatusBreakdown(demands: Demand[]): StatusBreakdownItem[] {
       status,
       label: STATUS_LABEL[status] ?? status,
       count,
-      color: STATUS_COLOR_HEX[status] ?? DEFAULT_STATUS_COLOR_HEX,
+      color: statusColor(status),
     }))
     .sort((a, b) => b.count - a.count);
 }

@@ -1,33 +1,25 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import type { Metadata } from "next";
 import {
-  getCampaignById,
-  getMilestonesForCampaign,
-  getDemandsForCampaign,
-  calculateProgress,
-  TIPO_LABEL,
-  FASE_LABEL,
-  SAUDE_LABEL,
+  getCampaignById, getMilestonesForCampaign, getDemandsForCampaign, calculateProgress,
 } from "@/lib/data/campaigns";
-import { SAUDE_COLOR_HEX } from "@/lib/campaignOptions";
-import { summarizeDemands, getStatusBreakdown, isOverdue } from "@/lib/data/demands";
+import { summarizeDemands, isOverdue } from "@/lib/data/demands";
 import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
 import {
-  getMetaCampaignsForCampaign,
-  summarizeMetaMetrics,
-  getMetaAdsForCampaign,
-  getMetaWeeklyStatsForCampaign,
-  getMetaDemographicsForCampaign,
+  getMetaCampaignsForCampaign, summarizeMetaMetrics, getMetaAdsForCampaign,
+  getMetaWeeklyStatsForCampaign, getMetaDemographicsForCampaign,
 } from "@/lib/data/metaAds";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
-import { IconArrowLeft } from "./icons";
-import { CampaignDashboardTabs } from "./CampaignDashboardTabs";
+import { Breadcrumb } from "@/components/ui";
+import { CampaignReport } from "./CampaignReport";
 
-export default async function CampanhaDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const campaign = await getCampaignById(id);
+  return { title: campaign?.nome ?? "Campanha" };
+}
+
+export default async function CampanhaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
@@ -43,17 +35,16 @@ export default async function CampanhaDetailPage({
       getMetaDemographicsForCampaign(id),
       getCurrentUser(),
     ]);
+
   const metaMetrics = summarizeMetaMetrics(metaCampaigns);
   const progress = calculateProgress(milestones);
   const proximoMarco = milestones.find((m) => !m.concluido);
-  // Só aprovação de entregas fica aqui — edição da campanha em si (info +
-  // capa) agora é só via admin, em /dashboard/admin/campanhas-pendentes.
-  // Esta tela é o dashboard público do evento: números + dados + demandas
-  // relacionadas, sem controles de edição.
+
+  // Só a aprovação de entrega vive nesta tela — editar a campanha em si é
+  // no admin. Esta é a visão de prestação de contas, não de operação.
   const canApprove = isComunicacaoGlobal(currentUser);
 
   const resumoDemandas = summarizeDemands(demands);
-  const statusBreakdown = getStatusBreakdown(demands);
   const demandasOrdenadas = [...demands]
     .sort((a, b) => {
       if (!a.prazo_acordado) return 1;
@@ -68,66 +59,34 @@ export default async function CampanhaDetailPage({
       overdue: isOverdue(d),
     }));
 
-  const saudeColor = SAUDE_COLOR_HEX[campaign.saude] ?? "#a8a29e";
-
   return (
     <div>
-      <Link
-        href="/dashboard/campanhas"
-        className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400 transition hover:text-brand-600"
-      >
-        <IconArrowLeft className="h-3.5 w-3.5" />
-        Campanhas e eventos
-      </Link>
+      <Breadcrumb
+        items={[
+          { label: "Campanhas e eventos", href: "/dashboard/campanhas" },
+          { label: campaign.nome },
+        ]}
+        className="mb-3"
+      />
 
-      {/* Cabeçalho compacto — miniatura + identidade da campanha numa
-          linha só, em vez de um banner grande ocupando a tela toda. */}
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
-        <div
-          className="h-14 w-14 shrink-0 rounded-lg bg-cover bg-center"
-          style={
-            campaign.capa_url
-              ? { backgroundImage: `url(${campaign.capa_url})` }
-              : { background: "linear-gradient(135deg, rgb(var(--walnut-900)), rgb(var(--brand-700)))" }
-          }
-        />
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-1.5">
-            {campaign.identificador && (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-500">
-                {campaign.identificador}
-              </span>
-            )}
-            <span className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: saudeColor }} />
-              {SAUDE_LABEL[campaign.saude] ?? campaign.saude}
-            </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                campaign.publicada ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"
-              }`}
-            >
-              {campaign.publicada ? "Ativa" : "Oculta"}
-            </span>
-          </div>
-          <h1 className="truncate text-lg font-bold leading-tight text-neutral-900">{campaign.nome}</h1>
-          <p className="text-xs text-neutral-400">
-            {TIPO_LABEL[campaign.tipo] ?? campaign.tipo} · {FASE_LABEL[campaign.fase] ?? campaign.fase}
-          </p>
-        </div>
-      </div>
-
-      <CampaignDashboardTabs
+      <CampaignReport
         campaignNome={campaign.nome}
+        identificador={campaign.identificador}
+        tipo={campaign.tipo}
+        fase={campaign.fase}
+        saude={campaign.saude}
+        publicada={campaign.publicada}
+        capaUrl={campaign.capa_url}
         objetivoEstrategico={campaign.objetivo_estrategico}
         escopoMacro={campaign.escopo_macro}
         dataInicio={campaign.data_inicio}
         dataTermino={campaign.data_termino}
+        dataEvento={campaign.data_evento}
         orcamentoPlanejado={campaign.orcamento_planejado}
         orcamentoAprovado={campaign.orcamento_aprovado}
+        investimentoRealizado={campaign.investimento_realizado}
         resultadosObservacoes={campaign.resultados_observacoes}
         resumoDemandas={resumoDemandas}
-        statusBreakdown={statusBreakdown}
         demandasOrdenadas={demandasOrdenadas}
         progress={progress}
         proximoMarco={proximoMarco}

@@ -1,32 +1,33 @@
 "use client";
 
 import {
-  ResponsiveContainer,
-  ComposedChart,
-  BarChart,
-  Bar,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Sector,
-  Cell,
+  ResponsiveContainer, BarChart, Bar, ComposedChart, Area, XAxis, YAxis,
+  CartesianGrid, Tooltip as RTooltip, Cell,
 } from "recharts";
-import type { PieSectorDataItem } from "recharts/types/polar/Pie";
+import { Icon, BarRow, EmptyState, cn } from "@/components/ui";
+import {
+  ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor,
+  ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable,
+} from "@/components/charts/primitives";
+import { formatMoney, formatCompact } from "@/lib/metricLanguage";
 import type { MetaWeeklyStat, MetaDemographicItem, MetaAd } from "@/lib/data/metaAds";
 
-// Cores puxadas da identidade visual da própria plataforma (variáveis
-// CSS de brand/walnut, que mudam por ministério — ver tailwind.config.ts)
-// em vez de tons fixos desconectados do resto do portal.
-const GENDER_COLORS: Record<string, string> = {
-  female: "rgb(var(--walnut-400))",
-  male: "rgb(var(--brand-500))",
-  unknown: "#a8a29e",
-};
+/* =========================================================================
+   GRÁFICOS DE MÍDIA PAGA
+   -------------------------------------------------------------------------
+   Reescritos em cima do sistema de gráfico do produto (mesmo eixo, mesma
+   grade, mesmo tooltip, mesma paleta validada), e com três mudanças de
+   forma:
+
+   1. GÊNERO deixa de ser pizza. Duas ou três fatias numa rosca é a forma
+      mais fraca possível pra esse dado; virou barra empilhada com rótulo
+      direto, que compara melhor e cabe em qualquer largura.
+   2. IDADE deixa de ter uma lista-resumo DUPLICANDO o gráfico logo acima.
+      Ficou só o ranking de barras, que já traz o valor no rótulo.
+   3. Criativos usam barra proporcional simples (não gráfico), porque o
+      que importa ali é ordem e proporção, com o nome do criativo legível
+      por extenso.
+   ========================================================================= */
 
 const GENDER_LABEL: Record<string, string> = {
   female: "Feminino",
@@ -34,276 +35,257 @@ const GENDER_LABEL: Record<string, string> = {
   unknown: "Não informado",
 };
 
+// Slots da paleta validada, na ordem fixa. O terceiro vai pro cinza de
+// contexto porque "não informado" é ausência de dado, não uma categoria.
+const GENDER_COLOR: Record<string, string> = {
+  female: seriesColor(0),
+  male: seriesColor(1),
+  unknown: MUTED,
+};
+
 const AGE_ORDER = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
 
-// Fundo por trás do plot — mesmo tratamento em todo gráfico (linha,
-// coluna, pizza), pra dar mais contraste contra o card branco.
-function ChartBackdrop({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-lg bg-neutral-50 p-2">{children}</div>;
+function weekLabel(semanaInicio: string) {
+  return new Date(semanaInicio + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function EmptyChart({ label }: { label: string }) {
-  return <div className="flex h-56 items-center justify-center text-sm text-neutral-400">{label}</div>;
-}
-
-// Investido x vendas por semana — barra = investido, área preenchida =
-// vendas (em vez de só uma linha fina, a área embaixo da linha vem
-// pintada com um degradê, pra ficar mais fácil de ler a tendência).
-// Some vendas ficarem null quando o Pixel/Conversions API não está
-// configurado — nesse caso só mostra a barra de investido.
+/* -------------------------------------------------------------------------
+   EVOLUÇÃO SEMANAL — investimento (coluna) x resultados (área).
+   As duas séries têm unidades diferentes (reais e contagem), então NÃO
+   dividem eixo: os resultados entram como área indexada ao próprio
+   máximo, e o valor real aparece no tooltip e na tabela. Eixo Y duplo é
+   o erro de leitura mais comum em gráfico de mídia e ele não entra aqui.
+   ------------------------------------------------------------------------- */
 export function MetaWeeklyChart({ data }: { data: MetaWeeklyStat[] }) {
-  if (data.length === 0) return <EmptyChart label="Ainda sem histórico semanal sincronizado." />;
+  if (data.length === 0) return <ChartEmpty label="Ainda sem histórico semanal sincronizado." />;
 
   const temVendas = data.some((d) => d.vendas != null);
-  const chartData = data.map((d) => ({
-    label: new Date(d.semana_inicio + "T00:00:00").toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-    }),
-    investimento: d.investimento,
-    vendas: d.vendas,
-  }));
-
-  return (
-    <ChartBackdrop>
-      <ResponsiveContainer width="100%" height={260}>
-        <ComposedChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="areaVendas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgb(var(--walnut-400))" stopOpacity={0.55} />
-              <stop offset="100%" stopColor="rgb(var(--walnut-400))" stopOpacity={0.03} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#d6d3d1" }} tickLine={false} />
-          <YAxis
-            yAxisId="left"
-            tick={{ fontSize: 11, fill: "#78716c" }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
-          />
-          {temVendas && (
-            <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 11, fill: "#78716c" }} axisLine={false} tickLine={false} />
-          )}
-          <Tooltip
-            cursor={{ fill: "rgba(0,0,0,0.045)" }}
-            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-            formatter={(value, name) =>
-              name === "Investido"
-                ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
-                : [value, name]
-            }
-          />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar
-            yAxisId="left"
-            dataKey="investimento"
-            name="Investido"
-            fill="rgb(var(--brand-500))"
-            radius={[6, 6, 0, 0]}
-            maxBarSize={40}
-            animationDuration={500}
-          />
-          {temVendas && (
-            <Area
-              yAxisId="right"
-              type="monotone"
-              dataKey="vendas"
-              name="Vendas"
-              stroke="rgb(var(--walnut-500))"
-              strokeWidth={2.5}
-              fill="url(#areaVendas)"
-              dot={{ r: 4, fill: "rgb(var(--walnut-500))", strokeWidth: 0 }}
-              activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2 }}
-              connectNulls
-              animationDuration={600}
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
-    </ChartBackdrop>
-  );
-}
-
-// Fatia "estourando" um pouco pra fora quando o mouse passa em cima —
-// dá a sensação de resposta/animação que gráfico estático não tem.
-function ActiveSlice(props: PieSectorDataItem) {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-  return (
-    <Sector
-      cx={cx}
-      cy={cy}
-      innerRadius={innerRadius}
-      outerRadius={(outerRadius ?? 0) + 6}
-      startAngle={startAngle}
-      endAngle={endAngle}
-      fill={fill}
-    />
-  );
-}
-
-export function MetaGenderChart({ data }: { data: MetaDemographicItem[] }) {
-  if (data.length === 0) return <EmptyChart label="Ainda sem dados de público sincronizados." />;
+  const maxVendas = Math.max(...data.map((d) => d.vendas ?? 0), 1);
+  const maxInvest = Math.max(...data.map((d) => d.investimento ?? 0), 1);
 
   const chartData = data.map((d) => ({
-    ...d,
-    label: GENDER_LABEL[d.chave] ?? d.chave,
-    color: GENDER_COLORS[d.chave] ?? "#a8a29e",
+    label: weekLabel(d.semana_inicio),
+    investimento: d.investimento ?? 0,
+    vendas: d.vendas ?? 0,
+    // Série de resultados reescalada pro domínio do investimento, só pra
+    // as duas curvas caberem no mesmo desenho. O número honesto continua
+    // no tooltip e na tabela — a área aqui comunica FORMATO, não valor.
+    vendasEscalada: temVendas ? ((d.vendas ?? 0) / maxVendas) * maxInvest : 0,
   }));
 
   return (
     <div>
-      <ChartBackdrop>
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie
-              data={chartData}
-              dataKey="investimento"
-              nameKey="label"
-              innerRadius={50}
-              outerRadius={82}
-              paddingAngle={2}
-              activeShape={ActiveSlice}
-              animationDuration={500}
-            >
-              {chartData.map((d) => (
-                <Cell key={d.chave} fill={d.color} stroke="white" strokeWidth={2} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-              formatter={(value) => Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartBackdrop>
-      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-        {chartData.map((d) => (
-          <li key={d.chave} className="flex items-center gap-1.5 text-xs text-neutral-600">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
-            {d.label}
-            {d.vendas != null && <span className="text-neutral-400"> · {d.vendas} vendas</span>}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function formatMoney(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-// Ranking de investimento por criativo (anúncio) — barra horizontal,
-// maior investimento primeiro, com uma medalha no #1. Igual à ideia do
-// "Investimento por Criativo" do exemplo, com as cores da plataforma.
-export function MetaAdsRanking({ ads }: { ads: MetaAd[] }) {
-  const ranked = [...ads]
-    .filter((a) => a.investimento != null && a.investimento > 0)
-    .sort((a, b) => (b.investimento ?? 0) - (a.investimento ?? 0));
-
-  if (ranked.length === 0) return <EmptyChart label="Ainda sem investimento por criativo sincronizado." />;
-
-  const max = ranked[0].investimento ?? 1;
-
-  return (
-    <div className="space-y-2.5">
-      {ranked.map((ad, i) => (
-        <div key={ad.id}>
-          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-            <span className="flex items-center gap-1.5 truncate font-medium text-neutral-700">
-              {i === 0 && (
-                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                  Top #1
-                </span>
-              )}
-              <span className="truncate">{ad.nome}</span>
-            </span>
-            <span className="shrink-0 font-semibold text-neutral-800">{formatMoney(ad.investimento ?? 0)}</span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-            <div
-              className="h-full rounded-full bg-brand-500 transition-all duration-500"
-              style={{ width: `${Math.max(((ad.investimento ?? 0) / max) * 100, 3)}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Resumo por faixa etária em barras horizontais (investido x vendas),
-// igual ao "35-44 anos (Público Principal)" do exemplo — a faixa com
-// mais investimento leva a etiqueta "Público Principal".
-export function MetaAgeSummaryList({ data }: { data: MetaDemographicItem[] }) {
-  if (data.length === 0) return null;
-
-  const ranked = [...data].sort((a, b) => b.investimento - a.investimento);
-  const max = ranked[0]?.investimento || 1;
-
-  return (
-    <div className="mb-4 space-y-3">
-      {ranked.map((d, i) => (
-        <div key={d.chave}>
-          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-            <span className="font-medium text-neutral-700">
-              {d.chave} anos {i === 0 && <span className="text-neutral-400">(público principal)</span>}
-            </span>
-            <span className="text-neutral-500">
-              {d.vendas != null ? `${d.vendas} vendas · ` : ""}
-              {formatMoney(d.investimento)}
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-            <div
-              className="h-full rounded-full bg-brand-500 transition-all duration-500"
-              style={{ width: `${Math.max((d.investimento / max) * 100, 3)}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function MetaAgeChart({ data }: { data: MetaDemographicItem[] }) {
-  if (data.length === 0) return <EmptyChart label="Ainda sem dados de público sincronizados." />;
-
-  const chartData = [...data].sort((a, b) => {
-    const ia = AGE_ORDER.indexOf(a.chave);
-    const ib = AGE_ORDER.indexOf(b.chave);
-    if (ia === -1 && ib === -1) return a.chave.localeCompare(b.chave);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-
-  return (
-    <ChartBackdrop>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={chartData} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
-          <XAxis dataKey="chave" tick={{ fontSize: 12, fill: "#78716c" }} axisLine={{ stroke: "#d6d3d1" }} tickLine={false} />
+      <ResponsiveContainer width="100%" height={230}>
+        <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
+          <defs>
+            <linearGradient id="meta-vendas-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={seriesColor(2)} stopOpacity={0.25} />
+              <stop offset="100%" stopColor={seriesColor(2)} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
           <YAxis
-            tick={{ fontSize: 11, fill: "#78716c" }}
+            width={52}
+            tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => `R$${(v / 1000).toFixed(1)}k`}
+            tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)))}
           />
-          <Tooltip
-            cursor={{ fill: "rgba(0,0,0,0.045)" }}
-            contentStyle={{ borderRadius: 12, border: "1px solid #e7e5e4", fontSize: 13 }}
-            formatter={(value, name) =>
-              name === "Investido"
-                ? [Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), name]
-                : [value, name]
-            }
+          <RTooltip
+            cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const row = payload[0]?.payload as (typeof chartData)[number];
+              return (
+                <ChartTooltip
+                  title={`Semana de ${label}`}
+                  rows={[
+                    { label: "Investido", value: formatMoney(row.investimento), color: ACCENT },
+                    ...(temVendas
+                      ? [{ label: "Resultados", value: formatCompact(row.vendas), color: seriesColor(2) }]
+                      : []),
+                  ]}
+                />
+              );
+            }}
           />
-          <Bar dataKey="investimento" name="Investido" fill="rgb(var(--brand-500))" radius={[6, 6, 0, 0]} maxBarSize={50} animationDuration={500} />
-        </BarChart>
+          <Bar dataKey="investimento" fill={ACCENT} radius={[4, 4, 0, 0]} maxBarSize={34} animationDuration={480} />
+          {temVendas && (
+            <Area
+              type="monotone"
+              dataKey="vendasEscalada"
+              stroke={seriesColor(2)}
+              strokeWidth={2}
+              fill="url(#meta-vendas-fill)"
+              dot={{ r: 3, fill: seriesColor(2), strokeWidth: 0 }}
+              activeDot={{ r: 5, stroke: "rgb(var(--surface))", strokeWidth: 2 }}
+              animationDuration={540}
+            />
+          )}
+        </ComposedChart>
       </ResponsiveContainer>
-    </ChartBackdrop>
+
+      <ChartLegend
+        className="mt-2"
+        items={[
+          { label: "Investido", color: ACCENT },
+          ...(temVendas ? [{ label: "Resultados (formato da curva)", color: seriesColor(2) }] : []),
+        ]}
+      />
+
+      <ChartDataTable
+        caption="Evolução semanal da campanha"
+        columns={temVendas ? ["Semana", "Investido", "Resultados"] : ["Semana", "Investido"]}
+        rows={data.map((d) =>
+          temVendas
+            ? [weekLabel(d.semana_inicio), formatMoney(d.investimento), formatCompact(d.vendas)]
+            : [weekLabel(d.semana_inicio), formatMoney(d.investimento)]
+        )}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   PÚBLICO POR GÊNERO — barra empilhada com rótulo direto.
+   ------------------------------------------------------------------------- */
+export function MetaGenderChart({ data }: { data: MetaDemographicItem[] }) {
+  if (data.length === 0) return <ChartEmpty label="Sem dados demográficos sincronizados." height="h-32" />;
+
+  const total = data.reduce((sum, d) => sum + d.investimento, 0);
+  if (total === 0) return <ChartEmpty label="Sem investimento distribuído por gênero." height="h-32" />;
+
+  const ordered = [...data].sort((a, b) => b.investimento - a.investimento);
+
+  return (
+    <div>
+      <div className="flex h-8 w-full gap-0.5 overflow-hidden" role="img" aria-label={
+        "Investimento por gênero: " +
+        ordered.map((d) => `${GENDER_LABEL[d.chave] ?? d.chave} ${((d.investimento / total) * 100).toFixed(0)}%`).join(", ")
+      }>
+        {ordered.map((d, i) => {
+          const pct = (d.investimento / total) * 100;
+          return (
+            <span
+              key={d.chave}
+              style={{ width: `${pct}%`, backgroundColor: GENDER_COLOR[d.chave] ?? seriesColor(i) }}
+              className={cn(
+                "flex items-center justify-center overflow-hidden",
+                i === 0 && "rounded-l-[6px]",
+                i === ordered.length - 1 && "rounded-r-[6px]"
+              )}
+            >
+              {pct >= 14 && (
+                <span className="text-[0.6875rem] font-semibold tabular-nums text-white drop-shadow-sm">
+                  {pct.toFixed(0)}%
+                </span>
+              )}
+            </span>
+          );
+        })}
+      </div>
+
+      <ChartLegend
+        className="mt-3"
+        items={ordered.map((d, i) => ({
+          label: GENDER_LABEL[d.chave] ?? d.chave,
+          color: GENDER_COLOR[d.chave] ?? seriesColor(i),
+          value: formatMoney(d.investimento, true),
+        }))}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   PÚBLICO POR IDADE — barras horizontais na ordem etária (não por
+   tamanho): faixa de idade tem ordem natural, e embaralhar por volume
+   destrói a leitura de "onde está concentrado".
+   ------------------------------------------------------------------------- */
+export function MetaAgeChart({ data }: { data: MetaDemographicItem[] }) {
+  if (data.length === 0) return <ChartEmpty label="Sem dados por faixa etária." height="h-32" />;
+
+  // Ordem etária natural primeiro; qualquer faixa desconhecida vinda do
+  // Meta vai pro fim, em vez de ser descartada.
+  const known = AGE_ORDER.filter((k) => data.some((d) => d.chave === k)).map(
+    (k) => data.find((d) => d.chave === k)!
+  );
+  const unknown = data.filter((d) => !AGE_ORDER.includes(d.chave));
+  const sorted = [...known, ...unknown];
+
+  const max = Math.max(...sorted.map((d) => d.investimento), 1);
+  const total = sorted.reduce((s, d) => s + d.investimento, 0);
+  const topIndex = sorted.reduce((best, d, i, arr) => (d.investimento > arr[best].investimento ? i : best), 0);
+
+  return (
+    <div>
+      <div className="divide-y divide-line">
+        {sorted.map((d, i) => (
+          <BarRow
+            key={d.chave}
+            label={`${d.chave} anos`}
+            value={d.investimento}
+            max={max}
+            formatted={formatMoney(d.investimento, true)}
+            meta={total > 0 ? `${((d.investimento / total) * 100).toFixed(0)}%` : undefined}
+            // Ênfase na faixa que mais recebeu investimento; o resto recua.
+            colorVar={i === topIndex ? "--chart-accent" : "--line-strong"}
+          />
+        ))}
+      </div>
+      <ChartDataTable
+        caption="Investimento por faixa etária"
+        columns={["Faixa", "Investido", "Participação"]}
+        rows={sorted.map((d) => [
+          `${d.chave} anos`,
+          formatMoney(d.investimento),
+          total > 0 ? `${((d.investimento / total) * 100).toFixed(1)}%` : "—",
+        ])}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   RANKING DE CRIATIVOS — o que consumiu verba e o que entregou.
+   ------------------------------------------------------------------------- */
+export function MetaAdsRanking({ ads, limit = 8 }: { ads: MetaAd[]; limit?: number }) {
+  if (ads.length === 0) {
+    return (
+      <EmptyState
+        size="sm"
+        icon={<Icon.Image className="h-4 w-4" />}
+        title="Sem criativos sincronizados"
+        description="Os anúncios aparecem aqui depois da próxima sincronização com o Meta Ads."
+      />
+    );
+  }
+
+  const ordered = [...ads].sort((a, b) => (b.investimento ?? 0) - (a.investimento ?? 0));
+  const shown = ordered.slice(0, limit);
+  const max = Math.max(...shown.map((a) => a.investimento ?? 0), 1);
+
+  return (
+    <div>
+      <div className="divide-y divide-line">
+        {shown.map((ad, i) => (
+          <BarRow
+            key={ad.id}
+            label={ad.nome}
+            value={ad.investimento ?? 0}
+            max={max}
+            formatted={formatMoney(ad.investimento, true)}
+            meta={ad.ctr != null ? `CTR ${ad.ctr.toFixed(2)}%` : undefined}
+            colorVar={i === 0 ? "--chart-accent" : "--line-strong"}
+          />
+        ))}
+      </div>
+      {ordered.length > limit && (
+        <p className="mt-2 text-caption text-ink-3">
+          Mostrando os {limit} de maior investimento, de {ordered.length} criativos. A tabela completa está abaixo.
+        </p>
+      )}
+    </div>
   );
 }

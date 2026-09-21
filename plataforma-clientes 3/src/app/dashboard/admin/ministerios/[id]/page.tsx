@@ -1,12 +1,20 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import type { Metadata } from "next";
 import { requireComunicacao, getMinistryById } from "@/lib/data/ministries";
 import { getSiteTheme } from "@/lib/data/theme";
 import { createClient } from "@/lib/supabase/server";
+import { Alert, Badge, Breadcrumb, Icon, Panel, Section } from "@/components/ui";
+import { PageHeader } from "@/components/AppShell";
 import { EditMinistryForm } from "../EditMinistryForm";
 import { DeleteMinistryButton } from "../DeleteMinistryButton";
 import { CapaUploadForm } from "../CapaUploadForm";
 import { MinistryThemeForm } from "../MinistryThemeForm";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const ministry = await getMinistryById(id);
+  return { title: ministry ? `Editar ${ministry.name}` : "Editar ministério" };
+}
 
 export default async function EditMinistryPage({ params }: { params: Promise<{ id: string }> }) {
   await requireComunicacao();
@@ -21,47 +29,66 @@ export default async function EditMinistryPage({ params }: { params: Promise<{ i
   ]);
 
   return (
-    <div className="max-w-2xl">
-      <Link href="/dashboard/admin/ministerios" className="mb-3 inline-block text-xs text-neutral-500 hover:underline">
-        ← Voltar pra Ministérios
-      </Link>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Editar ministério</h1>
-      <p className="mb-6 text-sm text-neutral-500">
-        {memberCount ?? 0} usuário(s) vinculado(s) · {demandCount ?? 0} demanda(s)
-      </p>
+    <div className="mx-auto max-w-report">
+      <Breadcrumb
+        items={[{ label: "Ministérios", href: "/dashboard/admin/ministerios" }, { label: ministry.name }]}
+        className="mb-3"
+      />
 
-      <div className="mb-6">
-        <EditMinistryForm ministry={ministry} />
-      </div>
+      <PageHeader
+        eyebrow="Administração"
+        title={ministry.name}
+        description="Dados cadastrais, identidade visual e acesso deste ministério."
+        meta={
+          <>
+            <Badge tone="neutral" icon={<Icon.Users className="h-3 w-3" />}>
+              {memberCount ?? 0} {memberCount === 1 ? "usuário" : "usuários"}
+            </Badge>
+            <Badge tone="neutral" icon={<Icon.ListChecks className="h-3 w-3" />}>
+              {demandCount ?? 0} {demandCount === 1 ? "demanda" : "demandas"}
+            </Badge>
+          </>
+        }
+      />
 
-      <div className="mb-6">
-        <CapaUploadForm ministryId={ministry.id} ministryName={ministry.name} currentCapaUrl={ministry.capa_url} />
-      </div>
+      <div className="space-y-section">
+        <Section eyebrow="Cadastro" title="Dados do ministério">
+          <EditMinistryForm ministry={ministry} />
+        </Section>
 
-      <div className="mb-6">
-        <MinistryThemeForm
-          ministryId={ministry.id}
-          initialBrand={ministry.brand_color ?? siteTheme.brandColor}
-          initialWalnut={ministry.walnut_color ?? siteTheme.walnutColor}
-          siteBrand={siteTheme.brandColor}
-          siteWalnut={siteTheme.walnutColor}
-          hasCustom={Boolean(ministry.brand_color || ministry.walnut_color)}
-        />
-      </div>
+        <Section
+          eyebrow="Identidade"
+          title="Capa e cores"
+          description="A capa aparece como fundo do menu lateral; as cores repintam o portal inteiro para quem acessa este ministério."
+        >
+          <div className="space-y-4">
+            <CapaUploadForm ministryId={ministry.id} ministryName={ministry.name} currentCapaUrl={ministry.capa_url} />
+            <MinistryThemeForm
+              ministryId={ministry.id}
+              initialBrand={ministry.brand_color ?? siteTheme.brandColor}
+              initialWalnut={ministry.walnut_color ?? siteTheme.walnutColor}
+              siteBrand={siteTheme.brandColor}
+              siteWalnut={siteTheme.walnutColor}
+              hasCustom={Boolean(ministry.brand_color || ministry.walnut_color)}
+            />
+          </div>
+        </Section>
 
-      <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-5">
-        <p className="mb-1 text-sm font-medium text-rose-700">Zona de risco</p>
-        <p className="mb-3 text-xs text-rose-600">
-          Excluir apaga esse ministério e tudo que está vinculado a ele (usuários, demandas,
-          campanhas, entregas e fonte de dados do Asana). Não tem como desfazer.
-        </p>
-        <DeleteMinistryButton
-          id={ministry.id}
-          name={ministry.name}
-          memberCount={memberCount ?? 0}
-          demandCount={demandCount ?? 0}
-          variant="full"
-        />
+        <Section eyebrow="Zona de risco" title="Excluir ministério">
+          <Panel className="border-danger-line">
+            <Alert tone="danger" title="Esta ação é irreversível" className="mb-4">
+              Excluir apaga este ministério e tudo ligado a ele: vínculos de usuário, demandas, campanhas,
+              entregas e a fonte de dados do Asana.
+            </Alert>
+            <DeleteMinistryButton
+              id={ministry.id}
+              name={ministry.name}
+              memberCount={memberCount ?? 0}
+              demandCount={demandCount ?? 0}
+              variant="full"
+            />
+          </Panel>
+        </Section>
       </div>
     </div>
   );

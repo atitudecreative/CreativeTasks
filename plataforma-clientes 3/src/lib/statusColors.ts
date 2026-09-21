@@ -1,45 +1,81 @@
-// Cores por status de demanda. Arquivo sem nenhuma dependência de servidor
-// (sem Supabase, sem next/headers) de propósito — pode ser importado tanto
-// de Server Components quanto de Client Components sem risco de quebrar o
-// build (ver histórico: componente cliente importando algo que puxa
-// next/headers derruba o build).
-export const STATUS_COLOR: Record<string, string> = {
-  recebida: "bg-neutral-100 text-neutral-600",
-  em_triagem: "bg-sky-50 text-sky-700",
-  aguardando_briefing: "bg-amber-50 text-amber-700",
-  planejada: "bg-indigo-50 text-indigo-700",
-  em_producao: "bg-brand-50 text-brand-700",
-  em_revisao_interna: "bg-violet-50 text-violet-700",
-  aguardando_ministerio: "bg-amber-50 text-amber-700",
-  aguardando_aprovacao: "bg-amber-50 text-amber-700",
-  ajustes_solicitados: "bg-rose-50 text-rose-700",
-  aprovada: "bg-teal-50 text-teal-700",
-  agendada_ou_publicada: "bg-cyan-50 text-cyan-700",
-  concluida: "bg-green-50 text-green-700",
-  pausada: "bg-neutral-100 text-neutral-500",
-  cancelada: "bg-rose-100 text-rose-700",
+import type { BadgeTone } from "@/components/ui/Badge";
+import { stageOf, STAGE_META } from "@/lib/demandStages";
+
+/* =========================================================================
+   TOM POR STATUS
+   -------------------------------------------------------------------------
+   Antes cada status tinha uma cor escolhida a dedo, tiradas de nove
+   paletas diferentes (sky, indigo, teal, cyan, violet, rose, emerald...).
+   Quatorze cores sem sistema: nada dizia ao usuário o que era bom, o que
+   era espera e o que era problema.
+
+   Agora o tom sai do ESTÁGIO do status (lib/demandStages), então só
+   existem cinco leituras possíveis e elas são consistentes em toda a
+   plataforma. `ajustes_solicitados` e `cancelada` são exceções explícitas:
+   são estados negativos que precisam ler como alerta, não como o estágio
+   em que estão.
+
+   Arquivo sem nenhuma dependência de servidor de propósito — importável
+   de Server e Client Component (ver histórico: componente cliente puxando
+   algo que importa next/headers derruba o build).
+   ========================================================================= */
+
+const STAGE_TONE: Record<string, BadgeTone> = {
+  fila: "info",
+  producao: "accent",
+  ministerio: "warning",
+  concluida: "success",
+  parada: "neutral",
 };
 
-export const DEFAULT_STATUS_COLOR = "bg-neutral-100 text-neutral-600";
-
-// Mesma paleta, em hex — pros gráficos (recharts pinta SVG via `fill`, não
-// dá pra usar classe Tailwind ali). Cores bem distintas entre si pra ficar
-// legível num gráfico de pizza com várias fatias pequenas.
-export const STATUS_COLOR_HEX: Record<string, string> = {
-  recebida: "#94a3b8",
-  em_triagem: "#38bdf8",
-  aguardando_briefing: "#fbbf24",
-  planejada: "#818cf8",
-  em_producao: "#f3701c",
-  em_revisao_interna: "#a78bfa",
-  aguardando_ministerio: "#fb7185",
-  aguardando_aprovacao: "#eab308",
-  ajustes_solicitados: "#f87171",
-  aprovada: "#2dd4bf",
-  agendada_ou_publicada: "#22d3ee",
-  concluida: "#4ade80",
-  pausada: "#a8a29e",
-  cancelada: "#e11d48",
+const STATUS_TONE_OVERRIDE: Record<string, BadgeTone> = {
+  ajustes_solicitados: "danger",
+  cancelada: "danger",
 };
 
-export const DEFAULT_STATUS_COLOR_HEX = "#a8a29e";
+export function statusTone(status: string): BadgeTone {
+  return STATUS_TONE_OVERRIDE[status] ?? STAGE_TONE[stageOf(status)] ?? "neutral";
+}
+
+/** Hex/cor CSS por status — pra gráfico, onde não dá pra usar classe. */
+export function statusColor(status: string): string {
+  return `rgb(var(${STAGE_META[stageOf(status)].cssVar}))`;
+}
+
+/* --------------------------- SAÚDE DE CAMPANHA ---------------------------
+   Aqui a escala é ordinal (no caminho -> atenção -> crítica), então o
+   mapeamento é direto pros tons semânticos. Antes "concluída" era azul
+   claro e "no caminho" verde-limão, o que invertia a leitura de
+   importância. */
+export const SAUDE_TONE: Record<string, BadgeTone> = {
+  no_caminho: "success",
+  atencao: "warning",
+  critica: "danger",
+  pausada: "neutral",
+  concluida: "info",
+};
+
+export function saudeTone(saude: string): BadgeTone {
+  return SAUDE_TONE[saude] ?? "neutral";
+}
+
+export const SAUDE_COLOR: Record<string, string> = {
+  no_caminho: "rgb(var(--success))",
+  atencao: "rgb(var(--warning))",
+  critica: "rgb(var(--danger))",
+  pausada: "rgb(var(--ink-3))",
+  concluida: "rgb(var(--info))",
+};
+
+/* --------------------------- ENTREGAS --------------------------- */
+export const DELIVERABLE_TONE: Record<string, BadgeTone> = {
+  rascunho: "neutral",
+  para_aprovacao: "warning",
+  aprovado: "success",
+  final: "success",
+  arquivado: "neutral",
+};
+
+export function deliverableTone(status: string): BadgeTone {
+  return DELIVERABLE_TONE[status] ?? "neutral";
+}

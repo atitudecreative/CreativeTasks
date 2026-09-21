@@ -2,7 +2,430 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-  height: 100%;
+/* =========================================================================
+   DESIGN TOKENS — "Signal"
+   =========================================================================
+   Tokens semânticos (canvas / surface / line / ink / estados) em variáveis
+   CSS, mapeadas no tailwind.config.ts. Duas razões pra ser assim e não
+   classe Tailwind crua espalhada:
+
+   1. Dark mode sai de graça: o mesmo `bg-surface` resolve pra claro ou
+      escuro dependendo do atributo `data-theme` no <html>, sem precisar
+      escrever `dark:` em centenas de lugares.
+   2. A cor de marca continua vindo do banco (site_theme -> --brand-*,
+      --walnut-*, injetadas no <html> pelo layout raiz). O acento do
+      sistema é um alias de --brand-*, então trocar a cor principal em
+      /dashboard/admin/aparencia continua repintando o produto inteiro.
+
+   Os valores são triplets "R G B" (sem vírgula) porque o Tailwind precisa
+   desse formato pra `rgb(var(--x) / <alpha-value>)` — é o que mantém
+   opacidade (bg-surface/60) funcionando.
+   ========================================================================= */
+
+:root {
+  /* --- Superfícies (neutro quente, pra conversar com a marca âmbar) --- */
+  --canvas: 247 246 244;
+  --canvas-sunken: 241 239 236;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --surface-sunken: 249 248 246;
+  --surface-inverse: 23 22 20;
+
+  /* --- Linhas --- */
+  --line: 232 230 226;
+  --line-strong: 214 210 204;
+  --line-inverse: 58 55 51;
+
+  /* --- Texto (todos >= 4.5:1 sobre canvas e surface) --- */
+  --ink: 23 22 20;
+  --ink-2: 87 83 78;
+  --ink-3: 113 108 100;
+  --ink-inverse: 250 250 249;
+  --ink-on-accent: 255 255 255;
+
+  /* --- Estados semânticos: base (texto/traço) + soft (fundo de badge) --- */
+  --success: 15 123 90;
+  --success-soft: 226 244 238;
+  --success-line: 168 219 202;
+
+  --warning: 168 75 8;
+  --warning-soft: 252 239 224;
+  --warning-line: 240 201 160;
+
+  --danger: 190 18 60;
+  --danger-soft: 253 232 237;
+  --danger-line: 245 186 200;
+
+  --info: 29 95 168;
+  --info-soft: 226 238 250;
+  --info-line: 172 204 238;
+
+  --neutral-soft: 241 239 236;
+
+  /* --- Gráficos ---------------------------------------------------------
+     Esta sequência NÃO foi escolhida a olho. Ela foi validada com o
+     verificador de paleta em claro e escuro, nas seis checagens:
+     faixa de luminosidade, piso de croma, separação sob daltonismo
+     (protanopia/deuteranopia/tritanopia), piso de visão normal e
+     contraste contra a superfície.
+
+     Resultado no claro: pior par adjacente ΔE 9.1 sob protanopia
+     (alvo >= 8) e 19.6 em visão normal (piso >= 15). No escuro são os
+     mesmos matizes re-degrauados pra superfície escura, não uma paleta
+     diferente — ΔE 8.4 / 19.3.
+
+     Regra de uso: atribuir os slots SEMPRE nesta ordem, nunca ciclar.
+     Passando de 8 séries, agrupar o excedente em "Outros" — cor gerada
+     na hora é indistinguível de outra sob daltonismo e quebra tudo isso.
+     --------------------------------------------------------------------- */
+  --chart-1: 42 120 214;   /* azul     */
+  --chart-2: 235 104 52;   /* laranja  */
+  --chart-3: 27 175 122;   /* água     */
+  --chart-4: 237 161 0;    /* amarelo  */
+  --chart-5: 232 123 164;  /* magenta  */
+  --chart-6: 0 131 0;      /* verde    */
+  --chart-7: 74 58 167;    /* violeta  */
+  --chart-8: 227 73 72;    /* vermelho */
+
+  /* Série única: usa a cor de MARCA (que é configurável por cliente), no
+     degrau 600 — o 500 não alcança 3:1 contra o branco em traço fino. */
+  --chart-accent: var(--brand-600);
+
+  /* Estágios do funil de demanda. Papel próprio, não "mais quatro
+     categorias": a ordem conta uma história (fila -> produção -> com o
+     ministério -> concluída), então os matizes foram escolhidos pra
+     sobreviver empilhados um do lado do outro. Validado nos dois modos:
+     pior par adjacente ΔE 9.1 / 8.4 sob daltonismo, 19.6 / 19.3 em visão
+     normal. "Parada" é cinza de propósito — é ausência de fluxo, não uma
+     categoria concorrente. */
+  --stage-fila: 42 120 214;
+  --stage-producao: 232 123 164;
+  --stage-ministerio: 237 161 0;
+  --stage-concluida: 27 175 122;
+  --stage-parada: 168 162 158;
+
+  --chart-grid: 232 230 226;
+  --chart-axis: 121 115 107;
+
+  /* --- Elevação --- */
+  --shadow-color: 28 25 23;
+
+  color-scheme: light;
+}
+
+/* O dark mode é "opt-in por atributo" (data-theme) em vez de media query
+   pura: assim o toggle no header manda de verdade, e a preferência do
+   sistema só decide o valor inicial (resolvido pelo script anti-flash no
+   layout raiz, antes da primeira pintura). */
+:root[data-theme="dark"] {
+  --canvas: 17 17 16;
+  --canvas-sunken: 12 12 11;
+  --surface: 25 24 23;
+  --surface-raised: 33 31 29;
+  --surface-sunken: 20 19 18;
+  --surface-inverse: 250 250 249;
+
+  --line: 43 41 38;
+  --line-strong: 58 55 51;
+  --line-inverse: 214 210 204;
+
+  --ink: 246 245 243;
+  --ink-2: 180 174 166;
+  --ink-3: 146 139 130;
+  --ink-inverse: 23 22 20;
+
+  --success: 74 201 155;
+  --success-soft: 18 45 37;
+  --success-line: 32 82 66;
+
+  --warning: 240 175 92;
+  --warning-soft: 48 33 16;
+  --warning-line: 92 63 28;
+
+  --danger: 248 133 160;
+  --danger-soft: 55 20 30;
+  --danger-line: 97 36 52;
+
+  --info: 122 178 240;
+  --info-soft: 18 34 52;
+  --info-line: 34 62 96;
+
+  --neutral-soft: 38 36 34;
+
+  /* Mesmos oito matizes, re-degrauados pra superfície escura — não é uma
+     paleta separada, e foi validada como conjunto contra #191817. */
+  --chart-1: 57 135 229;
+  --chart-2: 217 89 38;
+  --chart-3: 25 158 112;
+  --chart-4: 201 133 0;
+  --chart-5: 213 81 129;
+  --chart-6: 0 131 0;
+  --chart-7: 144 133 233;
+  --chart-8: 230 103 103;
+
+  /* No escuro a marca precisa de um degrau mais claro pra alcançar 3:1. */
+  --chart-accent: var(--brand-400);
+
+  --stage-fila: 57 135 229;
+  --stage-producao: 213 81 129;
+  --stage-ministerio: 201 133 0;
+  --stage-concluida: 25 158 112;
+  --stage-parada: 138 131 122;
+
+  --chart-grid: 43 41 38;
+  --chart-axis: 146 139 130;
+
+  --shadow-color: 0 0 0;
+
+  color-scheme: dark;
+}
+
+/* =========================================================================
+   BASE
+   ========================================================================= */
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    /* ss01: "a" e "g" de desenho mais neutro; cv11: "1" sem serifa —
+       os dois deixam a Inter menos "default de sistema" em texto corrido.
+       tnum liga números tabulares globalmente, então toda coluna de
+       tabela e todo KPI alinha dígito com dígito sem esforço. */
+    font-feature-settings: "ss01" 1, "cv11" 1, "tnum" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Foco: anel só no foco por teclado (:focus-visible), nunca no clique de
+     mouse. Usa box-shadow em vez de outline pra acompanhar o border-radius
+     do elemento. */
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgb(var(--surface)),
+      0 0 0 4px rgb(var(--brand-500) / 0.85);
+    border-radius: inherit;
+  }
+
+  ::selection {
+    background-color: rgb(var(--brand-500) / 0.22);
+    color: rgb(var(--ink));
+  }
+
+  /* Scrollbar discreta — some no repouso visual, mas continua agarrável. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--line-strong));
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--ink-3) / 0.5);
+    background-clip: content-box;
+  }
+
+  /* Datas e cores nativas do input herdam o tema em vez de ficar branco
+     brilhante no escuro. */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: var(--picker-filter, none);
+    cursor: pointer;
+    opacity: 0.55;
+  }
+  :root[data-theme="dark"] {
+    --picker-filter: invert(1);
+  }
+}
+
+/* =========================================================================
+   MOVIMENTO
+   -------------------------------------------------------------------------
+   Toda animação aqui é curta (<= 400ms) e tem função: dizer que um dado
+   chegou, que um painel abriu, que um valor mudou. Nada em loop, nada
+   decorativo. Tudo desligado sob prefers-reduced-motion.
+   ========================================================================= */
+
+@keyframes signal-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes signal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes signal-scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes signal-slide-left {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes signal-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+@keyframes signal-shimmer {
+  100% { transform: translateX(100%); }
+}
+@keyframes signal-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes signal-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  /* Entrada escalonada de blocos de uma página — cada seção entra alguns
+     ms depois da anterior. Só na primeira pintura; não roda de novo em
+     re-render. */
+  .signal-enter {
+    animation: signal-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .signal-stagger > * {
+    animation: signal-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .signal-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .signal-stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .signal-stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .signal-stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .signal-stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .signal-stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .signal-stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+  /* Varredura de brilho do skeleton — atravessa o bloco uma vez a cada
+     1.6s, em vez do pulse de opacidade padrão (que "pisca" a página
+     inteira e cansa). */
+  .signal-skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(var(--line) / 0.85);
+  }
+  .signal-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--surface) / 0.55),
+      transparent
+    );
+    animation: signal-shimmer 1.6s infinite;
+  }
+
+  /* Superfície de vidro usada SÓ no header sticky — é funcional (o
+     conteúdo passa por baixo e precisa continuar legível), não estético. */
+  .signal-blur {
+    backdrop-filter: saturate(1.6) blur(12px);
+    -webkit-backdrop-filter: saturate(1.6) blur(12px);
+  }
+
+  /* Pula pro conteúdo: invisível até receber foco por teclado. */
+  .signal-skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 100;
+    transform: translateY(-200%);
+    transition: transform 0.18s ease;
+  }
+  .signal-skip-link:focus {
+    transform: none;
+  }
+}
+
+/* =========================================================================
+   IMPRESSÃO
+   -------------------------------------------------------------------------
+   A tela de evento tem botão "Imprimir / PDF" e é o artefato que o cliente
+   final recebe. Sem isso ela imprimia com a sidebar, os botões e o fundo
+   escuro. Aqui: força tema claro, some com toda a navegação e ação,
+   abre todos os painéis e evita quebrar card no meio.
+   ========================================================================= */
+
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --canvas: 255 255 255;
+    --canvas-sunken: 255 255 255;
+    --surface: 255 255 255;
+    --surface-raised: 255 255 255;
+    --surface-sunken: 255 255 255;
+    --line: 214 210 204;
+    --line-strong: 168 162 154;
+    --ink: 0 0 0;
+    --ink-2: 60 58 54;
+    --ink-3: 90 86 80;
+    color-scheme: light;
+  }
+
+  [data-print="hide"],
+  nav[data-app-nav],
+  aside[data-app-sidebar],
+  header[data-app-header] {
+    display: none !important;
+  }
+
+  [data-print="only"] {
+    display: block !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .signal-enter,
+  .signal-stagger > * {
+    animation: none !important;
+  }
+
+  [data-print-block] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 10px;
+    color: rgb(var(--ink-3));
+    word-break: break-all;
+  }
+
+  @page {
+    margin: 14mm;
+  }
 }

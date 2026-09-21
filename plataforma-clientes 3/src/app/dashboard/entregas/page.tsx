@@ -1,8 +1,12 @@
 import { requireMinistry, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { getCampaignsForMinistry } from "@/lib/data/campaigns";
-import { DeliverableCard } from "@/components/DeliverableCard";
+import { Badge, Icon } from "@/components/ui";
+import { PageHeader } from "@/components/AppShell";
 import { NewDeliverableForm } from "./NewDeliverableForm";
+import { EntregasExplorer } from "./EntregasExplorer";
+
+export const metadata = { title: "Arquivos" };
 
 export default async function EntregasPage() {
   const { ministry, role, user } = await requireMinistry();
@@ -13,33 +17,33 @@ export default async function EntregasPage() {
   ]);
 
   const comunicacao = isComunicacaoGlobal(user);
-  // "atendimento" é o papel de Comunicação vinculado a esse ministério
-  // específico — mesma regra que já vale pra criar/editar campanha e
-  // demanda (can_edit_ministry, migration 0004).
+  // "atendimento" é o papel de Comunicação vinculado a ESTE ministério —
+  // mesma regra que já vale pra criar/editar campanha e demanda
+  // (can_edit_ministry, migration 0004).
   const canCreate = comunicacao || role === "atendimento";
   const canApprove = comunicacao || role === "aprovador";
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Arquivos Importantes</h1>
-      <p className="mb-6 text-sm text-neutral-500">
-        Biblioteca de peças, materiais e links finais de {ministry.name}. Toda entrega é um link
-        (Drive, YouTube, etc.) — nada fica hospedado no portal.
-      </p>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Arquivos"
+        description={`Biblioteca de peças, materiais e links finais de ${ministry.name}. Toda entrega é um link — nada fica hospedado no portal.`}
+        meta={
+          deliverables.length > 0 ? (
+            <Badge tone="neutral" icon={<Icon.Folder className="h-3 w-3" />}>
+              {deliverables.length} {deliverables.length === 1 ? "arquivo" : "arquivos"}
+            </Badge>
+          ) : undefined
+        }
+        actions={canCreate ? <NewDeliverableForm ministryId={ministry.id} campaigns={campaigns} /> : undefined}
+      />
 
-      {canCreate && <NewDeliverableForm ministryId={ministry.id} campaigns={campaigns} />}
-
-      {deliverables.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
-          Nenhuma entrega registrada ainda.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {deliverables.map((d) => (
-            <DeliverableCard key={d.id} deliverable={d} canApprove={canApprove} />
-          ))}
-        </div>
-      )}
+      <EntregasExplorer
+        deliverables={deliverables}
+        campaigns={campaigns.map((c) => ({ id: c.id, nome: c.nome }))}
+        canApprove={canApprove}
+      />
     </div>
   );
 }

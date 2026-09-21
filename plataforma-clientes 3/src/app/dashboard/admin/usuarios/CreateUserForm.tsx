@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { createUser } from "./actions";
+import { Alert, Button, Icon, Input, Modal, Select } from "@/components/ui";
 
 const PAPEL_GLOBAL_OPTIONS = [
-  { value: "nenhum", label: "Nenhum (só o que for vinculado por ministério)" },
+  { value: "nenhum", label: "Nenhum — só o que for vinculado por ministério" },
   { value: "atendimento", label: "Atendimento da Comunicação" },
   { value: "gestor_comunicacao", label: "Gestor de Comunicação" },
   { value: "administrador_tecnico", label: "Administrador técnico" },
@@ -19,102 +21,115 @@ const MINISTRY_ROLE_OPTIONS = [
   { value: "atendimento", label: "Atendimento" },
 ];
 
+/** Gera uma senha inicial legível e forte o bastante pra ser entregue à
+ *  pessoa e trocada depois. Antes o campo vinha vazio e quem cadastrava
+ *  acabava inventando "123456" na pressa. */
+function suggestPassword(): string {
+  const words = ["atitude", "portal", "ministerio", "creative", "evento", "equipe"];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const n = Math.floor(1000 + Math.random() * 9000);
+  return `${word}-${n}`;
+}
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-    >
+    <Button type="submit" form="form-novo-usuario" variant="primary" loading={pending}>
       {pending ? "Criando..." : "Criar usuário"}
-    </button>
+    </Button>
   );
 }
 
 export function CreateUserForm({ ministries }: { ministries: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction] = useFormState(createUser, { error: null as string | null });
+  const [password, setPassword] = useState("");
+
+  // Sugere uma senha nova toda vez que o diálogo abre.
+  useEffect(() => {
+    if (open) setPassword(suggestPassword());
+  }, [open]);
 
   return (
-    <form action={formAction} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <p className="mb-4 text-sm font-medium text-neutral-700">Novo usuário</p>
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)} iconLeft={<Icon.Plus className="h-4 w-4" />}>
+        Novo usuário
+      </Button>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Nome</label>
-          <input
-            name="fullName"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">E-mail *</label>
-          <input
-            name="email"
-            type="email"
-            required
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Senha inicial *</label>
-          <input
-            name="password"
-            type="text"
-            required
-            minLength={6}
-            placeholder="mínimo 6 caracteres"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Papel global</label>
-          <select
-            name="papelGlobal"
-            defaultValue="nenhum"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          >
-            {PAPEL_GLOBAL_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Vincular a um ministério</label>
-          <select
-            name="ministryId"
-            defaultValue=""
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          >
-            <option value="">— nenhum —</option>
-            {ministries.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Papel nesse ministério</label>
-          <select
-            name="ministryRole"
-            defaultValue=""
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          >
-            {MINISTRY_ROLE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Novo usuário"
+        description="A conta é criada já confirmada no Supabase Auth — a pessoa entra direto com e-mail e senha."
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <SubmitButton />
+          </>
+        }
+      >
+        <form id="form-novo-usuario" action={formAction} className="space-y-4">
+          {state?.error && <Alert tone="danger">{state.error}</Alert>}
 
-      {state?.error && <p className="mb-3 text-sm text-red-600">{state.error}</p>}
-
-      <SubmitButton />
-    </form>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input name="fullName" label="Nome" placeholder="Nome completo" />
+            <Input name="email" type="email" label="E-mail" required placeholder="pessoa@exemplo.com.br" />
+            <Input
+              name="password"
+              type="text"
+              label="Senha inicial"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              hint="Entregue essa senha à pessoa — ela pode trocar depois."
+              containerClassName="sm:col-span-2"
+              iconRight={
+                <button
+                  type="button"
+                  onClick={() => setPassword(suggestPassword())}
+                  aria-label="Sugerir outra senha"
+                  title="Sugerir outra senha"
+                  className="rounded p-0.5 text-ink-3 transition hover:text-ink"
+                >
+                  <Icon.Refresh className="h-4 w-4" />
+                </button>
+              }
+            />
+            <Select
+              name="papelGlobal"
+              label="Papel global"
+              defaultValue="nenhum"
+              hint="Papel global dá acesso a todos os ministérios."
+              containerClassName="sm:col-span-2"
+            >
+              {PAPEL_GLOBAL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+            <Select name="ministryId" label="Vincular a um ministério" defaultValue="">
+              <option value="">— nenhum —</option>
+              {ministries.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+            <Select name="ministryRole" label="Papel nesse ministério" defaultValue="">
+              {MINISTRY_ROLE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }

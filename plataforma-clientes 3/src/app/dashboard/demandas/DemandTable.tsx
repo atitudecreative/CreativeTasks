@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { STATUS_COLOR, DEFAULT_STATUS_COLOR } from "@/lib/statusColors";
+import { Badge, CodeTag, Icon, Table, TBody, TD, TH, THead, TR, TableScroll, cn } from "@/components/ui";
+import { statusTone } from "@/lib/statusColors";
 
 export type DemandRow = {
   id: string;
@@ -18,120 +19,160 @@ export type DemandRow = {
   childCount: number;
 };
 
-function DemandBadges({ d }: { d: DemandRow }) {
+/* =========================================================================
+   TABELA DE DEMANDAS
+   -------------------------------------------------------------------------
+   A quebra por breakpoint já existia aqui (era a única tabela do produto
+   que tinha) e foi mantida — cinco colunas não cabem num celular. O que
+   mudou:
+
+   - Prioridade urgente/alta ganha marcador próprio: antes era texto cinza
+     igual ao de "baixa", então a informação mais importante da coluna
+     passava despercebida.
+   - "Atrasada" deixa de ser só texto vermelho e vira badge com ícone —
+     a informação não depende mais só da cor.
+   - Identificador em mono: é um código, e o usuário compara e digita.
+   ========================================================================= */
+
+const PRIORIDADE_TONE: Record<string, "danger" | "warning" | "neutral"> = {
+  urgente: "danger",
+  alta: "warning",
+};
+
+function Prioridade({ d }: { d: DemandRow }) {
+  if (!d.prioridadeLabel) return <span className="text-ink-3">—</span>;
+  const tone = PRIORIDADE_TONE[d.prioridade ?? ""];
+  if (!tone) return <span className="text-ink-2">{d.prioridadeLabel}</span>;
   return (
-    <>
-      {d.identificador && <span className="ml-2 text-xs text-neutral-400">{d.identificador}</span>}
-      {d.childCount > 0 && (
-        <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">
-          +{d.childCount} {d.childCount === 1 ? "subtarefa" : "subtarefas"}
-        </span>
-      )}
-    </>
+    <Badge tone={tone} variant="outline" size="sm">
+      {d.prioridadeLabel}
+    </Badge>
   );
 }
 
-function StatusBadge({ d }: { d: DemandRow }) {
+function Prazo({ d }: { d: DemandRow }) {
+  if (!d.overdue) return <span className="text-ink-2 tabular-nums">{d.prazoFormatted}</span>;
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[d.status] ?? DEFAULT_STATUS_COLOR}`}
-    >
-      {d.statusLabel}
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-medium tabular-nums text-danger">{d.prazoFormatted}</span>
+      <Badge tone="danger" size="sm" icon={<Icon.AlertTriangle className="h-3 w-3" />}>
+        Atrasada
+      </Badge>
     </span>
   );
 }
 
-function PrazoBadge({ d }: { d: DemandRow }) {
+function Campanhas({ campanhas }: { campanhas: DemandRow["campanhas"] }) {
+  if (campanhas.length === 0) return <span className="text-ink-3">—</span>;
   return (
-    <>
-      <span className={d.overdue ? "font-medium text-rose-600" : "text-neutral-600"}>{d.prazoFormatted}</span>
-      {d.overdue && (
-        <span className="ml-1.5 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-600">
-          Atrasada
-        </span>
+    <span className="flex flex-wrap gap-1">
+      {campanhas.slice(0, 2).map((c) => (
+        <Badge key={c.id} tone="accent" size="sm">
+          {c.nome}
+        </Badge>
+      ))}
+      {campanhas.length > 2 && (
+        <Badge tone="neutral" size="sm">
+          +{campanhas.length - 2}
+        </Badge>
       )}
-    </>
+    </span>
   );
 }
 
 export function DemandTable({ demands }: { demands: DemandRow[] }) {
   return (
     <>
-      {/* Telas pequenas: lista de cards em vez de tabela larga — uma tabela
-          com 5 colunas fica apertada demais no celular. */}
-      <ul className="divide-y divide-neutral-50 sm:hidden">
+      {/* Celular: lista de cards. Uma tabela de 5 colunas vira scroll
+          horizontal cego nessa largura. */}
+      <ul className="divide-y divide-line sm:hidden">
         {demands.map((d) => (
-          <li key={d.id} className="px-4 py-3">
-            <Link href={`/dashboard/demandas/${d.id}`} className="font-medium text-neutral-800 hover:underline">
-              {d.titulo}
-            </Link>
-            <div>
-              <DemandBadges d={d} />
-            </div>
-            {d.campanhas.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {d.campanhas.map((c) => (
-                  <span key={c.id} className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
-                    {c.nome}
-                  </span>
-                ))}
+          <li key={d.id}>
+            <Link
+              href={`/dashboard/demandas/${d.id}`}
+              className="block px-4 py-3 transition-colors duration-120 active:bg-surface-sunken"
+            >
+              <div className="mb-1.5 flex items-start justify-between gap-2">
+                <span className="min-w-0 text-small font-medium text-ink">{d.titulo}</span>
+                <Icon.ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
               </div>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-              <StatusBadge d={d} />
-              {d.prioridadeLabel && <span className="capitalize text-neutral-500">{d.prioridadeLabel}</span>}
-              <span>
-                <PrazoBadge d={d} />
-              </span>
-            </div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                {d.identificador && <CodeTag>{d.identificador}</CodeTag>}
+                {d.childCount > 0 && (
+                  <Badge tone="neutral" size="sm">
+                    +{d.childCount} {d.childCount === 1 ? "subtarefa" : "subtarefas"}
+                  </Badge>
+                )}
+              </div>
+              {d.campanhas.length > 0 && (
+                <div className="mb-2">
+                  <Campanhas campanhas={d.campanhas} />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-caption">
+                <Badge tone={statusTone(d.status)} size="sm" dot>
+                  {d.statusLabel}
+                </Badge>
+                <Prioridade d={d} />
+                <span className={cn("flex items-center gap-1", d.overdue ? "text-danger" : "text-ink-3")}>
+                  <Icon.Calendar className="h-3 w-3" />
+                  {d.prazoFormatted}
+                </span>
+              </div>
+            </Link>
           </li>
         ))}
       </ul>
 
-      {/* Telas médias/grandes: tabela normal. */}
-      <table className="hidden w-full border-t border-neutral-100 text-left text-sm sm:table">
-        <thead className="border-b border-neutral-100 text-neutral-500">
-          <tr>
-            <th className="px-4 py-3 font-medium">Demanda</th>
-            <th className="px-4 py-3 font-medium">Campanha/evento</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Prioridade</th>
-            <th className="px-4 py-3 font-medium">Prazo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {demands.map((d) => (
-            <tr key={d.id} className="border-b border-neutral-50 last:border-0">
-              <td className="px-4 py-3">
-                <Link href={`/dashboard/demandas/${d.id}`} className="font-medium text-neutral-800 hover:underline">
-                  {d.titulo}
-                </Link>
-                <DemandBadges d={d} />
-              </td>
-              <td className="px-4 py-3 text-neutral-600">
-                {d.campanhas.length === 0 ? (
-                  "—"
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {d.campanhas.map((c) => (
-                      <span key={c.id} className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
-                        {c.nome}
+      {/* Tablet e desktop: tabela. */}
+      <TableScroll className="hidden sm:block">
+        <Table className="hidden sm:table">
+          <THead>
+            <TR>
+              <TH>Demanda</TH>
+              <TH className="hidden lg:table-cell">Campanha ou evento</TH>
+              <TH>Status</TH>
+              <TH className="hidden md:table-cell">Prioridade</TH>
+              <TH>Prazo</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {demands.map((d) => (
+              <TR key={d.id} interactive>
+                <TD strong className="max-w-[22rem]">
+                  <Link href={`/dashboard/demandas/${d.id}`} className="group flex items-start gap-2">
+                    <span className="min-w-0">
+                      <span className="block truncate transition-colors group-hover:text-brand-600">{d.titulo}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {d.identificador && <CodeTag>{d.identificador}</CodeTag>}
+                        {d.childCount > 0 && (
+                          <Badge tone="neutral" size="sm">
+                            +{d.childCount} {d.childCount === 1 ? "subtarefa" : "subtarefas"}
+                          </Badge>
+                        )}
                       </span>
-                    ))}
-                  </div>
-                )}
-              </td>
-              <td className="px-4 py-3">
-                <StatusBadge d={d} />
-              </td>
-              <td className="px-4 py-3 text-neutral-600 capitalize">{d.prioridadeLabel ?? "—"}</td>
-              <td className="px-4 py-3">
-                <PrazoBadge d={d} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    </span>
+                  </Link>
+                </TD>
+                <TD className="hidden lg:table-cell">
+                  <Campanhas campanhas={d.campanhas} />
+                </TD>
+                <TD>
+                  <Badge tone={statusTone(d.status)} size="sm" dot>
+                    {d.statusLabel}
+                  </Badge>
+                </TD>
+                <TD className="hidden md:table-cell">
+                  <Prioridade d={d} />
+                </TD>
+                <TD>
+                  <Prazo d={d} />
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </TableScroll>
     </>
   );
 }

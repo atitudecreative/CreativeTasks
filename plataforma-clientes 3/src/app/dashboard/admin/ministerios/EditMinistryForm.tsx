@@ -26,7 +26,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+      className="rounded-control bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
     >
       {pending ? "Salvando..." : "Salvar alterações"}
     </button>
@@ -37,33 +37,33 @@ export function EditMinistryForm({ ministry }: { ministry: EditableMinistry }) {
   const [state, formAction] = useFormState(updateMinistry, { error: null as string | null });
 
   return (
-    <form action={formAction} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <form action={formAction} className="rounded-panel border border-line bg-surface p-5 shadow-sm">
       <input type="hidden" name="id" value={ministry.id} />
 
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Nome *</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Nome *</label>
           <input
             name="name"
             required
             defaultValue={ministry.name}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Sigla</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Sigla</label>
           <input
             name="sigla"
             defaultValue={ministry.sigla ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Categoria</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Categoria</label>
           <select
             name="categoria"
             defaultValue={ministry.categoria}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             {CATEGORIA_OPTIONS.map((c) => (
               <option key={c.value} value={c.value}>
@@ -73,11 +73,11 @@ export function EditMinistryForm({ ministry }: { ministry: EditableMinistry }) {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Status</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Status</label>
           <select
             name="status"
             defaultValue={ministry.status}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             {MINISTRY_STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -87,49 +87,49 @@ export function EditMinistryForm({ ministry }: { ministry: EditableMinistry }) {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Pastor responsável</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Pastor responsável</label>
           <input
             name="pastorResponsavel"
             defaultValue={ministry.pastor_responsavel ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Centro de custo</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Centro de custo</label>
           <input
             name="centroCusto"
             defaultValue={ministry.centro_custo ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Ponto focal do ministério</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Ponto focal do ministério</label>
           <input
             name="pontoFocalMinisterio"
             defaultValue={ministry.ponto_focal_ministerio ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Ponto focal da Comunicação</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Ponto focal da Comunicação</label>
           <input
             name="pontoFocalComunicacao"
             defaultValue={ministry.ponto_focal_comunicacao ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Descrição</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Descrição</label>
           <textarea
             name="description"
             rows={3}
             defaultValue={ministry.description ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
       </div>
 
-      {state?.error && <p className="mb-3 text-sm text-red-600">{state.error}</p>}
+      {state?.error && <p className="mb-3 text-sm text-danger">{state.error}</p>}
 
       <SubmitButton />
     </form>

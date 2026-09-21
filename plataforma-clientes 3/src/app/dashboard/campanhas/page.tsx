@@ -1,65 +1,72 @@
-import Link from "next/link";
 import { requireMinistry } from "@/lib/data/ministries";
-import { getCampaignsForMinistry, FASE_LABEL, SAUDE_LABEL } from "@/lib/data/campaigns";
+import { getCampaignsForMinistry, FASE_LABEL, SAUDE_LABEL, TIPO_LABEL } from "@/lib/data/campaigns";
+import { formatMoney } from "@/lib/metricLanguage";
+import { Badge, EmptyState, Icon } from "@/components/ui";
+import { PageHeader } from "@/components/AppShell";
+import { CampanhasExplorer } from "./CampanhasExplorer";
 
-function formatMoney(value: number | null) {
-  if (value == null) return "—";
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-const SAUDE_BADGE: Record<string, string> = {
-  no_caminho: "bg-green-50 text-green-700",
-  atencao: "bg-amber-50 text-amber-700",
-  critica: "bg-red-50 text-red-700",
-  pausada: "bg-neutral-100 text-neutral-600",
-  concluida: "bg-brand-50 text-brand-700",
-};
+export const metadata = { title: "Campanhas e eventos" };
 
 export default async function CampanhasPage() {
   const { ministry } = await requireMinistry();
-
   const campaigns = await getCampaignsForMinistry(ministry.id);
+
+  const emRisco = campaigns.filter((c) => c.saude === "atencao" || c.saude === "critica").length;
+  const investido = campaigns.reduce((sum, c) => sum + (c.investimento_realizado ?? 0), 0);
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Campanhas e eventos</h1>
-      <p className="mb-6 text-sm text-neutral-500">
-        Iniciativas da Comunicação para {ministry.name}.
-      </p>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Campanhas e eventos"
+        description={`Cada iniciativa da Comunicação para ${ministry.name}, com o que foi investido, produzido e entregue.`}
+        meta={
+          campaigns.length > 0 ? (
+            <>
+              <Badge tone="neutral">
+                {campaigns.length} {campaigns.length === 1 ? "campanha" : "campanhas"}
+              </Badge>
+              {emRisco > 0 && (
+                <Badge tone="warning" icon={<Icon.AlertTriangle className="h-3 w-3" />}>
+                  {emRisco} exigindo atenção
+                </Badge>
+              )}
+              {investido > 0 && (
+                <Badge tone="neutral" icon={<Icon.Wallet className="h-3 w-3" />}>
+                  {formatMoney(investido, true)} investidos
+                </Badge>
+              )}
+            </>
+          ) : undefined
+        }
+      />
 
       {campaigns.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
-          Nenhuma campanha ou evento cadastrado ainda.
-        </div>
+        <EmptyState
+          icon={<Icon.Megaphone className="h-5 w-5" />}
+          title="Nenhuma campanha publicada ainda"
+          description="Quando a Comunicação publicar uma campanha ou evento deste ministério, o relatório completo aparece aqui."
+        />
       ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {campaigns.map((c) => (
-            <Link
-              key={c.id}
-              href={`/dashboard/campanhas/${c.id}`}
-              className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm hover:border-neutral-300"
-            >
-              {c.capa_url && (
-                <div
-                  className="aspect-video w-full bg-cover bg-center"
-                  style={{ backgroundImage: `url(${c.capa_url})` }}
-                />
-              )}
-              <div className="p-5">
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <p className="font-medium text-neutral-800">{c.nome}</p>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${SAUDE_BADGE[c.saude] ?? "bg-neutral-100 text-neutral-600"}`}>
-                    {SAUDE_LABEL[c.saude] ?? c.saude}
-                  </span>
-                </div>
-                <p className="mb-3 text-xs text-neutral-400">{FASE_LABEL[c.fase] ?? c.fase}</p>
-                <p className="text-xs text-neutral-500">
-                  Orçamento aprovado: {formatMoney(c.orcamento_aprovado)}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <CampanhasExplorer
+          campaigns={campaigns.map((c) => ({
+            id: c.id,
+            nome: c.nome,
+            identificador: c.identificador,
+            tipo: c.tipo,
+            tipoLabel: TIPO_LABEL[c.tipo] ?? c.tipo,
+            fase: c.fase,
+            faseLabel: FASE_LABEL[c.fase] ?? c.fase,
+            saude: c.saude,
+            saudeLabel: SAUDE_LABEL[c.saude] ?? c.saude,
+            capaUrl: c.capa_url,
+            dataInicio: c.data_inicio,
+            dataTermino: c.data_termino,
+            dataEvento: c.data_evento,
+            orcamentoAprovado: c.orcamento_aprovado,
+            investimentoRealizado: c.investimento_realizado,
+          }))}
+        />
       )}
     </div>
   );
