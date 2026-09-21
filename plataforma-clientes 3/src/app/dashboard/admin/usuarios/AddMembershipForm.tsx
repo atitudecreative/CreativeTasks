@@ -17,7 +17,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+      className="rounded-control border border-line-strong px-4 py-2 text-sm font-medium text-ink-2 hover:bg-surface-sunken disabled:opacity-60"
     >
       {pending ? "Vinculando..." : "Vincular"}
     </button>
@@ -34,8 +34,8 @@ export function AddMembershipForm({
   const [state, formAction] = useFormState(addMembership, { error: null as string | null });
 
   return (
-    <form action={formAction} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <p className="mb-4 text-sm font-medium text-neutral-700">
+    <form action={formAction} className="rounded-panel border border-line bg-surface p-5 shadow-sm">
+      <p className="mb-4 text-sm font-medium text-ink-2">
         Vincular usuário existente a outro ministério
       </p>
 
@@ -44,7 +44,7 @@ export function AddMembershipForm({
           name="userId"
           required
           defaultValue=""
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
         >
           <option value="" disabled>
             Usuário
@@ -60,7 +60,7 @@ export function AddMembershipForm({
           name="ministryId"
           required
           defaultValue=""
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
         >
           <option value="" disabled>
             Ministério
@@ -76,7 +76,7 @@ export function AddMembershipForm({
           name="role"
           required
           defaultValue=""
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
         >
           <option value="" disabled>
             Papel
@@ -89,7 +89,7 @@ export function AddMembershipForm({
         </select>
       </div>
 
-      {state?.error && <p className="mb-3 text-sm text-red-600">{state.error}</p>}
+      {state?.error && <p className="mb-3 text-sm text-danger">{state.error}</p>}
 
       <SubmitButton />
     </form>

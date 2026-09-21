@@ -25,7 +25,7 @@ function SaveButton({ label = "Salvar" }: { label?: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+      className="rounded-control bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
     >
       {pending ? "Salvando..." : label}
     </button>
@@ -37,7 +37,7 @@ function PapelGlobalEditor({ user, isSelf }: { user: UserRowData; isSelf: boolea
 
   if (isSelf) {
     return (
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-ink-3">
         Você não pode alterar o próprio papel — peça a outro administrador.
       </p>
     );
@@ -49,7 +49,7 @@ function PapelGlobalEditor({ user, isSelf }: { user: UserRowData; isSelf: boolea
       <select
         name="papelGlobal"
         defaultValue={user.papelGlobal}
-        className="rounded-lg border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         {PAPEL_GLOBAL_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
@@ -58,7 +58,7 @@ function PapelGlobalEditor({ user, isSelf }: { user: UserRowData; isSelf: boolea
         ))}
       </select>
       <SaveButton />
-      {state?.error && <span className="text-xs text-red-600">{state.error}</span>}
+      {state?.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );
 }
@@ -74,7 +74,7 @@ function MembershipRoleEditor({ userId, ministryId, role }: { userId: string; mi
         name="role"
         defaultValue={role}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         {MINISTRY_ROLE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
@@ -96,7 +96,7 @@ function RemoveMembershipButton({ userId, ministryId, ministryName }: { userId: 
     >
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="ministryId" value={ministryId} />
-      <button type="submit" className="text-xs font-medium text-neutral-400 hover:text-rose-600">
+      <button type="submit" className="text-caption font-medium text-ink-3 hover:text-danger">
         Remover
       </button>
     </form>
@@ -107,7 +107,7 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
   const [state, formAction] = useFormState(addMembership, { error: null as string | null });
 
   if (availableMinistries.length === 0) {
-    return <p className="text-xs text-neutral-400">Já vinculado a todos os ministérios cadastrados.</p>;
+    return <p className="text-xs text-ink-3">Já vinculado a todos os ministérios cadastrados.</p>;
   }
 
   return (
@@ -117,7 +117,7 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
         name="ministryId"
         required
         defaultValue=""
-        className="rounded-lg border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         <option value="" disabled>
           Ministério
@@ -132,7 +132,7 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
         name="role"
         required
         defaultValue=""
-        className="rounded-lg border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         <option value="" disabled>
           Papel
@@ -144,7 +144,7 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
         ))}
       </select>
       <SaveButton label="Adicionar" />
-      {state?.error && <span className="text-xs text-red-600">{state.error}</span>}
+      {state?.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );
 }
@@ -161,7 +161,7 @@ function DeleteUserButton({ userId, email }: { userId: string; email: string }) 
       }}
     >
       <input type="hidden" name="userId" value={userId} />
-      <button type="submit" className="text-xs font-medium text-rose-600 hover:underline">
+      <button type="submit" className="text-xs font-medium text-danger hover:underline">
         Excluir usuário
       </button>
     </form>
@@ -183,14 +183,14 @@ export function UserRow({
   const availableMinistries = allMinistries.filter((m) => !linkedIds.has(m.id));
 
   return (
-    <div className="border-b border-neutral-50 px-4 py-3 last:border-0">
+    <div className="border-b border-line px-4 py-3 last:border-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-neutral-800">
+          <p className="truncate text-sm font-medium text-ink">
             {user.fullName || user.email}
-            {isSelf && <span className="ml-2 text-xs font-normal text-neutral-400">(você)</span>}
+            {isSelf && <span className="ml-2 text-xs font-normal text-ink-3">(você)</span>}
           </p>
-          <p className="truncate text-xs text-neutral-500">{user.email}</p>
+          <p className="truncate text-xs text-ink-2">{user.email}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {user.papelGlobal !== "nenhum" && (
@@ -199,12 +199,12 @@ export function UserRow({
             </span>
           )}
           {user.memberships.map((m) => (
-            <span key={m.ministryId} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+            <span key={m.ministryId} className="rounded-full bg-neutral-soft px-2 py-0.5 text-xs text-ink-2">
               {m.ministryName} · {MINISTRY_ROLE_LABEL[m.role] ?? m.role}
             </span>
           ))}
           {user.memberships.length === 0 && user.papelGlobal === "nenhum" && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Sem acesso</span>
+            <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">Sem acesso</span>
           )}
           <button
             type="button"
@@ -217,23 +217,23 @@ export function UserRow({
       </div>
 
       {open && (
-        <div className="mt-3 space-y-4 rounded-xl bg-neutral-50 p-3">
+        <div className="mt-3 space-y-4 rounded-card bg-surface-sunken p-3">
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">Papel global</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-3">Papel global</p>
             <PapelGlobalEditor user={user} isSelf={isSelf} />
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-3">
               Vínculos por ministério
             </p>
             {user.memberships.length === 0 ? (
-              <p className="text-xs text-neutral-400">Nenhum vínculo ainda.</p>
+              <p className="text-xs text-ink-3">Nenhum vínculo ainda.</p>
             ) : (
               <div className="space-y-1.5">
                 {user.memberships.map((m) => (
-                  <div key={m.ministryId} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-1.5">
-                    <span className="text-xs font-medium text-neutral-700">{m.ministryName}</span>
+                  <div key={m.ministryId} className="flex items-center justify-between gap-2 rounded-control bg-surface px-2.5 py-1.5">
+                    <span className="text-xs font-medium text-ink-2">{m.ministryName}</span>
                     <div className="flex items-center gap-2">
                       <MembershipRoleEditor userId={user.id} ministryId={m.ministryId} role={m.role} />
                       <RemoveMembershipButton userId={user.id} ministryId={m.ministryId} ministryName={m.ministryName} />
@@ -248,7 +248,7 @@ export function UserRow({
           </div>
 
           {!isSelf && (
-            <div className="border-t border-neutral-200 pt-3">
+            <div className="border-t border-line pt-3">
               <DeleteUserButton userId={user.id} email={user.email} />
             </div>
           )}

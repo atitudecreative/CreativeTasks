@@ -122,34 +122,43 @@ export function AppSidebar({
       )}
 
       <div className="relative flex h-full min-h-0 flex-col">
-        {/* ---------- Marca ---------- */}
-        <div className={cn("flex items-center gap-2 px-3 pb-1 pt-4", collapsed && "justify-center px-2")}>
-          <Link href="/dashboard" onClick={onNavigate} className="flex min-w-0 items-center gap-2.5 rounded-control p-1">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo vem de upload dinâmico (site_theme.logo_url) */}
-            <img
-              src={logoUrl ?? "/logo-dark-bg.png"}
-              alt="Atitude Creative"
-              className={cn("w-auto shrink-0 object-contain", collapsed ? "h-7" : "h-9")}
-            />
-            {!collapsed && (
-              <span className="min-w-0">
-                <span className="block truncate font-mono text-label uppercase text-white/55">Portal</span>
-                <span className="block truncate text-caption font-semibold text-white/90">Ministérios</span>
-              </span>
-            )}
-          </Link>
-
-          {onToggleCollapse && !collapsed && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              aria-label="Recolher menu"
-              title="Recolher menu"
-              className="ml-auto hidden h-8 w-8 shrink-0 items-center justify-center rounded-control text-white/45 transition hover:bg-white/10 hover:text-white lg:flex"
+        {/* ---------- Marca ----------
+            A logo é um arquivo enviado pela Comunicação, de proporção
+            desconhecida — pode ser larga. Por isso o nome do produto fica
+            EMBAIXO dela, não ao lado: do lado, qualquer logo um pouco
+            mais larga empurrava o texto e virava "Minist...". */}
+        <div className={cn("px-3 pb-1 pt-4", collapsed && "px-2")}>
+          <div className={cn("flex items-start gap-2", collapsed && "justify-center")}>
+            <Link
+              href="/dashboard"
+              onClick={onNavigate}
+              className={cn("block min-w-0 rounded-control p-1", collapsed && "p-0.5")}
             >
-              <Icon.ChevronsLeft className="h-4 w-4" />
-            </button>
-          )}
+              {/* eslint-disable-next-line @next/next/no-img-element -- logo vem de upload dinâmico (site_theme.logo_url) */}
+              <img
+                src={logoUrl ?? "/logo-dark-bg.png"}
+                alt="Atitude Creative"
+                className={cn("w-auto max-w-full object-contain", collapsed ? "h-7" : "h-8")}
+              />
+              {!collapsed && (
+                <span className="mt-1.5 block truncate font-mono text-label uppercase text-white/45">
+                  Portal dos Ministérios
+                </span>
+              )}
+            </Link>
+
+            {onToggleCollapse && !collapsed && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Recolher menu"
+                title="Recolher menu"
+                className="ml-auto hidden h-8 w-8 shrink-0 items-center justify-center rounded-control text-white/45 transition hover:bg-white/10 hover:text-white lg:flex"
+              >
+                <Icon.ChevronsLeft className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ---------- Seletor de ministério ---------- */}

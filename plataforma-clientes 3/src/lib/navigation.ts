@@ -96,7 +96,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Ministérios",
         icon: "Building",
         adminOnly: true,
-        description: "Cadastro, capa e cor de cada ministério",
+        description: "Cadastro, capa, cor e identidade de cada ministério",
       },
       {
         href: "/dashboard/admin/usuarios",
@@ -105,14 +105,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "Users",
         adminOnly: true,
         description: "Contas, papéis e vínculos",
-      },
-      {
-        href: "/dashboard/admin/marca",
-        label: "Marca e aparência",
-        short: "Marca",
-        icon: "Palette",
-        adminOnly: true,
-        description: "Logo e cores padrão do portal",
       },
     ],
   },

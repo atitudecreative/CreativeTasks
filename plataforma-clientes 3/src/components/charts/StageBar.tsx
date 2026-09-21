@@ -65,14 +65,19 @@ export function StageBar({
                   {s.description}
                 </span>
               }
-              className={cn("block min-w-0 transition-opacity duration-180", dim && "opacity-35")}
+              // A largura vive no WRAPPER do tooltip: ele é o item de
+              // flex. Aplicá-la no filho não adiantava — o wrapper
+              // inline-flex encolhia pro conteúdo e a barra inteira
+              // ficava do tamanho dos rótulos.
+              style={{ width: `${pct}%`, minWidth: "0.5rem" }}
+              className={cn("block h-full min-w-0 transition-opacity duration-180", dim && "opacity-35")}
             >
               <span
                 onMouseEnter={() => setHovered(s.key)}
                 onMouseLeave={() => setHovered(null)}
-                style={{ width: `${pct}%`, backgroundColor: s.color, minWidth: "0.5rem" }}
+                style={{ backgroundColor: s.color }}
                 className={cn(
-                  "flex h-full items-center justify-center overflow-hidden px-1.5",
+                  "flex h-full w-full items-center justify-center overflow-hidden px-1.5",
                   "transition-[filter] duration-180",
                   i === 0 && "rounded-l-[6px]",
                   i === stages.length - 1 && "rounded-r-[6px]",

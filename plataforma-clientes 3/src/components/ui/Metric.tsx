@@ -50,8 +50,19 @@ export function Metric({
   className?: string;
   footer?: React.ReactNode;
 }) {
+  // O degrau grande só entra a partir de `sm`. Num celular de 390px com
+  // duas colunas, 36px quebrava "R$ 31.480" em duas linhas no meio do
+  // número — que é pior do que um número um pouco menor.
+  // Rampa de três degraus no KPI de destaque. Num celular de 390px o
+  // card fica com ~126px úteis; "R$ 31.480" a 36px não cabe e quebra no
+  // meio do número, que é o pior resultado possível pra um dado
+  // financeiro. Começa em 22px e só cresce quando há espaço.
   const valueClass =
-    size === "hero" ? "text-metric-lg" : size === "compact" ? "text-metric-sm" : "text-metric";
+    size === "hero"
+      ? "text-metric-sm sm:text-metric lg:text-metric-lg"
+      : size === "compact"
+        ? "text-metric-sm"
+        : "text-metric-sm sm:text-metric";
 
   return (
     <div
@@ -67,7 +78,7 @@ export function Metric({
       <div className="min-w-0">
         <div className={cn("mb-2 flex items-center gap-2", align === "center" && "justify-center")}>
           {icon && <span className="shrink-0 text-ink-3">{icon}</span>}
-          <p className="truncate font-mono text-label uppercase text-ink-3">{label}</p>
+          <p className="min-w-0 font-mono text-label uppercase text-ink-3">{label}</p>
         </div>
 
         <p className={cn("flex items-baseline gap-1 text-ink tabular-nums", valueClass, align === "center" && "justify-center")}>
@@ -79,7 +90,10 @@ export function Metric({
           <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5", align === "center" && "justify-center")}>
             <Delta value={delta} invert={deltaInvert} size={size === "compact" ? "sm" : "md"} />
             {(deltaLabel || hint) && (
-              <span className="truncate text-caption text-ink-3">{deltaLabel ?? hint}</span>
+              // Quebra em até duas linhas em vez de cortar com reticências:
+              // "83% do orçamento aprovado" virava "83% do orçamento ..."
+              // no celular, que é a parte que menos importa da frase.
+              <span className="line-clamp-2 text-caption text-ink-3">{deltaLabel ?? hint}</span>
             )}
           </div>
         )}

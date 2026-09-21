@@ -18,29 +18,29 @@ function ColorPicker({
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-neutral-500">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-ink-2">{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="color"
           value={valid ? value : "#000000"}
           onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-12 cursor-pointer rounded-lg border border-neutral-300 bg-white p-1"
+          className="h-10 w-12 cursor-pointer rounded-control border border-line-strong bg-surface p-1"
         />
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="#f3701c"
-          className={`w-32 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1 ${
+          className={`w-32 rounded-control border px-3 py-2 text-sm outline-none focus:ring-1 ${
             valid
-              ? "border-neutral-300 focus:border-brand-500 focus:ring-brand-500"
-              : "border-rose-300 focus:border-rose-500 focus:ring-rose-500"
+              ? "border-line-strong focus:border-brand-500 focus:ring-brand-500"
+              : "border-danger-line focus:border-danger focus:shadow-focus focus:outline-none"
           }`}
         />
       </div>
-      {!valid && <p className="mt-1 text-xs text-rose-600">Formato inválido — use #rrggbb.</p>}
+      {!valid && <p className="mt-1 text-xs text-danger">Formato inválido — use #rrggbb.</p>}
       {valid && isLowSaturation(value) && (
-        <p className="mt-1 text-xs text-amber-600">
+        <p className="mt-1 text-xs text-warning">
           Cor com pouca saturação (quase cinza) — a paleta ainda fica legível, mas pode parecer
           &quot;sem graça&quot;.
         </p>
@@ -51,11 +51,11 @@ function ColorPicker({
 
 function SwatchRow({ scale, shades }: { scale: Record<string, string>; shades: readonly string[] }) {
   return (
-    <div className="flex overflow-hidden rounded-lg border border-neutral-200">
+    <div className="flex overflow-hidden rounded-control border border-line">
       {shades.map((shade) => (
         <div key={shade} className="flex-1 py-3 text-center" style={{ backgroundColor: scale[shade] }}>
           <span
-            className="text-[10px] font-medium"
+            className="text-[0.625rem] font-medium"
             style={{ color: Number(shade) >= 500 ? "#fff" : "#1c1917" }}
           >
             {shade}
@@ -72,7 +72,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+      className="rounded-control bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
     >
       {pending ? "Salvando..." : "Salvar cores do ministério"}
     </button>
@@ -109,9 +109,9 @@ export function MinistryThemeForm({
 
   return (
     <div className="space-y-6">
-      <form action={formAction} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <p className="mb-1 text-sm font-medium text-neutral-700">Aparência do ministério</p>
-        <p className="mb-4 text-xs text-neutral-500">
+      <form action={formAction} className="rounded-panel border border-line bg-surface p-5 shadow-sm">
+        <p className="mb-1 text-sm font-medium text-ink-2">Aparência do ministério</p>
+        <p className="mb-4 text-xs text-ink-2">
           Cor principal e secundária usadas na sessão de quem tem esse ministério como ativo
           (menu, botões, badges, gráficos). Sem cor própria, vale o padrão do site.
         </p>
@@ -125,7 +125,7 @@ export function MinistryThemeForm({
         <input type="hidden" name="brandColor" value={brandColor} />
         <input type="hidden" name="walnutColor" value={walnutColor} />
 
-        {state?.error && <p className="mb-3 text-sm text-red-600">{state.error}</p>}
+        {state?.error && <p className="mb-3 text-sm text-danger">{state.error}</p>}
 
         <div className="flex items-center gap-3">
           <SubmitButton />
@@ -141,7 +141,7 @@ export function MinistryThemeForm({
                   resetMinistryTheme(fd);
                 }
               }}
-              className="text-sm text-neutral-500 hover:underline"
+              className="text-sm text-ink-2 hover:underline"
             >
               Usar cor padrão do site
             </button>
@@ -149,9 +149,9 @@ export function MinistryThemeForm({
         </div>
       </form>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <p className="mb-1 text-sm font-medium text-neutral-700">Pré-visualização</p>
-        <p className="mb-4 text-xs text-neutral-400">
+      <div className="rounded-panel border border-line bg-surface p-5 shadow-sm">
+        <p className="mb-1 text-sm font-medium text-ink-2">Pré-visualização</p>
+        <p className="mb-4 text-xs text-ink-3">
           A tonalidade clara (50) e a escura (900) são sempre calculadas automaticamente pra
           manter contraste e leitura, mesmo que a cor escolhida seja bem clara ou bem escura —
           só o matiz da cor vem da sua escolha.
@@ -159,29 +159,29 @@ export function MinistryThemeForm({
 
         {brandScale && (
           <div className="mb-4">
-            <p className="mb-1.5 text-xs font-medium text-neutral-500">Principal</p>
+            <p className="mb-1.5 text-xs font-medium text-ink-2">Principal</p>
             <SwatchRow scale={brandScale} shades={BRAND_SHADES} />
           </div>
         )}
         {walnutScale && (
           <div className="mb-5">
-            <p className="mb-1.5 text-xs font-medium text-neutral-500">Secundária</p>
+            <p className="mb-1.5 text-xs font-medium text-ink-2">Secundária</p>
             <SwatchRow scale={walnutScale} shades={WALNUT_SHADES} />
           </div>
         )}
 
         {brandScale && walnutScale && (
-          <div className="rounded-xl p-5" style={{ backgroundColor: walnutScale["900"] }}>
+          <div className="rounded-card p-5" style={{ backgroundColor: walnutScale["900"] }}>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: walnutScale["300"] }}>
               Exemplo de menu
             </p>
             <div
-              className="mb-2 rounded-lg px-3 py-2 text-sm font-medium text-white"
+              className="mb-2 rounded-control px-3 py-2 text-sm font-medium text-white"
               style={{ backgroundColor: brandScale["600"] }}
             >
               Item ativo
             </div>
-            <div className="mb-4 rounded-lg px-3 py-2 text-sm font-medium" style={{ color: walnutScale["200"] }}>
+            <div className="mb-4 rounded-control px-3 py-2 text-sm font-medium" style={{ color: walnutScale["200"] }}>
               Item inativo
             </div>
             <div className="flex flex-wrap gap-2">

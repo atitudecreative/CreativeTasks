@@ -3,106 +3,182 @@ import Link from "next/link";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
 import { getAllCampaignsAdmin } from "@/lib/data/campaigns";
+import {
+  Alert, Badge, Button, EmptyState, Icon, Metric, MetricRow, Panel,
+  Table, TBody, TD, TH, THead, TR, TableScroll, TableEmpty, Avatar, cn,
+} from "@/components/ui";
+import { PageHeader } from "@/components/AppShell";
 
+export const metadata = { title: "Painel geral" };
+
+/* =========================================================================
+   PAINEL ADMINISTRATIVO
+   -------------------------------------------------------------------------
+   Continua sendo a visão consolidada da carteira, mas agora ORDENADA POR
+   PRESSÃO: o ministério com mais demandas atrasadas vem primeiro. A versão
+   anterior listava em ordem alfabética, o que faz a tabela parecer um
+   cadastro quando ela deveria ser um radar — quem abre esta tela quer
+   saber onde apagar incêndio, não quem começa com A.
+
+   Cada linha leva pro ministério (troca o contexto ativo e abre o painel
+   dele), o que antes exigia usar o seletor no menu.
+   ========================================================================= */
 export default async function AdminPage() {
   const user = await getCurrentUser();
   if (!user || !isComunicacaoGlobal(user)) {
     redirect("/dashboard");
   }
 
-  const [overview, allCampaigns] = await Promise.all([
-    getAdminOverview(),
-    getAllCampaignsAdmin(),
-  ]);
+  const [overview, allCampaigns] = await Promise.all([getAdminOverview(), getAllCampaignsAdmin()]);
+
   const pendingCampaigns = allCampaigns.filter((c) => !c.publicada);
-  const totalDemandas = overview.reduce((sum, m) => sum + m.demandasAtivas, 0);
-  const totalAtrasadas = overview.reduce((sum, m) => sum + m.demandasAtrasadas, 0);
-  const totalCampanhasRisco = overview.reduce((sum, m) => sum + m.campanhasEmAtencaoOuCritica, 0);
+  const totalDemandas = overview.reduce((s, m) => s + m.demandasAtivas, 0);
+  const totalAtrasadas = overview.reduce((s, m) => s + m.demandasAtrasadas, 0);
+  const totalCampanhas = overview.reduce((s, m) => s + m.campanhasAtivas, 0);
+  const totalRisco = overview.reduce((s, m) => s + m.campanhasEmAtencaoOuCritica, 0);
+
+  // Ordem por pressão: atrasadas, depois campanhas em risco, depois volume.
+  const ordered = [...overview].sort(
+    (a, b) =>
+      b.demandasAtrasadas - a.demandasAtrasadas ||
+      b.campanhasEmAtencaoOuCritica - a.campanhasEmAtencaoOuCritica ||
+      b.demandasAtivas - a.demandasAtivas ||
+      a.name.localeCompare(b.name, "pt-BR")
+  );
+
+  const comAtraso = ordered.filter((m) => m.demandasAtrasadas > 0).length;
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-neutral-900">Painel administrativo</h1>
-      <p className="mb-6 text-sm text-neutral-500">
-        Visão consolidada de todos os ministérios atendidos pela Comunicação.
-      </p>
+      <PageHeader
+        eyebrow="Administração"
+        title="Painel geral"
+        description="Visão consolidada de todos os ministérios atendidos pela Comunicação, ordenada por pressão."
+        actions={
+          <Link href="/dashboard/admin/campanhas-pendentes">
+            <Button variant="secondary" iconLeft={<Icon.Layers className="h-4 w-4" />}>
+              Campanhas
+            </Button>
+          </Link>
+        }
+      />
 
       {pendingCampaigns.length > 0 && (
-        <Link
-          href="/dashboard/admin/campanhas-pendentes"
-          className="mb-6 flex items-center justify-between rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm shadow-sm transition hover:border-brand-300"
+        <Alert
+          tone="accent"
+          title={`${pendingCampaigns.length} ${pendingCampaigns.length === 1 ? "campanha oculta" : "campanhas ocultas"}`}
+          className="mb-5"
+          action={
+            <Link href="/dashboard/admin/campanhas-pendentes">
+              <Button variant="secondary" size="sm" iconRight={<Icon.ArrowRight className="h-3.5 w-3.5" />}>
+                Revisar
+              </Button>
+            </Link>
+          }
         >
-          <span className="font-medium text-brand-800">
-            {pendingCampaigns.length}{" "}
-            {pendingCampaigns.length === 1
-              ? "campanha oculta — o ministério ainda não vê ela"
-              : "campanhas ocultas — o ministério ainda não vê elas"}
-          </span>
-          <span className="font-medium text-brand-700">Revisar →</span>
-        </Link>
+          {pendingCampaigns.length === 1
+            ? "O ministério ainda não consegue ver essa campanha."
+            : "Os ministérios ainda não conseguem ver essas campanhas."}
+        </Alert>
       )}
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Demandas ativas (todos)</p>
-          <p className="text-2xl font-semibold text-neutral-900">{totalDemandas}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Demandas atrasadas</p>
-          <p className="text-2xl font-semibold text-neutral-900">{totalAtrasadas}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Campanhas em atenção/crítica</p>
-          <p className="text-2xl font-semibold text-neutral-900">{totalCampanhasRisco}</p>
-        </div>
-      </div>
+      <MetricRow columns={4} className="mb-6">
+        <Metric
+          label="Demandas ativas"
+          value={totalDemandas}
+          hint={`em ${overview.length} ${overview.length === 1 ? "ministério" : "ministérios"}`}
+          icon={<Icon.ListChecks className="h-4 w-4" />}
+        />
+        <Metric
+          label="Demandas atrasadas"
+          value={totalAtrasadas}
+          hint={comAtraso > 0 ? `concentradas em ${comAtraso} ${comAtraso === 1 ? "ministério" : "ministérios"}` : "nenhum atraso"}
+          icon={<Icon.AlertTriangle className="h-4 w-4" />}
+        />
+        <Metric
+          label="Campanhas ativas"
+          value={totalCampanhas}
+          icon={<Icon.Megaphone className="h-4 w-4" />}
+        />
+        <Metric
+          label="Campanhas em risco"
+          value={totalRisco}
+          hint="em atenção ou crítica"
+          icon={<Icon.Activity className="h-4 w-4" />}
+        />
+      </MetricRow>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-neutral-100 text-neutral-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">Ministério</th>
-              <th className="px-4 py-3 font-medium">Demandas ativas</th>
-              <th className="px-4 py-3 font-medium">Atrasadas</th>
-              <th className="px-4 py-3 font-medium">Campanhas ativas</th>
-              <th className="px-4 py-3 font-medium">Em atenção/crítica</th>
-            </tr>
-          </thead>
-          <tbody>
-            {overview.length === 0 ? (
-              <tr>
-                <td className="px-4 py-3 text-neutral-500" colSpan={5}>
-                  Nenhum ministério cadastrado ainda.
-                </td>
-              </tr>
-            ) : (
-              overview.map((m) => (
-                <tr key={m.id} className="border-b border-neutral-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-neutral-800">{m.name}</td>
-                  <td className="px-4 py-3 text-neutral-600">{m.demandasAtivas}</td>
-                  <td className="px-4 py-3 text-neutral-600">
-                    {m.demandasAtrasadas > 0 ? (
-                      <span className="text-red-600">{m.demandasAtrasadas}</span>
-                    ) : (
-                      "0"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-600">{m.campanhasAtivas}</td>
-                  <td className="px-4 py-3 text-neutral-600">{m.campanhasEmAtencaoOuCritica}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="mt-4 text-sm text-neutral-500">
-        Cadastro de ministérios, demandas e campanhas ainda é feito direto no
-        Supabase Studio nesta fase (ver README) — telas de edição são um
-        próximo passo natural.{" "}
-        <Link href="/dashboard/acesso" className="text-brand-600 hover:underline">
-          Ver meu acesso
-        </Link>
-      </p>
+      <Panel title="Ministérios" description="Do mais pressionado para o mais tranquilo" noPadding>
+        {overview.length === 0 ? (
+          <div className="p-5">
+            <EmptyState
+              size="sm"
+              icon={<Icon.Building className="h-4 w-4" />}
+              title="Nenhum ministério cadastrado"
+              description="Cadastre o primeiro ministério para começar a acompanhar a carteira."
+              action={
+                <Link href="/dashboard/admin/ministerios">
+                  <Button variant="primary" iconLeft={<Icon.Plus className="h-4 w-4" />}>
+                    Cadastrar ministério
+                  </Button>
+                </Link>
+              }
+            />
+          </div>
+        ) : (
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Ministério</TH>
+                  <TH numeric>Ativas</TH>
+                  <TH numeric>Atrasadas</TH>
+                  <TH numeric className="hidden sm:table-cell">Campanhas</TH>
+                  <TH numeric className="hidden sm:table-cell">Em risco</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {ordered.length === 0 ? (
+                  <TableEmpty colSpan={5}>Nenhum ministério cadastrado ainda.</TableEmpty>
+                ) : (
+                  ordered.map((m) => (
+                    <TR key={m.id} interactive>
+                      <TD strong>
+                        <Link href={`/dashboard/admin/ministerios/${m.id}`} className="flex items-center gap-2.5 hover:text-brand-600">
+                          <Avatar name={m.name} size="xs" />
+                          <span className="truncate">{m.name}</span>
+                        </Link>
+                      </TD>
+                      <TD numeric>{m.demandasAtivas}</TD>
+                      <TD numeric>
+                        {m.demandasAtrasadas > 0 ? (
+                          <Badge tone="danger" size="sm">
+                            {m.demandasAtrasadas}
+                          </Badge>
+                        ) : (
+                          <span className="text-ink-3">0</span>
+                        )}
+                      </TD>
+                      <TD numeric className="hidden sm:table-cell">
+                        {m.campanhasAtivas}
+                      </TD>
+                      <TD numeric className="hidden sm:table-cell">
+                        {m.campanhasEmAtencaoOuCritica > 0 ? (
+                          <Badge tone="warning" size="sm">
+                            {m.campanhasEmAtencaoOuCritica}
+                          </Badge>
+                        ) : (
+                          <span className="text-ink-3">0</span>
+                        )}
+                      </TD>
+                    </TR>
+                  ))
+                )}
+              </TBody>
+            </Table>
+          </TableScroll>
+        )}
+      </Panel>
     </div>
   );
 }

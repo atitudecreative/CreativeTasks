@@ -24,8 +24,11 @@ export const MINISTRY_STATUS_LABEL: Record<string, string> = Object.fromEntries(
   MINISTRY_STATUS_OPTIONS.map((s) => [s.value, s.label])
 );
 
-export const MINISTRY_STATUS_COLOR: Record<string, string> = {
-  ativo: "bg-green-50 text-green-700",
-  pausado: "bg-amber-50 text-amber-700",
-  arquivado: "bg-neutral-100 text-neutral-500",
+// Tom semântico por status (ver lib/statusColors) em vez de classes
+// Tailwind cruas — assim o badge de ministério segue o mesmo sistema de
+// cor do resto do produto e funciona no tema escuro.
+export const MINISTRY_STATUS_TONE: Record<string, "success" | "warning" | "neutral"> = {
+  ativo: "success",
+  pausado: "warning",
+  arquivado: "neutral",
 };

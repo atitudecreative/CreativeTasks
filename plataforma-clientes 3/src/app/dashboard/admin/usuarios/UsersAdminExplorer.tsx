@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Badge, EmptyState, Icon, SearchInput } from "@/components/ui";
 import { UserRow, type UserRowData } from "./UserRow";
 
 function normalize(s: string) {
@@ -10,7 +11,9 @@ function normalize(s: string) {
     .toLowerCase();
 }
 
-function Section({
+/* Grupo colapsável por ministério. O chevron era um caractere "›"
+   rotacionado; virou ícone do sistema, e o botão ganhou aria-expanded. */
+function Group({
   title,
   count,
   defaultOpen,
@@ -24,17 +27,22 @@ function Section({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="mb-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+    <div className="mb-2.5 overflow-hidden rounded-panel border border-line bg-surface shadow-xs">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        aria-expanded={open}
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-120 hover:bg-surface-sunken ${
+          open ? "border-b border-line" : ""
+        }`}
       >
-        <span className="text-sm font-semibold text-neutral-800">{title}</span>
-        <span className="flex items-center gap-2 text-xs text-neutral-400">
-          {count} usuário{count === 1 ? "" : "s"}
-          <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>›</span>
-        </span>
+        <Icon.ChevronRight
+          className={`h-4 w-4 shrink-0 text-ink-3 transition-transform duration-180 ease-snap ${open ? "rotate-90" : ""}`}
+        />
+        <span className="min-w-0 flex-1 truncate text-h4 text-ink">{title}</span>
+        <Badge tone="neutral" size="sm">
+          {count}
+        </Badge>
       </button>
       {open && <div>{children}</div>}
     </div>
@@ -82,25 +90,25 @@ export function UsersAdminExplorer({
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Buscar por nome, e-mail ou ministério..."
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          onValueChange={setSearch}
+          placeholder="Buscar por nome, e-mail ou ministério..."
+          aria-label="Buscar usuário"
+          className="w-full sm:max-w-sm"
         />
-        <span className="text-xs text-neutral-400">
+        <span className="text-caption tabular-nums text-ink-3">
           {filtered.length} de {users.length}
         </span>
       </div>
 
       {admins.length > 0 && (
-        <Section title="Administradores e equipe de Comunicação" count={admins.length} defaultOpen>
+        <Group title="Administradores e equipe de Comunicação" count={admins.length} defaultOpen>
           {admins.map((u) => (
             <UserRow key={u.id} user={u} currentUserId={currentUserId} allMinistries={ministries} />
           ))}
-        </Section>
+        </Group>
       )}
 
       {ministries.map((m) => {
@@ -108,30 +116,32 @@ export function UsersAdminExplorer({
         if (hasActiveFilter && members.length === 0) return null;
 
         return (
-          <Section key={m.id} title={m.name} count={members.length} defaultOpen={hasActiveFilter}>
+          <Group key={m.id} title={m.name} count={members.length} defaultOpen={hasActiveFilter}>
             {members.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-neutral-400">Nenhum usuário vinculado ainda.</p>
+              <p className="px-4 py-3 text-xs text-ink-3">Nenhum usuário vinculado ainda.</p>
             ) : (
               members.map((u) => (
                 <UserRow key={u.id} user={u} currentUserId={currentUserId} allMinistries={ministries} />
               ))
             )}
-          </Section>
+          </Group>
         );
       })}
 
       {semAcesso.length > 0 && (
-        <Section title="Sem acesso" count={semAcesso.length} defaultOpen={hasActiveFilter}>
+        <Group title="Sem acesso" count={semAcesso.length} defaultOpen={hasActiveFilter}>
           {semAcesso.map((u) => (
             <UserRow key={u.id} user={u} currentUserId={currentUserId} allMinistries={ministries} />
           ))}
-        </Section>
+        </Group>
       )}
 
       {filtered.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-center text-sm text-neutral-400">
-          Nenhum usuário encontrado para essa busca.
-        </p>
+        <EmptyState
+          icon={<Icon.Users className="h-5 w-5" />}
+          title="Nenhum usuário encontrado"
+          description="Tente buscar por outro nome, e-mail ou ministério."
+        />
       )}
     </div>
   );

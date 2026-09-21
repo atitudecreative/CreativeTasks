@@ -37,6 +37,127 @@ da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
 delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
 ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
+## Design system ("Signal")
+
+A camada de apresentação inteira segue um sistema único, em
+`src/components/ui`. **Nenhuma tela escreve cor, raio, sombra ou tamanho
+de fonte à mão** — tudo sai dos tokens abaixo. Foi assim que o produto
+deixou de ter um visual por página.
+
+### Tokens
+
+Definidos como variáveis CSS em `src/app/globals.css` e mapeados no
+`tailwind.config.ts`. Cada um tem valor próprio no tema claro e no escuro,
+então o mesmo `bg-surface` resolve sozinho nos dois — o produto quase não
+usa prefixo `dark:`.
+
+| Grupo | Tokens |
+|---|---|
+| Superfície | `canvas`, `canvas-sunken`, `surface`, `surface-raised`, `surface-sunken`, `surface-inverse` |
+| Linha | `line`, `line-strong`, `line-inverse` |
+| Tinta | `ink`, `ink-2`, `ink-3`, `ink-inverse` |
+| Estado | `success`, `warning`, `danger`, `info` — cada um com `-soft` (fundo de badge) e `-line` (borda) |
+| Marca | `brand-50..900`, `walnut-50..950` — continuam vindo do banco (`site_theme`), injetados pelo layout raiz |
+| Gráfico | `chart-1..8`, `chart-accent`, `stage-*` |
+
+Todos os pares texto/fundo foram conferidos: **>= 4,5:1 (WCAG AA) nos dois
+temas**. Antes o produto usava `text-neutral-400` sobre branco (3,1:1 —
+reprovado) em cerca de cem lugares.
+
+### Tema claro e escuro
+
+O tema é um atributo `data-theme` no `<html>`, escrito por
+`src/components/ThemeScript.tsx` **antes da primeira pintura** (script
+síncrono no `<head>`) — por isso não existe lampejo branco em quem prefere
+escuro. A ordem de decisão é: escolha salva pelo usuário no
+`localStorage` > preferência do sistema. O botão no header troca as duas
+coisas.
+
+### Tipografia
+
+- **Inter** — interface e texto corrido.
+- **IBM Plex Mono** — rótulo (eyebrow), identificador (`DEM-2026-0042`),
+  eixo de gráfico e número em tabela. Não é enfeite: alinha dígito com
+  dígito e separa rótulo de dado sem gastar mais uma cor.
+
+A escala é fechada e cada degrau já carrega entrelinha, entreletra e peso:
+`text-display`, `text-h1..h4`, `text-body`, `text-body-lg`, `text-small`,
+`text-caption`, `text-label`, `text-metric[-sm|-lg]`.
+
+### Componentes
+
+`src/components/ui/index.ts` exporta tudo. Os principais:
+
+- **Ação** — `Button`, `IconButton`
+- **Formulário** — `Field`, `Input`, `Textarea`, `Select`, `SearchInput`,
+  `Checkbox`, `Radio`, `Switch`
+- **Superfície** — `Section` (agrupa por significado, sem caixa), `Card`
+  (unidade autônoma), `Panel` (caixa com cabeçalho), `Divider`
+- **Dado** — `Metric`, `MetricRow`, `Progress`, `BarRow`, `Badge`,
+  `CodeTag`, `Delta`
+- **Estrutura** — `Tabs`, `Breadcrumb`, `Pagination`, `Tooltip`,
+  `DropdownMenu`, `Modal`, `Drawer`, `Toast`
+- **Tabela** — `Table`, `THead`, `TH`, `TBody`, `TR`, `TD`, `TableScroll`,
+  `TableEmpty`
+- **Estado** — `EmptyState`, `ErrorState`, `Alert`, e os skeletons
+- **Ícones** — `Icon.*`, cerca de 60 ícones inline (sem dependência nova)
+
+Regra de superfície: se tudo vira `Card`, nada tem hierarquia. Um `Card`
+dentro de outro `Card` é sinal de que o de fora deveria ser `Section`.
+
+### Visualização de dados
+
+`src/components/charts`. A sequência categórica (`--chart-1..8`) **não foi
+escolhida a olho** — passou por verificação nas seis checagens (faixa de
+luminosidade, piso de croma, separação sob protanopia/deuteranopia/
+tritanopia, piso de visão normal e contraste) em claro e escuro. Pior par
+adjacente: ΔE 9,1 / 8,4 sob daltonismo e 19,6 / 19,3 em visão normal.
+
+Regras que valem para qualquer gráfico novo:
+
+1. Atribuir os slots **sempre nesta ordem, nunca ciclando**. Passando de 8
+   séries, agrupar o excedente em "Outros" — cor gerada na hora é
+   indistinguível de outra sob daltonismo.
+2. **Nunca dois eixos Y.** Medidas de escala diferente viram dois gráficos
+   ou são indexadas.
+3. Série única usa a cor de marca (`--chart-accent`); comparação de
+   momentos do mesmo conceito usa **ênfase** (um destacado, o resto cinza).
+4. Duas ou mais séries exigem legenda, e todo gráfico carrega a
+   tabela-sombra (`ChartDataTable`) para leitor de tela.
+
+### Estágios de demanda
+
+`src/lib/demandStages.ts` dobra os 14 status em 5 estágios (`fila`,
+`producao`, `ministerio`, `concluida`, `parada`). Os 14 continuam valendo
+no filtro, no badge e no detalhe — o agrupamento existe para gráfico e
+para o filtro rápido, porque 14 categorias num gráfico é ilegível. O tom
+de cor de cada status deriva do estágio (`src/lib/statusColors.ts`), em vez
+de ser escolhido caso a caso.
+
+### Linguagem de métricas
+
+`src/lib/metricLanguage.ts` define, para cada indicador, o nome, o formato,
+a explicação em português claro e a direção (`betterWhen`). É o que faz
+"CPA" aparecer como "Custo por resultado" com tooltip explicativo, e o que
+garante que uma alta de custo seja pintada de vermelho e não de verde.
+
+### Responsividade
+
+| Faixa | Navegação | Conteúdo |
+|---|---|---|
+| `< sm` (640) | Drawer | 1 coluna; tabela vira lista de cards; KPI em 2 colunas com número menor |
+| `sm–lg` | Drawer | 2 colunas; colunas secundárias da tabela somem |
+| `>= lg` (1024) | Sidebar fixa, recolhível (a escolha fica no `localStorage`) | Grades completas |
+
+### Impressão
+
+`globals.css` tem uma folha `@media print`: força tema claro, some com
+sidebar, header e toda ação (`data-print="hide"`), evita quebrar card no
+meio (`data-print-block`) e imprime o destino dos links. É o que faz o
+relatório de evento sair completo em PDF — e é também por isso que aquela
+tela usa âncoras de seção em vez de abas: aba esconde conteúdo, e conteúdo
+escondido não é impresso nem encontrado pelo Ctrl+F.
+
 ## Páginas
 
 Lado do ministério (leitor/colaborador/aprovador/supervisor — somente

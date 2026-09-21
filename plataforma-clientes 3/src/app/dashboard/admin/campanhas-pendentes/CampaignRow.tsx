@@ -31,11 +31,11 @@ function VisibilityToggle({ id, publicada }: { id: string; publicada: boolean })
         type="submit"
         title={publicada ? "Visível pro ministério — clique pra ocultar" : "Oculta — clique pra ativar"}
         className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          publicada ? "bg-green-500" : "bg-neutral-300"
+          publicada ? "bg-success" : "bg-line-strong"
         }`}
       >
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition ${
             publicada ? "left-5" : "left-0.5"
           }`}
         />
@@ -53,7 +53,7 @@ function MoveButton({ idA, idB, disabled, direction }: { idA: string; idB: strin
         type="submit"
         disabled={disabled}
         title={direction === "up" ? "Mover pra cima" : "Mover pra baixo"}
-        className="rounded p-0.5 text-neutral-400 hover:text-brand-600 disabled:pointer-events-none disabled:opacity-20"
+        className="rounded p-0.5 text-ink-3 hover:text-brand-600 disabled:pointer-events-none disabled:opacity-20"
       >
         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path
@@ -79,7 +79,7 @@ export function CampaignRow({
   nextId?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
+    <div className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-0">
       <div className="flex shrink-0 flex-col">
         <MoveButton idA={campaign.id} idB={prevId ?? ""} disabled={!prevId} direction="up" />
         <MoveButton idA={campaign.id} idB={nextId ?? ""} disabled={!nextId} direction="down" />
@@ -90,11 +90,11 @@ export function CampaignRow({
       <div className="min-w-0 flex-1">
         <Link
           href={`/dashboard/campanhas/${campaign.id}`}
-          className="truncate font-medium text-neutral-800 hover:underline"
+          className="truncate font-medium text-ink hover:underline"
         >
           {campaign.nome}
         </Link>
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-ink-3">
           {TIPO_LABEL[campaign.tipo] ?? campaign.tipo}
           {campaign.origem === "asana_tag" && " · detectada por tag do Asana"} ·{" "}
           {campaign.demandCount} {campaign.demandCount === 1 ? "demanda" : "demandas"}
@@ -112,7 +112,7 @@ export function CampaignRow({
 
       <span
         className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-          campaign.publicada ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"
+          campaign.publicada ? "bg-success-soft text-success" : "bg-neutral-soft text-ink-2"
         }`}
       >
         {campaign.publicada ? "Ativa" : "Oculta"}
@@ -129,7 +129,7 @@ export function CampaignRow({
             name="folderId"
             defaultValue={campaign.folder_id ?? ""}
             title="Mover pra pasta"
-            className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             <option value="">Sem pasta</option>
             {folders.map((f) => (
@@ -160,7 +160,7 @@ export function CampaignRow({
         className="shrink-0"
       >
         <input type="hidden" name="id" value={campaign.id} />
-        <button type="submit" className="text-xs font-medium text-neutral-400 hover:text-rose-600">
+        <button type="submit" className="text-caption font-medium text-ink-3 hover:text-danger">
           Excluir
         </button>
       </form>

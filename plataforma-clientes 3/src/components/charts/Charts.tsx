@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, ComposedChart, BarChart, LineChart, Bar, Line, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Cell, AreaChart,
 } from "recharts";
-import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartDataTable } from "./primitives";
+import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable } from "./primitives";
 
 /* =========================================================================
    GRÁFICOS
@@ -89,6 +89,15 @@ export function VolumeChart({
           />
         </ComposedChart>
       </ResponsiveContainer>
+      {/* Duas séries no gráfico => legenda sempre presente: a identidade
+          de cada série nunca pode depender só da cor. */}
+      <ChartLegend
+        className="mt-2"
+        items={[
+          { label: "Demandas abertas", color: ACCENT },
+          { label: "Concluídas", color: seriesColor(2) },
+        ]}
+      />
       <ChartDataTable
         caption="Demandas por mês"
         columns={["Mês", "Total", "Concluídas"]}

@@ -142,9 +142,6 @@ export function AppShell({
       <MenuItem href="/dashboard/acesso" icon={<Icon.Shield className="h-4 w-4" />}>
         Meu acesso e papéis
       </MenuItem>
-      <MenuItem href="/dashboard/aparencia" icon={<Icon.Palette className="h-4 w-4" />}>
-        Minhas cores
-      </MenuItem>
       <MenuSeparator />
       <MenuItem onClick={signOutAction} icon={<Icon.Logout className="h-4 w-4" />} tone="danger">
         Sair da conta
@@ -272,14 +269,27 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-4", className)}>
-      <div className="min-w-0 flex-1">
+    // Coluna no celular, linha a partir de `sm`. Com flex-wrap simples, o
+    // bloco de texto (min-w-0 flex-1) encolhia até uma coluna de ~120px
+    // enquanto os botões seguravam a largura deles — o título vinha
+    // quebrado palavra por palavra.
+    <div
+      className={cn(
+        "mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-6",
+        className
+      )}
+    >
+      <div className="min-w-0 sm:flex-1">
         {eyebrow && <p className="mb-1.5 font-mono text-label uppercase text-ink-3">{eyebrow}</p>}
         <h1 className="text-h1 text-ink">{title}</h1>
         {description && <p className="mt-1.5 max-w-prose text-body text-ink-2">{description}</p>}
         {meta && <div className="mt-3 flex flex-wrap items-center gap-2">{meta}</div>}
       </div>
-      {actions && <div data-print="hide" className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && (
+        <div data-print="hide" className="flex flex-wrap items-center gap-2 sm:shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

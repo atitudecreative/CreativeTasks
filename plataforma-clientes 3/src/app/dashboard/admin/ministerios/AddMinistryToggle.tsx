@@ -1,33 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { Button, Icon, Modal } from "@/components/ui";
 import { CreateMinistryForm } from "./CreateMinistryForm";
 
+/* Criar ministério passa a ser um diálogo em vez de um formulário que
+   empurrava a tabela pra baixo — a lista continua visível atrás, que é o
+   contexto de quem está cadastrando (pra não duplicar um que já existe). */
 export function AddMinistryToggle() {
   const [open, setOpen] = useState(false);
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-      >
-        + Novo ministério
-      </button>
-    );
-  }
-
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(false)}
-        className="mb-2 text-xs text-neutral-500 hover:underline"
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)} iconLeft={<Icon.Plus className="h-4 w-4" />}>
+        Novo ministério
+      </Button>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Novo ministério"
+        description="Depois de criar, você pode definir capa, cor e vincular usuários na tela de edição."
+        size="lg"
       >
-        Cancelar
-      </button>
-      <CreateMinistryForm />
-    </div>
+        <CreateMinistryForm onCancel={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }

@@ -18,7 +18,7 @@ function SaveButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+      className="rounded-control bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
     >
       {pending ? "Salvando..." : label}
     </button>
@@ -31,14 +31,14 @@ function CapaBlock({ campaign }: { campaign: Campaign }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <p className="mb-1 text-sm font-medium text-neutral-700">Capa da campanha</p>
-      <p className="mb-4 text-xs text-neutral-500">
+    <div className="mb-6 rounded-panel border border-line bg-surface p-5 shadow-sm">
+      <p className="mb-1 text-sm font-medium text-ink-2">Capa da campanha</p>
+      <p className="mb-4 text-xs text-ink-2">
         Banner exibido no topo do dashboard público desse evento, pros ministérios envolvidos.
       </p>
 
       <div
-        className="relative mb-4 flex h-32 w-full max-w-sm items-center justify-center overflow-hidden rounded-xl bg-walnut-900 bg-cover bg-center"
+        className="relative mb-4 flex h-32 w-full max-w-sm items-center justify-center overflow-hidden rounded-card bg-walnut-900 bg-cover bg-center"
         style={{ backgroundImage: `url(${preview ?? campaign.capa_url ?? ""})` }}
       >
         {!preview && !campaign.capa_url && (
@@ -49,7 +49,7 @@ function CapaBlock({ campaign }: { campaign: Campaign }) {
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="campaignId" value={campaign.id} />
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">
+          <label className="mb-1 block text-xs font-medium text-ink-2">
             Nova imagem (PNG, JPG ou WEBP, até 4MB)
           </label>
           <input
@@ -62,7 +62,7 @@ function CapaBlock({ campaign }: { campaign: Campaign }) {
               const file = e.target.files?.[0];
               setPreview(file ? URL.createObjectURL(file) : null);
             }}
-            className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-neutral-700 hover:file:bg-neutral-200"
+            className="block w-full text-sm text-ink-2 file:mr-3 file:rounded-control file:border-0 file:bg-neutral-soft file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink-2 hover:file:bg-line"
           />
         </div>
         <div className="flex items-center gap-3">
@@ -77,13 +77,13 @@ function CapaBlock({ campaign }: { campaign: Campaign }) {
                   removeCampaignCapa(fd);
                 }
               }}
-              className="text-xs text-rose-600 hover:underline"
+              className="text-xs text-danger hover:underline"
             >
               Remover capa
             </button>
           )}
         </div>
-        {state.error && <p className="text-xs text-rose-600">{state.error}</p>}
+        {state.error && <p className="text-xs text-danger">{state.error}</p>}
       </form>
     </div>
   );
@@ -116,9 +116,9 @@ function VisibilityBlock({
   }
 
   return (
-    <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <p className="mb-1 text-sm font-medium text-neutral-700">Visibilidade por ministério</p>
-      <p className="mb-4 text-xs text-neutral-500">
+    <div className="mb-6 rounded-panel border border-line bg-surface p-5 shadow-sm">
+      <p className="mb-1 text-sm font-medium text-ink-2">Visibilidade por ministério</p>
+      <p className="mb-4 text-xs text-ink-2">
         Ministérios com demanda vinculada a essa campanha já a veem automaticamente. Marque
         aqui outros ministérios que também devem ver o dashboard desse evento, mesmo sem
         demanda própria ainda.
@@ -133,14 +133,14 @@ function VisibilityBlock({
         <input type="hidden" name="campaignId" value={campaign.id} />
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {ministries.map((m) => (
-            <label key={m.id} className="flex items-center gap-2 text-sm text-neutral-700">
+            <label key={m.id} className="flex items-center gap-2 text-sm text-ink-2">
               <input
                 type="checkbox"
                 name="ministryId"
                 value={m.id}
                 checked={selected.has(m.id)}
                 onChange={() => toggle(m.id)}
-                className="h-4 w-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
+                className="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-brand-500"
               />
               {m.name}
             </label>
@@ -148,7 +148,7 @@ function VisibilityBlock({
         </div>
         <div className="flex items-center gap-3">
           <SaveButton label="Salvar visibilidade" />
-          {saved && <span className="text-xs text-green-600">Salvo.</span>}
+          {saved && <span className="text-xs text-success">Salvo.</span>}
         </div>
       </form>
     </div>
@@ -159,27 +159,27 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
   const [state, formAction] = useFormState(updateCampaignDetails, { error: null as string | null });
 
   return (
-    <form action={formAction} className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <form action={formAction} className="space-y-3 rounded-panel border border-line bg-surface p-5 shadow-sm">
       <input type="hidden" name="id" value={campaign.id} />
-      <p className="mb-1 text-sm font-medium text-neutral-700">Informações da campanha</p>
+      <p className="mb-1 text-sm font-medium text-ink-2">Informações da campanha</p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Nome</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Nome</label>
           <input
             name="nome"
             defaultValue={campaign.nome}
             required
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Tipo</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Tipo</label>
           <select
             name="tipo"
             defaultValue={campaign.tipo}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             {TIPO_OPTIONS.map((t) => (
               <option key={t.value} value={t.value}>
@@ -190,11 +190,11 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Fase</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Fase</label>
           <select
             name="fase"
             defaultValue={campaign.fase}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             {FASE_OPTIONS.map((f) => (
               <option key={f.value} value={f.value}>
@@ -205,11 +205,11 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Saúde</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Saúde</label>
           <select
             name="saude"
             defaultValue={campaign.saude}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           >
             {SAUDE_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -220,101 +220,101 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Início</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Início</label>
           <input
             type="date"
             name="data_inicio"
             defaultValue={campaign.data_inicio ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Término</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Término</label>
           <input
             type="date"
             name="data_termino"
             defaultValue={campaign.data_termino ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Data do evento</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Data do evento</label>
           <input
             type="date"
             name="data_evento"
             defaultValue={campaign.data_evento ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Orçamento planejado (R$)</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Orçamento planejado (R$)</label>
           <input
             name="orcamento_planejado"
             type="number"
             step="0.01"
             defaultValue={campaign.orcamento_planejado ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Orçamento aprovado (R$)</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Orçamento aprovado (R$)</label>
           <input
             name="orcamento_aprovado"
             type="number"
             step="0.01"
             defaultValue={campaign.orcamento_aprovado ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Investimento realizado (R$)</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Investimento realizado (R$)</label>
           <input
             name="investimento_realizado"
             type="number"
             step="0.01"
             defaultValue={campaign.investimento_realizado ?? ""}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Objetivo estratégico</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Objetivo estratégico</label>
           <textarea
             name="objetivo_estrategico"
             rows={2}
             defaultValue={campaign.objetivo_estrategico ?? ""}
-            className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full resize-none rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Escopo macro</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Escopo macro</label>
           <textarea
             name="escopo_macro"
             rows={2}
             defaultValue={campaign.escopo_macro ?? ""}
-            className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full resize-none rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Resultados e observações</label>
+          <label className="mb-1 block text-xs font-medium text-ink-2">Resultados e observações</label>
           <textarea
             name="resultados_observacoes"
             rows={2}
             defaultValue={campaign.resultados_observacoes ?? ""}
-            className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="w-full resize-none rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
         </div>
       </div>
 
       <SaveButton label="Salvar alterações" />
-      {state.error && <p className="text-xs text-rose-600">{state.error}</p>}
+      {state.error && <p className="text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

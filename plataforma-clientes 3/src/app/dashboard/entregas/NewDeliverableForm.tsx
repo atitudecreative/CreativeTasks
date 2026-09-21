@@ -3,7 +3,19 @@
 import { useRef, useState, useTransition } from "react";
 import { createDeliverable } from "./actions";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
+import { Alert, Button, Icon, Input, Modal, Select, Textarea, useToast } from "@/components/ui";
 
+/* =========================================================================
+   NOVA ENTREGA
+   -------------------------------------------------------------------------
+   Era um formulário que se abria empurrando a lista inteira pra baixo —
+   em telas pequenas a pessoa perdia o contexto do que já existia. Virou
+   um diálogo, que é onde a criação de um registro pertence: foco preso,
+   Esc fecha, rolagem de fundo travada, e a lista continua atrás.
+
+   Os campos e os nomes (`name=`) são exatamente os mesmos, então o server
+   action `createDeliverable` não mudou uma linha.
+   ========================================================================= */
 export function NewDeliverableForm({
   ministryId,
   campaigns,
@@ -15,6 +27,7 @@ export function NewDeliverableForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const toast = useToast();
 
   function handleSubmit(formData: FormData) {
     setError(null);
@@ -25,126 +38,81 @@ export function NewDeliverableForm({
       } else {
         formRef.current?.reset();
         setOpen(false);
+        toast.success({
+          title: "Entrega registrada",
+          description: `"${String(formData.get("titulo") ?? "")}" já aparece na biblioteca.`,
+        });
       }
     });
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mb-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-      >
-        + Nova entrega
-      </button>
-    );
-  }
-
   return (
-    <form
-      ref={formRef}
-      action={handleSubmit}
-      className="mb-6 space-y-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-neutral-700">Nova entrega</p>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-400 hover:underline">
-          cancelar
-        </button>
-      </div>
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)} iconLeft={<Icon.Plus className="h-4 w-4" />}>
+        Nova entrega
+      </Button>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Título</label>
-          <input
-            name="titulo"
-            required
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Nova entrega"
+        description="Toda entrega é um link — nada fica hospedado no portal."
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit" form="form-nova-entrega" loading={isPending}>
+              Salvar entrega
+            </Button>
+          </>
+        }
+      >
+        <form id="form-nova-entrega" ref={formRef} action={handleSubmit} className="space-y-4">
+          {error && <Alert tone="danger">{error}</Alert>}
 
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">
-            Link principal (Drive, YouTube, etc.)
-          </label>
-          <input
+          <Input name="titulo" label="Título" required placeholder="ex: Card de divulgação — feed" />
+
+          <Input
             name="link_principal"
             type="url"
+            label="Link principal"
             required
-            placeholder="https://..."
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            placeholder="https://drive.google.com/..."
+            hint="Drive, YouTube, Figma ou qualquer link público."
+            iconLeft={<Icon.Link className="h-4 w-4" />}
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Tipo de arquivo</label>
-          <input
-            name="tipo_arquivo"
-            placeholder="ex: vídeo, carrossel, PDF"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input name="tipo_arquivo" label="Tipo de arquivo" placeholder="vídeo, carrossel, PDF..." />
+            <Input name="versao" label="Versão" placeholder="1, v2-final..." />
+            <Select name="campaign_id" label="Campanha ou evento" hint="Opcional — vincula a entrega ao relatório.">
+              <option value="">Nenhuma</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </Select>
+            <Select name="status" label="Status inicial" defaultValue="para_aprovacao">
+              {Object.entries(DELIVERABLE_STATUS_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Versão</label>
-          <input
-            name="versao"
-            placeholder="ex: 1, v2-final"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Campanha (opcional)</label>
-          <select
-            name="campaign_id"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          >
-            <option value="">Nenhuma</option>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500">Status inicial</label>
-          <select
-            name="status"
-            defaultValue="para_aprovacao"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          >
-            {Object.entries(DELIVERABLE_STATUS_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-neutral-500">
-            Links complementares (um por linha, opcional)
-          </label>
-          <textarea
+          <Textarea
             name="links_complementares"
-            rows={2}
-            className="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            label="Links complementares"
+            rows={3}
+            hint="Um por linha. Opcional."
+            placeholder={"https://...\nhttps://..."}
           />
-        </div>
-      </div>
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-      >
-        Salvar entrega
-      </button>
-      {error && <p className="text-xs text-rose-600">{error}</p>}
-    </form>
+        </form>
+      </Modal>
+    </>
   );
 }

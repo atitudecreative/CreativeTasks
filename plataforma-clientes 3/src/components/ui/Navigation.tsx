@@ -213,15 +213,20 @@ export function Tooltip({
   content,
   side = "top",
   className,
+  style,
   children,
 }: {
   content: React.ReactNode;
   side?: "top" | "bottom";
   className?: string;
+  /** Necessário quando o tooltip É o item de layout (ex: um segmento de
+   *  barra empilhada, cuja largura vem em %) — sem isso o wrapper
+   *  inline-flex encolhe pro tamanho do conteúdo e engole a largura. */
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
-    <span className={cn("group/tt relative inline-flex", className)}>
+    <span style={style} className={cn("group/tt relative inline-flex", className)}>
       {children}
       <span
         role="tooltip"

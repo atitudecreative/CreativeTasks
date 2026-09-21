@@ -1,52 +1,63 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { signIn } from "./actions";
+import { Alert, Button, Icon, Input } from "@/components/ui";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
-
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
-    >
+    <Button type="submit" variant="primary" size="lg" fullWidth loading={pending}>
       {pending ? "Entrando..." : "Entrar"}
-    </button>
+    </Button>
   );
 }
 
 export function LoginForm({ urlErrorMessage }: { urlErrorMessage: string | null }) {
   const [state, formAction] = useFormState(signIn, { error: null as string | null });
+  const [showPassword, setShowPassword] = useState(false);
+
+  const message = state?.error ?? urlErrorMessage;
 
   return (
     <form action={formAction} className="space-y-4">
-      <div>
-        <label className="mb-1 block text-sm font-medium text-neutral-700">E-mail</label>
-        <input
-          type="email"
-          name="email"
-          required
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-        />
-      </div>
+      {message && <Alert tone="danger">{message}</Alert>}
+
+      <Input
+        type="email"
+        name="email"
+        label="E-mail"
+        required
+        autoComplete="email"
+        // Entra focado: a tela de login tem um caminho só, e fazer a
+        // pessoa clicar antes de digitar é atrito puro.
+        autoFocus
+        placeholder="voce@exemplo.com.br"
+        iconLeft={<Icon.Message className="h-4 w-4" />}
+      />
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-neutral-700">Senha</label>
-        <input
-          type="password"
+        <Input
+          type={showPassword ? "text" : "password"}
           name="password"
+          label="Senha"
           required
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          autoComplete="current-password"
+          iconRight={
+            // Mostrar/ocultar senha é acessibilidade prática: sem isso,
+            // erro de digitação em senha longa só se descobre no envio.
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              className="rounded p-0.5 text-ink-3 transition hover:text-ink"
+            >
+              {showPassword ? <Icon.EyeOff className="h-4 w-4" /> : <Icon.Eye className="h-4 w-4" />}
+            </button>
+          }
         />
       </div>
-
-      {(state?.error || urlErrorMessage) && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state?.error ?? urlErrorMessage}
-        </p>
-      )}
 
       <SubmitButton />
     </form>

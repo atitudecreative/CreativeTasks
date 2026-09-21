@@ -47,12 +47,12 @@ function NewFolderForm() {
         required
         autoFocus
         placeholder="Nome da pasta, ex: Festa da Roça"
-        className="w-56 rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="w-56 rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       />
       <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
         Criar
       </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:underline">
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-2 hover:underline">
         Cancelar
       </button>
     </form>
@@ -85,12 +85,12 @@ function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
         required
         autoFocus
         placeholder="Nome da campanha, ex: nome da tag do Asana"
-        className="w-64 rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="w-64 rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       />
       <select
         name="tipo"
         defaultValue="campanha"
-        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         {TIPO_OPTIONS.map((t) => (
           <option key={t.value} value={t.value}>
@@ -102,7 +102,7 @@ function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
         name="ministryId"
         required
         defaultValue=""
-        className="rounded-lg border border-neutral-300 px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         <option value="" disabled>
           Ministério de origem...
@@ -116,7 +116,7 @@ function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
       <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
         Criar
       </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:underline">
+      <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-2 hover:underline">
         Cancelar
       </button>
     </form>
@@ -137,17 +137,17 @@ function Section({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200">
+    <div className="overflow-hidden rounded-card border border-line">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between bg-neutral-50 px-4 py-2 text-left"
+        className="flex w-full items-center justify-between bg-surface-sunken px-4 py-2 text-left"
       >
-        <span className="text-sm font-medium text-neutral-600">
-          {title} <span className="font-normal text-neutral-400">({count})</span>
+        <span className="text-sm font-medium text-ink-2">
+          {title} <span className="font-normal text-ink-3">({count})</span>
         </span>
         <svg
-          className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-150 ${
+          className={`h-4 w-4 shrink-0 text-ink-3 transition-transform duration-150 ${
             open ? "rotate-180" : ""
           }`}
           fill="none"
@@ -200,18 +200,18 @@ export function CampaignsAdminTable({
           placeholder="Buscar por nome ou ministério..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="w-full max-w-xs rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "" | "ativas" | "ocultas")}
-          className="rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
         >
           <option value="">Todas</option>
           <option value="ativas">Ativas (visíveis)</option>
           <option value="ocultas">Ocultas</option>
         </select>
-        <span className="text-xs text-neutral-400">
+        <span className="text-xs text-ink-3">
           {filtered.length} de {campaigns.length}
         </span>
         <div className="ml-auto flex items-center gap-4">
@@ -221,11 +221,11 @@ export function CampaignsAdminTable({
       </div>
 
       {campaigns.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
+        <div className="rounded-panel border border-dashed border-line-strong bg-surface p-8 text-center text-sm text-ink-2">
           Nenhuma campanha cadastrada ainda.
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
+        <div className="rounded-panel border border-dashed border-line-strong bg-surface p-8 text-center text-sm text-ink-2">
           Nenhuma campanha encontrada para esse filtro.
         </div>
       ) : (
@@ -240,7 +240,7 @@ export function CampaignsAdminTable({
 
           <Section title="Sem pasta" count={semPasta.length} defaultOpen={hasActiveFilter || folderList.length === 0}>
             {semPasta.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-neutral-400">Nenhuma campanha fora de pasta.</p>
+              <p className="px-4 py-3 text-xs text-ink-3">Nenhuma campanha fora de pasta.</p>
             ) : (
               semPasta.map((c, i) => (
                 <CampaignRow
