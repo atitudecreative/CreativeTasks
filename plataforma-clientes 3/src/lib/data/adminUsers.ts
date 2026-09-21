@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireComunicacao } from "@/lib/data/ministries";
 
 export type AdminUserRow = {
   id: string;
@@ -8,9 +10,20 @@ export type AdminUserRow = {
   memberships: { ministryId: string; ministryName: string; role: string }[];
 };
 
-// Só chame isso depois de garantir (requireComunicacao) que quem está
-// pedindo é Comunicação — usa a service role key, ignora RLS.
-export async function listUsersForAdmin(): Promise<AdminUserRow[]> {
+// Lista TODAS as contas do Supabase Auth com service role — ou seja,
+// ignorando RLS. Antes, a garantia de que só a Comunicação chegava aqui
+// era um comentário pedindo pro chamador ter feito requireComunicacao()
+// antes. O único chamador de hoje faz, mas comentário não é controle de
+// acesso: bastava alguém montar uma rota nova esquecendo a linha pra
+// expor e-mail de todo mundo.
+//
+// A checagem agora mora dentro da função. requireComunicacao() redireciona
+// quem não é Comunicação, então não há caminho de retorno com dados.
+// Defesa em profundidade: o chamador pode continuar chamando antes, e
+// custa nada — getCurrentUser já é cacheado por request.
+export const listUsersForAdmin = cache(async (): Promise<AdminUserRow[]> => {
+  await requireComunicacao();
+
   const admin = createAdminClient();
 
   const [{ data: authData, error: authError }, { data: profiles }, { data: memberships }] =
@@ -48,4 +61,4 @@ export async function listUsersForAdmin(): Promise<AdminUserRow[]> {
       };
     })
     .sort((a, b) => a.email.localeCompare(b.email));
-}
+});

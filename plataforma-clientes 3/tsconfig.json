@@ -6,6 +6,11 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Os testes rodam com o runner nativo do Node (node --test), que faz
+    // type stripping e exige a extensão .ts explícita no import relativo.
+    // Só é permitido junto de noEmit, que já é o caso aqui — o Next
+    // continua compilando exatamente como antes.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

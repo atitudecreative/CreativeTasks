@@ -15,6 +15,7 @@
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { normalizaSecao, secaoDaTarefa, resolveStatus, dataDe } from "./asana-status.mjs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -74,7 +75,99 @@ const ASANA_API = "https://app.asana.com/api/1.0";
 // caso ela aparece tanto em /projects/{gid}/tasks quanto em
 // /tasks/{pai}/subtasks). Sem isso não dá pra diferenciar tarefa de topo
 // de verdade de subtarefa "solta" no quadro.
-const TASK_FIELDS = "name,completed,assignee.name,due_on,permalink_url,notes,tags.name,parent";
+// Campos pedidos ao Asana.
+//
+// `memberships.section.name` + `memberships.project.gid` são o que
+// destrava o status de verdade: `memberships` é a lista de (projeto,
+// coluna) em que o card está, e é de lá que sai em qual coluna do quadro
+// ele se encontra. Sem isso o sync só conseguia olhar `completed` e
+// colapsar 14 status em 2.
+//
+// `completed_at` e `created_at` viram data_conclusao e data_solicitacao.
+// Sem eles não existia tempo de ciclo: data_conclusao nunca era escrita, e
+// data_solicitacao pegava o `default current_date` da coluna, ou seja, a
+// data em que o SYNC rodou — não a data em que o pedido chegou.
+const TASK_FIELDS = [
+  "name",
+  "completed",
+  "completed_at",
+  "created_at",
+  "modified_at",
+  "assignee.name",
+  "due_on",
+  "permalink_url",
+  "notes",
+  "tags.name",
+  "parent",
+  "memberships.section.name",
+  "memberships.project.gid",
+].join(",");
+
+// =========================================================================
+// DE-PARA: coluna do quadro do Asana -> status do portal
+// =========================================================================
+// Ver migration 0031. A regra do ministério vence a global; sem nenhuma
+// regra, cai no comportamento antigo.
+
+// Carrega o de-para inteiro de uma vez (é uma tabela pequena) em vez de
+// consultar por tarefa.
+async function loadStatusMap() {
+  const { data, error } = await supabase
+    .from("asana_status_map")
+    .select("ministry_id, secao_normalizada, status");
+
+  if (error) {
+    console.warn(
+      `  Aviso: não consegui ler o de-para de status (${error.message}). ` +
+        "Seguindo com o comportamento antigo (concluída/em produção)."
+    );
+    return { global: new Map(), porMinisterio: new Map() };
+  }
+
+  const global = new Map();
+  const porMinisterio = new Map();
+
+  for (const row of data ?? []) {
+    if (row.ministry_id) {
+      let m = porMinisterio.get(row.ministry_id);
+      if (!m) {
+        m = new Map();
+        porMinisterio.set(row.ministry_id, m);
+      }
+      m.set(row.secao_normalizada, row.status);
+    } else {
+      global.set(row.secao_normalizada, row.status);
+    }
+  }
+
+  return { global, porMinisterio };
+}
+
+// Registra as colunas encontradas, com a contagem de tarefas em cada uma.
+// É isso que faz a tela de configuração listar as colunas REAIS de cada
+// quadro em vez de pedir que alguém digite o nome de cabeça.
+async function registrarSecoes(ministryId, contagemPorSecao) {
+  if (contagemPorSecao.size === 0) return;
+
+  const rows = Array.from(contagemPorSecao.entries()).map(([secao, total]) => ({
+    ministry_id: ministryId,
+    secao,
+    secao_normalizada: normalizaSecao(secao),
+    total_tarefas: total,
+    vista_em: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from("asana_secoes")
+    .upsert(rows, { onConflict: "ministry_id,secao_normalizada" });
+
+  if (error) {
+    // Não derruba a sincronização: isto alimenta uma tela de
+    // configuração, não os dados do portal.
+    console.warn(`  Aviso: não consegui registrar as colunas do quadro (${error.message}).`);
+  }
+}
+
 
 async function fetchAllTasks(projectGid) {
   const tasks = [];
@@ -372,7 +465,7 @@ async function touchDataSource(ministryId) {
     .eq("source", "asana");
 }
 
-async function syncMinistry(dataSource, campaignMap) {
+async function syncMinistry(dataSource, campaignMap, statusMap) {
   const { ministry_id: ministryId, external_id: projectGid } = dataSource;
 
   if (!projectGid) {
@@ -406,19 +499,35 @@ async function syncMinistry(dataSource, campaignMap) {
   // Fase 2: grava todas as demandas de uma vez, em lotes — ainda sem
   // parent_demand_id (não dá pra saber o id real de um pai que também é
   // novo nessa mesma rodada antes dele já estar gravado).
-  const rows = flatEntries.map(({ task }) => ({
-    ministry_id: ministryId,
-    asana_task_gid: task.gid,
-    titulo: task.name,
-    status: task.completed ? "concluida" : "em_producao",
-    prazo_acordado: task.due_on ?? null,
-    link_origem: task.permalink_url ?? null,
-    observacao_interna: task.assignee?.name
-      ? `Sincronizado do Asana. Responsável no Asana: ${task.assignee.name}.`
-      : "Sincronizado do Asana.",
-    fonte_externa: "asana",
-    updated_at: new Date().toISOString(),
-  }));
+  // Colunas do quadro encontradas nesta rodada, com quantas tarefas em
+  // cada uma — vira o catálogo que a tela de configuração oferece.
+  const contagemPorSecao = new Map();
+
+  const rows = flatEntries.map(({ task }) => {
+    const secao = secaoDaTarefa(task, projectGid);
+    if (secao) contagemPorSecao.set(secao, (contagemPorSecao.get(secao) ?? 0) + 1);
+
+    return {
+      ministry_id: ministryId,
+      asana_task_gid: task.gid,
+      titulo: task.name,
+      status: resolveStatus(task, secao, ministryId, statusMap),
+      prazo_acordado: task.due_on ?? null,
+      // Datas reais, do próprio Asana. Sem elas não havia como calcular
+      // tempo de ciclo: data_conclusao nunca era preenchida, e
+      // data_solicitacao caía no default da coluna (a data do sync).
+      data_conclusao: dataDe(task.completed_at),
+      data_solicitacao: dataDe(task.created_at),
+      link_origem: task.permalink_url ?? null,
+      observacao_interna: task.assignee?.name
+        ? `Sincronizado do Asana. Responsável no Asana: ${task.assignee.name}.`
+        : "Sincronizado do Asana.",
+      fonte_externa: "asana",
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  await registrarSecoes(ministryId, contagemPorSecao);
 
   const written = await upsertDemandsBatch(rows);
   const gidToId = new Map(written.map((r) => [r.asana_task_gid, r.id]));
@@ -523,6 +632,10 @@ async function main() {
     // a campanha que a primeira acabou de criar em vez de duplicar.
     const campaignMap = await loadCampaignMap();
 
+    // De-para de status, também carregado uma vez pra rodada inteira —
+    // é uma tabela pequena, e assim nenhuma tarefa gera consulta própria.
+    const statusMap = await loadStatusMap();
+
     // Cada ministério é isolado: se um falhar (ex: erro genuíno na API do
     // Asana), fica registrado no log e a rotina segue pros próximos — mas
     // o job ainda termina com status de erro (exit code 1) se algum
@@ -530,7 +643,7 @@ async function main() {
     let hadError = false;
     for (const source of sources) {
       try {
-        await syncMinistry(source, campaignMap);
+        await syncMinistry(source, campaignMap, statusMap);
       } catch (err) {
         hadError = true;
         console.error(`Erro ao sincronizar ministério ${source.ministry_id}: ${err.message}. Seguindo pros próximos.`);

@@ -37,6 +37,195 @@ da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
 delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
 ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
+## Camada de inteligência (migration 0032)
+
+A plataforma passa a **interpretar** os próprios dados, não só exibi-los.
+"R$ 95 de custo por resultado" vira "R$ 95 — 20% acima da mediana de
+eventos do mesmo tipo, sendo R$ 72 a R$ 88 a faixa usual".
+
+### Onde o cálculo mora
+
+`campanha_perfil` (view, migration 0032) devolve **uma linha por campanha**
+com mídia, demandas, entregas e marcos já agregados. Antes, comparar
+campanhas exigiria carregar tudo e somar num `.reduce()` no Node.
+
+A view usa `security_invoker = true`, então roda com as permissões de quem
+consulta. Isso não é detalhe: **sem esse ajuste, uma view sobre tabelas com
+RLS vaza dado de todos os ministérios para qualquer usuário logado.** O
+efeito colateral é desejável — um ministério compara contra o próprio
+histórico, a Comunicação contra a carteira inteira, e isso sai de graça.
+
+### O motor de regras
+
+`src/lib/insights.ts` é puro: sem Supabase, sem `next/headers`, sem data
+"de agora". Tudo entra por parâmetro, e é isso que permite testar cada
+regra isoladamente.
+
+**Três regras de honestidade, acima de qualquer outra coisa:**
+
+1. **Não inventar.** Nenhuma regra dispara sem os dados que exige. Faltou
+   base, não sai insight — e a tela diz *"dados insuficientes"* em vez de
+   mostrar uma conclusão sem lastro.
+2. **Mediana e quartil, nunca média.** Uma campanha com verba
+   desproporcional destrói uma média e faz todo o resto parecer ruim. A
+   faixa p25–p75 é o que responde de verdade "quanto costuma ser".
+3. **Todo insight carrega o n.** "12% acima da média" sem dizer média de
+   quantos é retórica. Cada insight leva `baseAmostra`, e a interface
+   mostra.
+
+Amostra mínima para uma faixa: **4 campanhas comparáveis** (mesmo `tipo`,
+excluindo a analisada). Abaixo disso o quartil é ruído.
+
+### Regras implementadas
+
+| Regra | Dispara quando | Exige |
+|---|---|---|
+| Quartil (CPA, CTR, CPM, alcance) | valor sai da faixa p25–p75 e difere ≥10% da mediana | 4+ comparáveis |
+| Anomalia investimento × retorno | verba subiu ≥20% e retorno não acompanhou nem 1/3 disso | campanha anterior do ministério, com verba e conversão |
+| Eficiência | verba caiu ≥10% e retorno se manteve | idem |
+| Orçamento | realizado >105% do aprovado, ou <70% com a campanha encerrada | orçamento aprovado |
+| Tendência | resultados **estritamente** crescentes em 3+ eventos | histórico do ministério |
+| Recorde | supera a melhor marca anterior do ministério | 2+ eventos anteriores |
+| Pontualidade | taxa de entrega no prazo fora da faixa usual | 5+ demandas com prazo aferível |
+
+Uma série que oscila **não** é chamada de tendência — isso seria vender
+ruído como padrão.
+
+### Testes
+
+```bash
+npm test          # 40 testes
+npm run test:insights
+```
+
+27 testes só do motor, e boa parte deles verifica que a regra **não**
+dispara: sem amostra, sem rastreamento de conversão, com série oscilante,
+com valor dentro da faixa normal. Rodam com o runner nativo do Node
+(`node --test`), sem dependência nova.
+
+### Onde aparece
+
+Seção **"Leitura automática"** do relatório de evento, logo depois do
+resumo e antes dos números — quem abre o relatório quer saber "como foi"
+antes de "quanto deu". Ao lado, o painel **"Contra eventos semelhantes"**
+mostra em régua onde este evento cai na faixa usual de cada métrica.
+
+### Visão de carteira e do cliente
+
+`src/lib/carteira.ts` (puro, testado) agrega o perfil de campanha em duas
+leituras que o relatório individual não dá:
+
+- **Painel da Comunicação** (`/dashboard/admin`) — investido e resultados
+  dos últimos 12 meses contra os 12 anteriores, e ranking de eficiência
+  por ministério (custo por resultado **mediano**, não médio).
+- **Início do ministério** (`/dashboard`) — evolução dos eventos
+  publicados, melhor marca, e a eficiência do ministério contra a faixa
+  dos demais.
+
+Duas decisões que valem registrar:
+
+**Zero e "não sei" são coisas diferentes.** `somaOuNull()` devolve `null`
+quando nenhuma campanha tem conversão rastreada, em vez de somar zeros.
+Mostrar "0 resultados" onde não há rastreamento seria afirmar que o evento
+não deu retorno.
+
+**A referência exclui o próprio.** A faixa contra a qual um ministério é
+comparado não inclui as campanhas dele — comparar alguém consigo mesmo não
+diz nada. Há teste específico para isso.
+
+## De-para de status do Asana (migration 0031)
+
+### O problema
+
+O sync resolvia o status de toda demanda assim:
+
+```js
+status: task.completed ? "concluida" : "em_producao"
+```
+
+A plataforma modela **14 status**, o banco aceita os 14, a interface
+desenha os 14 — e os dados tinham **dois**. Na prática:
+
+- o estágio **"Com o ministério"** (a leitura mais acionável do painel)
+  nunca acontecia, porque nenhum dos três status que o compõem era
+  gravado;
+- `prioridade` e `tipo_servico` nunca eram escritos, então a coluna
+  Prioridade ficava vazia;
+- `data_conclusao` nunca era escrita e `data_solicitacao` caía no
+  `default current_date` da coluna (a data em que o sync rodou), o que
+  tornava **tempo de ciclo incalculável**.
+
+O dado sempre esteve no Asana: a **coluna do quadro** em que o card está.
+O script só não pedia esse campo.
+
+### Como funciona agora
+
+O sync pede `memberships.section.name` (a coluna), `completed_at` e
+`created_at`, e resolve o status nesta ordem:
+
+1. **Concluído no Asana** → `concluida`, esteja em que coluna estiver.
+2. **Regra do ministério** para aquela coluna.
+3. **Regra global** para aquela coluna.
+4. **Nada casou** → `em_producao`, exatamente o comportamento anterior.
+
+Subtarefa não é card de quadro e vem sem coluna — cai no passo 4, que é o
+correto.
+
+### Onde se configura
+
+`/dashboard/admin/asana`. A tela **não pede que ninguém digite nome de
+coluna**: o sync registra em `asana_secoes` toda coluna que encontrou, com
+quantas tarefas tem em cada uma, e a tela oferece essa lista. Cada linha
+mostra de onde veio o valor em vigor (regra do ministério, regra global ou
+padrão) — sem isso ninguém entende por que dois quadros com a mesma coluna
+se comportam diferente.
+
+A migration já cadastra regras globais para os nomes de coluna mais comuns
+em quadro de agência em português, para a tela não nascer vazia. Tudo é
+editável e apagável pela interface.
+
+### Testes
+
+A regra de status é a decisão mais sensível do pipeline — é ela que define
+em que estágio cada demanda aparece para o cliente. A lógica pura vive em
+`scripts/asana-status.mjs`, separada do I/O justamente para ser testável:
+
+```bash
+npm run test:asana-status
+```
+
+13 testes cobrindo normalização de acento e caixa, precedência
+ministério > global > padrão, card em mais de um projeto, subtarefa sem
+coluna, e a garantia de que um de-para vazio preserva exatamente o
+comportamento anterior.
+
+## Histórico de status (migration 0030)
+
+A `audit_log` existe desde a migration 0004 e **nunca recebeu uma linha** —
+nenhum ponto do código escrevia nela. Sem isso a plataforma guarda apenas
+o estado atual de cada demanda, campanha e entrega, e não o caminho até
+ele, o que impede calcular tempo por etapa, gargalo do fluxo e retrabalho.
+
+A `0030_historico_status_e_indices.sql` liga isso por **trigger no banco**,
+e não por código na aplicação, porque o status é escrito de três lugares
+diferentes (server actions do portal, `sync-asana.mjs` com service role, e
+o SQL Editor do Supabase) — um trigger é o único ponto por onde os três
+passam.
+
+Registra transição de `demands.status`, `campaigns.saude`, `campaigns.fase`,
+`campaigns.publicada` e `deliverables.status`. Só grava quando o valor
+muda de fato (`when (old.x is distinct from new.x)` no próprio trigger),
+o que importa porque o sync do Asana faz upsert de todas as demandas a
+cada rodada — sem esse filtro o log ganharia milhares de linhas idênticas
+por dia.
+
+`actor_id` vem null quando quem escreveu foi a service role. Isso é
+informação, não defeito: separa mudança feita por uma pessoa de mudança
+vinda da automação.
+
+Rode a migration no SQL Editor do Supabase como as outras. Ela é aditiva
+e pode ser executada mais de uma vez sem efeito colateral.
+
 ## Design system ("Signal")
 
 A camada de apresentação inteira segue um sistema único, em

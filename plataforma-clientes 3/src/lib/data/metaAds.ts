@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { deriveMetaKpis } from "@/lib/metaAdsMath";
 import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
@@ -106,7 +107,12 @@ export type MetaDemographicItem = {
 // IDs das campanhas do Meta vinculadas a uma campanha/evento do portal —
 // passo comum às buscas de anúncios, semana e demografia abaixo (elas
 // ligam por meta_campaign_id, não pela uuid do portal).
-async function getMetaCampaignIdsForCampaign(campaignId: string): Promise<string[]> {
+// cache() do React: dedupe por request. Três funções desta mesma tela
+// (getMetaAdsForCampaign, getMetaWeeklyStatsForCampaign e
+// getMetaDemographicsForCampaign) precisam desta lista, e antes cada uma
+// disparava a MESMA query — três idas ao banco por relatório aberto, com
+// resposta idêntica. Agora a primeira paga e as outras duas reaproveitam.
+const getMetaCampaignIdsForCampaign = cache(async (campaignId: string): Promise<string[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("meta_ad_campaigns")
@@ -119,7 +125,7 @@ async function getMetaCampaignIdsForCampaign(campaignId: string): Promise<string
   }
 
   return (data ?? []).map((r) => r.meta_campaign_id);
-}
+});
 
 // Uma linha por anúncio/criativo, somando todas as campanhas do Meta
 // vinculadas a esse evento — alimenta a "Tabela completa por criativo".

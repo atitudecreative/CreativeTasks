@@ -10,6 +10,8 @@ import {
   getMetaWeeklyStatsForCampaign, getMetaDemographicsForCampaign,
 } from "@/lib/data/metaAds";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
+import { getPerfilCampanha, getUniversoComparacao } from "@/lib/data/campanhaPerfil";
+import { gerarInsights, construirComparacoes } from "@/lib/insights";
 import { Breadcrumb } from "@/components/ui";
 import { CampaignReport } from "./CampaignReport";
 
@@ -35,6 +37,23 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
       getMetaDemographicsForCampaign(id),
       getCurrentUser(),
     ]);
+
+  // Leitura automática. Roda no servidor porque depende do universo de
+  // comparação inteiro — mandar isso pro navegador seria mandar os
+  // números de todas as campanhas junto.
+  //
+  // As duas consultas são independentes do resto e da própria campanha,
+  // então vão juntas. Falha em qualquer uma devolve null/vazio e a
+  // seção some: comparação é um extra, não pode derrubar o relatório.
+  const [perfil, universo] = await Promise.all([
+    getPerfilCampanha(id),
+    getUniversoComparacao(),
+  ]);
+
+  const leitura = perfil
+    ? gerarInsights(perfil, universo)
+    : { insights: [], amostraComparavel: 0, dadosInsuficientes: false };
+  const comparacoes = perfil ? construirComparacoes(perfil, universo) : [];
 
   const metaMetrics = summarizeMetaMetrics(metaCampaigns);
   const progress = calculateProgress(milestones);
@@ -98,6 +117,8 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
         metaWeekly={metaWeekly}
         metaDemographics={metaDemographics}
         metaAds={metaAds}
+        leitura={leitura}
+        comparacoes={comparacoes}
       />
     </div>
   );
