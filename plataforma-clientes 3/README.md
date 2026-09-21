@@ -37,6 +37,33 @@ da 0008/0009. A 0011 permite excluir ministério (faltava a policy de RLS de
 delete). A 0012 cria `campaign_folders` (pastas de campanha dentro de cada
 ministério, ex: uma pasta "Festa da Roça" com uma campanha por edição/ano).
 
+## Histórico de status (migration 0030)
+
+A `audit_log` existe desde a migration 0004 e **nunca recebeu uma linha** —
+nenhum ponto do código escrevia nela. Sem isso a plataforma guarda apenas
+o estado atual de cada demanda, campanha e entrega, e não o caminho até
+ele, o que impede calcular tempo por etapa, gargalo do fluxo e retrabalho.
+
+A `0030_historico_status_e_indices.sql` liga isso por **trigger no banco**,
+e não por código na aplicação, porque o status é escrito de três lugares
+diferentes (server actions do portal, `sync-asana.mjs` com service role, e
+o SQL Editor do Supabase) — um trigger é o único ponto por onde os três
+passam.
+
+Registra transição de `demands.status`, `campaigns.saude`, `campaigns.fase`,
+`campaigns.publicada` e `deliverables.status`. Só grava quando o valor
+muda de fato (`when (old.x is distinct from new.x)` no próprio trigger),
+o que importa porque o sync do Asana faz upsert de todas as demandas a
+cada rodada — sem esse filtro o log ganharia milhares de linhas idênticas
+por dia.
+
+`actor_id` vem null quando quem escreveu foi a service role. Isso é
+informação, não defeito: separa mudança feita por uma pessoa de mudança
+vinda da automação.
+
+Rode a migration no SQL Editor do Supabase como as outras. Ela é aditiva
+e pode ser executada mais de uma vez sem efeito colateral.
+
 ## Design system ("Signal")
 
 A camada de apresentação inteira segue um sistema único, em

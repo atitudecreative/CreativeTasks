@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
 import { SAUDE_LABEL } from "@/lib/campaignOptions";
@@ -268,7 +269,10 @@ export async function getAllCampaignFoldersAdmin(): Promise<CampaignFolder[]> {
   return data ?? [];
 }
 
-export async function getCampaignById(id: string): Promise<Campaign | null> {
+// Cacheado porque toda rota de detalhe de campanha chama isto DUAS vezes
+// por request: uma em generateMetadata (pro <title>) e outra no corpo da
+// página. Sem cache, são duas queries idênticas em cada abertura.
+export const getCampaignById = cache(async (id: string): Promise<Campaign | null> => {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -285,7 +289,7 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
   }
 
   return data as unknown as Campaign | null;
-}
+});
 
 // Todas as demandas vinculadas a uma campanha (via demand_campaigns) —
 // uma demanda pode aparecer em mais de uma campanha ao mesmo tempo.

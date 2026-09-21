@@ -170,7 +170,9 @@ export async function getAllMinistriesWithCounts(): Promise<MinistryWithCounts[]
   }));
 }
 
-export async function getMinistryById(id: string): Promise<MinistryDetail | null> {
+// Cacheado pelo mesmo motivo de getCampaignById: a rota de edição de
+// ministério chama em generateMetadata e de novo no corpo da página.
+export const getMinistryById = cache(async (id: string): Promise<MinistryDetail | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ministries")
@@ -186,7 +188,7 @@ export async function getMinistryById(id: string): Promise<MinistryDetail | null
   }
 
   return data as unknown as MinistryDetail | null;
-}
+});
 
 // Ministério "ativo" na sessão: respeita o seletor (cookie) quando o
 // usuário tem acesso a mais de um ministério (PRD 7.1).
