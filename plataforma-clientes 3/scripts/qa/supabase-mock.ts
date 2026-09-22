@@ -24,11 +24,17 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
   switch (nome) {
     case "ministries": return F.MINISTRIES as unknown as Linha[];
     case "ministry_members":
-      return F.MINISTRIES.map((m) => ({
-        ministry_id: m.id, user_id: "user-1", role: "supervisor", ministries: m,
-      })) as unknown as Linha[];
+      return [
+        ...F.MINISTRIES.map((m) => ({ ministry_id: m.id, user_id: "user-1", role: "supervisor", ministries: m })),
+        { ministry_id: "min-1", user_id: "user-2", role: "aprovador", ministries: F.MINISTRIES[0] },
+        { ministry_id: "min-2", user_id: "user-3", role: "leitor", ministries: F.MINISTRIES[1] },
+      ] as unknown as Linha[];
     case "profiles":
-      return [{ id: "user-1", full_name: "Ana Ribeiro", papel_global: "gestor_comunicacao", brand_color: null, walnut_color: null }];
+      return [
+        { id: "user-1", full_name: "Ana Ribeiro", papel_global: "gestor_comunicacao", brand_color: null, walnut_color: null },
+        { id: "user-2", full_name: "João Pereira da Silva Santos", papel_global: "nenhum", brand_color: null, walnut_color: null },
+        { id: "user-3", full_name: null, papel_global: "atendimento", brand_color: null, walnut_color: null },
+      ];
     case "demands": return F.DEMANDS as unknown as Linha[];
     case "campaigns": return F.CAMPAIGNS as unknown as Linha[];
     case "deliverables": return F.DELIVERABLES as unknown as Linha[];
@@ -193,6 +199,26 @@ export async function createClient() {
     auth: {
       async getUser() {
         return { data: { user: { id: "user-1", email: "qa@atitude.local" } }, error: null };
+      },
+      admin: {
+        // A tela de usuários pagina a API de Auth. Devolver sempre a mesma
+        // página faria a leitura entrar em laço; a segunda página vem
+        // vazia, que é o sinal de fim.
+        async listUsers({ page = 1 }: { page?: number; perPage?: number } = {}) {
+          if (page > 1) return { data: { users: [] }, error: null };
+          return {
+            data: {
+              users: [
+                { id: "user-1", email: "ana@atitude.com.br" },
+                { id: "user-2", email: "joao.pereira@ibatitude.com.br" },
+                { id: "user-3", email: "maria@ibatitude.com.br" },
+              ],
+            },
+            error: null,
+          };
+        },
+        async deleteUser() { return { data: null, error: null }; },
+        async createUser() { return { data: { user: null }, error: { message: "QA_MOCK: criação desativada" } }; },
       },
     },
     storage: {

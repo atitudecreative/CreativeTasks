@@ -90,7 +90,7 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-label uppercase text-ink-3">Faz parte de</span>
             {campaigns.map((c) => (
-              <Link key={c.id} href={`/dashboard/campanhas/${c.id}`}>
+              <Link key={c.id} href={`/dashboard/campanhas/${c.id}`} className="inline-flex min-h-6 items-center">
                 <Badge tone="accent" icon={<Icon.Megaphone className="h-3 w-3" />}>
                   {c.nome}
                 </Badge>

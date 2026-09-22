@@ -93,7 +93,7 @@ export function LeituraMinisterioPanel({ leitura }: { leitura: LeituraMinisterio
           <p className="mb-1 font-mono text-label uppercase text-ink-3">Melhor marca</p>
           <Link
             href={`/dashboard/campanhas/${leitura.melhorEvento.id}`}
-            className="group flex items-baseline justify-between gap-3"
+            className="group flex min-h-6 items-baseline justify-between gap-3 py-0.5"
           >
             <span className="min-w-0 truncate text-small font-medium text-ink transition-colors group-hover:text-brand-600">
               {leitura.melhorEvento.nome}

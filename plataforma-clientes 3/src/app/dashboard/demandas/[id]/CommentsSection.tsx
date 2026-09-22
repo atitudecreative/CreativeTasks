@@ -104,7 +104,7 @@ export function CommentsSection({
                         onClick={() => handleDelete(c.id)}
                         disabled={isPending}
                         aria-label="Apagar comentário"
-                        className="ml-auto rounded p-1 text-ink-3 opacity-0 transition duration-120 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+                        className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded text-ink-3 opacity-0 transition duration-120 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
                       >
                         <Icon.Trash className="h-3.5 w-3.5" />
                       </button>
