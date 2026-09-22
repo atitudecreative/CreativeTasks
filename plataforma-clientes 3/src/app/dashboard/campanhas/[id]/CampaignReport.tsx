@@ -120,7 +120,7 @@ export function CampaignReport({
   orcamentoAprovado: number | null;
   investimentoRealizado: number | null;
   resultadosObservacoes: string | null | undefined;
-  resumoDemandas: { total: number; concluidas: number; atrasadas: number; abertas: number };
+  resumoDemandas: { total: number; concluidas: number; atrasadas: number; emAndamento: number };
   demandasOrdenadas: DemandListItem[];
   progress: number | null;
   proximoMarco: Milestone | undefined;

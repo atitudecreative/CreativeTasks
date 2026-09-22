@@ -27,7 +27,7 @@ function NewFolderForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-600 hover:underline"
+        className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline"
       >
         + Nova pasta
       </button>
@@ -49,10 +49,10 @@ function NewFolderForm() {
         placeholder="Nome da pasta, ex: Festa da Roça"
         className="w-56 rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       />
-      <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+      <button type="submit" className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline">
         Criar
       </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-2 hover:underline">
+      <button type="button" onClick={() => setOpen(false)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:underline">
         Cancelar
       </button>
     </form>
@@ -71,7 +71,7 @@ function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-600 hover:underline"
+        className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline"
       >
         + Nova campanha
       </button>
@@ -113,10 +113,10 @@ function NewCampaignForm({ ministries }: { ministries: Ministry[] }) {
           </option>
         ))}
       </select>
-      <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+      <button type="submit" className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline">
         Criar
       </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-2 hover:underline">
+      <button type="button" onClick={() => setOpen(false)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:underline">
         Cancelar
       </button>
     </form>

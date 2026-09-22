@@ -98,7 +98,6 @@ export default async function DashboardPage() {
   const budgetSummary = getBudgetSummary(campaigns);
 
   const taxaConclusao = resumo.total > 0 ? (resumo.concluidas / resumo.total) * 100 : null;
-  const comMinisterio = stages.find((s) => s.key === "ministerio")?.count ?? 0;
   const campanhasRisco = campaigns.filter((c) => c.saude === "atencao" || c.saude === "critica");
 
   // "Ativas" quer dizer ativas. A contagem anterior era `campaigns.length`,
@@ -168,7 +167,7 @@ export default async function DashboardPage() {
         description={
           resumo.total === 0
             ? "Ainda não há demandas publicadas para este ministério."
-            : `${resumo.abertas} ${resumo.abertas === 1 ? "demanda em andamento" : "demandas em andamento"} e ${campanhasAtivas.length} ${campanhasAtivas.length === 1 ? "campanha ativa" : "campanhas ativas"}.`
+            : `${resumo.emAndamento} ${resumo.emAndamento === 1 ? "demanda em andamento" : "demandas em andamento"} e ${campanhasAtivas.length} ${campanhasAtivas.length === 1 ? "campanha ativa" : "campanhas ativas"}.`
         }
         actions={
           <>
@@ -187,13 +186,18 @@ export default async function DashboardPage() {
       />
 
       {/* ---------- NÍVEL 1 + 2: estado do trabalho e o que trava ---------- */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+      {/* items-start: cada painel com a altura do próprio conteúdo. Com o
+          esticamento padrão do grid, o painel curto (situação) ganhava uma
+          faixa vazia de uns 180px para acompanhar o alto (atenção) — e o
+          alto, que era o que tinha conteúdo de sobra, é que rolava por
+          dentro. Alinhados pelo topo, os dois mostram o que têm. */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
         <Panel
           title="Situação das demandas"
           description={`${resumo.total} ${resumo.total === 1 ? "demanda" : "demandas"} de 2026 em diante`}
           className="lg:col-span-3"
           action={
-            <Link href="/dashboard/demandas" className="text-caption text-brand-600 underline-offset-4 hover:underline">
+            <Link href="/dashboard/demandas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
               detalhar
             </Link>
           }
@@ -209,9 +213,9 @@ export default async function DashboardPage() {
             <>
               <StageBar stages={stages} total={resumo.total} />
               <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-4">
-                <Metric size="compact" label="Em andamento" value={resumo.abertas} />
+                <Metric size="compact" label="Em andamento" value={resumo.emAndamento} />
                 <Metric size="compact" label="Concluídas" value={resumo.concluidas} />
-                <Metric size="compact" label="Com você" value={comMinisterio} />
+                <Metric size="compact" label="Com você" value={resumo.comMinisterio} />
                 <Metric size="compact" label="Atrasadas" value={resumo.atrasadas} />
               </div>
             </>
@@ -361,7 +365,7 @@ export default async function DashboardPage() {
         <Panel
           title="Próximos prazos"
           action={
-            <Link href="/dashboard/demandas" className="text-caption text-brand-600 underline-offset-4 hover:underline">
+            <Link href="/dashboard/demandas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
               ver todas
             </Link>
           }
@@ -398,7 +402,7 @@ export default async function DashboardPage() {
           title="Material recente"
           description="Últimos arquivos entregues"
           action={
-            <Link href="/dashboard/entregas" className="text-caption text-brand-600 underline-offset-4 hover:underline">
+            <Link href="/dashboard/entregas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
               ver todos
             </Link>
           }

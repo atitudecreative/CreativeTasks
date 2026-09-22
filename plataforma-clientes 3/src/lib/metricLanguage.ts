@@ -155,6 +155,28 @@ export const METRICS: Record<MetricKey, MetricDef> = {
 
 const EM_DASH = "—";
 
+/* -------------------------------------------------------------------------
+   Percentual
+   -------------------------------------------------------------------------
+   Em pt-BR a casa decimal é vírgula. A plataforma formatava dinheiro com
+   toLocaleString("pt-BR") — "R$ 1.284,50" — e percentual com toFixed(),
+   que é do JavaScript e escreve sempre com PONTO. Resultado: "R$ 12.641,75"
+   e "3.00%" lado a lado na mesma tela, em um produto brasileiro.
+
+   Um formatador só, usado por todo mundo, resolve — e evita que a próxima
+   tela repita o toFixed().
+   ------------------------------------------------------------------------- */
+export function formatPercent(
+  value: number | null | undefined,
+  casas: number | "auto" = "auto"
+): string {
+  if (value == null || !Number.isFinite(value)) return EM_DASH;
+  // "auto": duas casas abaixo de 10 (onde 3,25% e 3,3% dizem coisas
+  // diferentes) e uma acima.
+  const d = casas === "auto" ? (Math.abs(value) < 10 ? 2 : 1) : casas;
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d })}%`;
+}
+
 export function formatMetric(value: number | null | undefined, format: MetricFormat): string {
   if (value == null || !Number.isFinite(value)) return EM_DASH;
 
@@ -164,7 +186,7 @@ export function formatMetric(value: number | null | undefined, format: MetricFor
     case "money-precise":
       return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
     case "percent":
-      return `${value.toFixed(value < 10 ? 2 : 1)}%`;
+      return formatPercent(value);
     case "decimal":
       return value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
     case "integer":
@@ -178,24 +200,60 @@ export function formatByKey(key: MetricKey, value: number | null | undefined): s
   return formatMetric(value, METRICS[key].format);
 }
 
-/** Número grande em forma compacta (12,4 mil / 1,2 mi) — só para KPI de
+/* -------------------------------------------------------------------------
+   Forma compacta
+   -------------------------------------------------------------------------
+   Escrita à mão, e não com `notation: "compact"` do Intl, por um motivo
+   que só aparece no navegador: a tabela de compactação faz parte do ICU, e
+   o ICU do Node não é o mesmo do Chrome. Para R$ 42.000 o servidor
+   renderizava "R$ 42,0 mil" e o navegador "R$ 42 mil".
+
+   Texto diferente entre servidor e cliente é erro de hidratação: o React
+   descarta o HTML recebido e re-renderiza a árvore inteira no cliente
+   (#418/#423 em produção). Cada cartão de campanha disparava isso — a
+   página chegava pronta e era refeita do zero.
+
+   A regra aqui é fixa e não depende de biblioteca: uma casa decimal,
+   escondida quando é zero.
+   ------------------------------------------------------------------------- */
+
+const ESCALAS: [number, string][] = [
+  [1e12, "tri"],
+  [1e9, "bi"],
+  [1e6, "mi"],
+  [1e3, "mil"],
+];
+
+function compactar(value: number): { numero: string; sufixo: string } | null {
+  const abs = Math.abs(value);
+  for (const [limite, sufixo] of ESCALAS) {
+    if (abs >= limite) {
+      const n = value / limite;
+      const arredondado = Math.round(n * 10) / 10;
+      const numero = Number.isInteger(arredondado)
+        ? String(arredondado)
+        : arredondado.toFixed(1).replace(".", ",");
+      return { numero, sufixo };
+    }
+  }
+  return null;
+}
+
+/** Número grande em forma compacta (12,6 mil / 1,3 mi) — só para KPI de
  *  destaque, onde sete dígitos quebrariam o layout. O valor exato
  *  continua disponível no tooltip e na tabela. */
 export function formatCompact(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return EM_DASH;
   if (Math.abs(value) < 10000) return Math.round(value).toLocaleString("pt-BR");
-  return value.toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+  const c = compactar(value);
+  return c ? `${c.numero} ${c.sufixo}` : Math.round(value).toLocaleString("pt-BR");
 }
 
 export function formatMoney(value: number | null | undefined, compact = false): string {
   if (value == null || !Number.isFinite(value)) return EM_DASH;
   if (compact && Math.abs(value) >= 10000) {
-    return value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    });
+    const c = compactar(value);
+    if (c) return `R$ ${c.numero} ${c.sufixo}`;
   }
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: compact ? 0 : 2 });
 }

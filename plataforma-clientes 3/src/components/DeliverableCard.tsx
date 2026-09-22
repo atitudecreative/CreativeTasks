@@ -167,7 +167,7 @@ export function DeliverableCard({
                     href={link}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1.5 text-caption text-brand-600 underline-offset-4 hover:underline"
+                    className="flex min-h-6 items-center gap-1.5 text-caption text-brand-600 underline-offset-4 hover:underline"
                   >
                     <Icon.Link className="h-3 w-3 shrink-0" />
                     <span className="truncate">{hostOf(link)}</span>

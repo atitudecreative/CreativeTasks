@@ -37,10 +37,10 @@ export function FolderBlock({
               autoFocus
               className="min-w-0 flex-1 rounded-control border border-line-strong px-2 py-1 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
             />
-            <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+            <button type="submit" className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline">
               Salvar
             </button>
-            <button type="button" onClick={() => setRenaming(false)} className="text-xs text-ink-2 hover:underline">
+            <button type="button" onClick={() => setRenaming(false)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:underline">
               Cancelar
             </button>
           </form>
@@ -61,7 +61,7 @@ export function FolderBlock({
               }}
             >
               <input type="hidden" name="id" value={folder.id} />
-              <button type="submit" className="text-caption font-medium text-ink-3 hover:text-danger">
+              <button type="submit" className="inline-flex min-h-6 items-center text-caption font-medium text-ink-3 hover:text-danger">
                 Excluir pasta
               </button>
             </form>

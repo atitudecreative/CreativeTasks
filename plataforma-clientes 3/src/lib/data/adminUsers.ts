@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
+import { falhaAoCarregar } from "./erros";
 
 export type AdminUserRow = {
   id: string;
@@ -26,39 +27,62 @@ export const listUsersForAdmin = cache(async (): Promise<AdminUserRow[]> => {
 
   const admin = createAdminClient();
 
-  const [{ data: authData, error: authError }, { data: profiles }, { data: memberships }] =
+  // A API de Auth do Supabase pagina. Antes isto pedia uma página de 200 e
+  // parava por aí: a partir da conta 201 a pessoa simplesmente não existia
+  // na tela de usuários, sem aviso nenhum — e um "usuário não encontrado"
+  // que na verdade é "lista cortada" manda alguém criar a conta de novo.
+  // O teto de 50 páginas é só uma trava contra laço infinito se a API
+  // mudar de contrato: 10.000 contas está muito além desta plataforma.
+  async function todasAsContas() {
+    const contas: { id: string; email?: string }[] = [];
+    for (let pagina = 1; pagina <= 50; pagina++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page: pagina, perPage: 200 });
+      if (error) falhaAoCarregar("a lista de usuários", error);
+      const lote = data?.users ?? [];
+      contas.push(...lote);
+      if (lote.length < 200) break;
+    }
+    return contas;
+  }
+
+  const [contas, { data: profiles, error: profilesError }, { data: memberships, error: membershipsError }] =
     await Promise.all([
-      admin.auth.admin.listUsers({ perPage: 200 }),
+      todasAsContas(),
       admin.from("profiles").select("id, full_name, papel_global"),
       admin.from("ministry_members").select("user_id, role, ministries(id, name)"),
     ]);
 
-  if (authError) {
-    console.error("Erro ao listar usuários:", authError.message);
-    return [];
+  // Papel e vínculos decidem o que cada linha oferece de ação. Vir vazio
+  // por falha de leitura mostraria todo mundo como "sem papel global" e
+  // sem nenhum ministério.
+  if (profilesError) falhaAoCarregar("os perfis dos usuários", profilesError);
+  if (membershipsError) falhaAoCarregar("os vínculos dos usuários", membershipsError);
+
+  // Índices em vez de .find()/.filter() dentro do .map(): eram duas
+  // varreduras da lista inteira por usuário.
+  const perfilPorId = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const vinculosPorUsuario = new Map<string, AdminUserRow["memberships"]>();
+  for (const m of memberships ?? []) {
+    const ministry = m.ministries as unknown as { id: string; name: string } | null;
+    const lista = vinculosPorUsuario.get(m.user_id) ?? [];
+    lista.push({
+      ministryId: ministry?.id ?? "",
+      ministryName: ministry?.name ?? "—",
+      role: m.role as string,
+    });
+    vinculosPorUsuario.set(m.user_id, lista);
   }
 
-  return authData.users
+  return contas
     .map((u) => {
-      const profile = profiles?.find((p) => p.id === u.id);
-      const userMemberships = (memberships ?? [])
-        .filter((m) => m.user_id === u.id)
-        .map((m) => {
-          const ministry = m.ministries as unknown as { id: string; name: string } | null;
-          return {
-            ministryId: ministry?.id ?? "",
-            ministryName: ministry?.name ?? "—",
-            role: m.role as string,
-          };
-        });
-
+      const profile = perfilPorId.get(u.id);
       return {
         id: u.id,
         email: u.email ?? "—",
         fullName: profile?.full_name ?? null,
         papelGlobal: profile?.papel_global ?? "nenhum",
-        memberships: userMemberships,
+        memberships: vinculosPorUsuario.get(u.id) ?? [],
       };
     })
-    .sort((a, b) => a.email.localeCompare(b.email));
+    .sort((a, b) => a.email.localeCompare(b.email, "pt-BR"));
 });

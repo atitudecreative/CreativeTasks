@@ -5,6 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Cell, AreaChart,
 } from "recharts";
 import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable } from "./primitives";
+import { formatMoney } from "@/lib/metricLanguage";
 
 /* =========================================================================
    GRÁFICOS (implementação)
@@ -34,13 +35,11 @@ const MARGIN = { top: 8, right: 8, left: -18, bottom: 0 };
 function num(v: number) {
   return v.toLocaleString("pt-BR");
 }
+// Reaproveita o formatador da plataforma em vez de chamar o Intl de novo
+// aqui: a forma compacta precisa ser escrita à mão para servidor e
+// navegador coincidirem (ver a nota em lib/metricLanguage.ts).
 function money(v: number, compact = false) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: compact ? 0 : 2,
-    notation: compact && Math.abs(v) >= 10000 ? "compact" : "standard",
-  });
+  return formatMoney(v, compact);
 }
 
 /* -------------------------------------------------------------------------

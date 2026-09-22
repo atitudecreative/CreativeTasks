@@ -91,8 +91,15 @@ export function AttentionList({
   campanhas: Item[];
   campanhasTotal: number;
 }) {
+  // Sem teto de altura. Havia um `max-h-[22rem] overflow-y-auto` aqui: a
+  // lista rolava por dentro do painel, sem barra visível (o Chromium usa
+  // barra sobreposta) e cortando o último item NO MEIO DA LINHA. Lia-se
+  // como defeito de renderização, e quem não descobria a rolagem não via
+  // o resto. O conteúdo já é limitado na origem — no máximo quatro itens
+  // por grupo, com link para o resto —, então o painel pode simplesmente
+  // ter a altura do que mostra.
   return (
-    <div className="max-h-[22rem] overflow-y-auto">
+    <div>
       <Group
         icon={<Icon.AlertTriangle className="h-3.5 w-3.5" />}
         label="Prazo vencido"

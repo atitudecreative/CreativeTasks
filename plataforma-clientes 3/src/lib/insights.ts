@@ -143,6 +143,14 @@ function pct(v: number): string {
   return `${Math.abs(v).toFixed(0)}%`;
 }
 
+/* Percentual com casa decimal em pt-BR (vírgula). toFixed() escreve com
+   PONTO — e a mesma tela mostrava "R$ 12.641,75" e "3.00%" um ao lado do
+   outro. Este módulo é puro de propósito (sem nenhum import), então tem o
+   seu próprio formatador em vez de puxar o de lib/metricLanguage. */
+function formatarPercentual(v: number, casas: number): string {
+  return `${v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas })}%`;
+}
+
 function moeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
@@ -198,7 +206,7 @@ const METRICA_META: Record<
   cpa: { nome: "custo por resultado", menorEhMelhor: true, formata: moeda },
   cpc: { nome: "custo por clique", menorEhMelhor: true, formata: moeda },
   cpm: { nome: "custo por mil exibições", menorEhMelhor: true, formata: moeda },
-  ctr: { nome: "taxa de cliques", menorEhMelhor: false, formata: (v) => `${v.toFixed(2)}%` },
+  ctr: { nome: "taxa de cliques", menorEhMelhor: false, formata: (v) => formatarPercentual(v, 2) },
   alcance: { nome: "alcance", menorEhMelhor: false, formata: numero },
   vendas: { nome: "resultados", menorEhMelhor: false, formata: numero },
 };

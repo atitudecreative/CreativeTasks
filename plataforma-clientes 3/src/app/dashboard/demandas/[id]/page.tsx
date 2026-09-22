@@ -199,7 +199,7 @@ export default async function DemandaDetailPage({ params }: { params: Promise<{ 
                     href={demand.link_origem}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-brand-600 underline-offset-4 hover:underline"
+                    className="inline-flex min-h-6 items-center gap-1.5 text-brand-600 underline-offset-4 hover:underline"
                   >
                     Abrir no {demand.fonte_externa === "asana" ? "Asana" : "sistema de origem"}
                     <Icon.External className="h-3 w-3" />

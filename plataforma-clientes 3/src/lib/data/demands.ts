@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { falhaAoCarregar } from "./erros";
 import { hoje, jaPassou, formatarMesCurto } from "@/lib/dates";
-import { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 export { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
+import { stageOf, type StageKey } from "@/lib/demandStages";
+
+// "Em andamento" = ainda tem trabalho pela frente. Aprovada e publicada
+// ficam de fora de propósito: são estágio "Concluída" na barra, e uma
+// demanda já publicada não pode aparecer como atrasada.
+const ESTAGIOS_EM_ANDAMENTO = new Set<StageKey>(["fila", "producao", "ministerio"]);
 
 export type Demand = {
   id: string;
@@ -26,9 +31,6 @@ export type Demand = {
   dependencias?: string | null;
 };
 
-const OPEN_STATUSES = new Set(
-  Object.keys(STATUS_LABEL).filter((s) => s !== "concluida" && s !== "cancelada")
-);
 
 // Demandas com prazo antes disso são sincronizações antigas do Asana que só
 // poluem a aba — a partir daqui a visualização só mostra 2026 em diante.
@@ -229,23 +231,38 @@ export function getMonthlyDemandStats(
 // em UTC, então das 21h às 23h59 de Brasília toda demanda que vencia
 // "hoje" já aparecia atrasada. Ver src/lib/dates.ts.
 export function isOverdue(d: Demand, referencia: string = hoje()): boolean {
-  return OPEN_STATUSES.has(d.status) && jaPassou(d.prazo_acordado, referencia);
+  return ESTAGIOS_EM_ANDAMENTO.has(stageOf(d.status)) && jaPassou(d.prazo_acordado, referencia);
 }
 
+// Resumo pela MESMA taxonomia da barra de estágios que aparece logo acima
+// dele na tela.
+//
+// Antes eram duas. A barra usava lib/demandStages (14 status dobrados em 5
+// estágios, onde "Concluída" abrange aprovada, agendada_ou_publicada e
+// concluida). O resumo contava à parte: "concluídas" só status ===
+// "concluida", e "abertas" tudo menos concluida e cancelada. No mesmo
+// painel, a barra dizia "Concluída 6" e o número logo abaixo dizia
+// "Concluídas 2" — e "Em andamento" incluía demanda aprovada e publicada,
+// que a barra ao lado já tinha pintado de verde.
+//
+// Duas definições de "pronto" lado a lado é pior do que uma definição
+// discutível. Vale a de demandStages, que é a documentada e a que a
+// interface inteira usa para cor, filtro e rótulo.
 export function summarizeDemands(demands: Demand[]) {
   const hojeBr = hoje();
-  const abertas = demands.filter((d) => OPEN_STATUSES.has(d.status));
-  const concluidas = demands.filter((d) => d.status === "concluida");
-  const aguardandoMinisterio = demands.filter((d) => d.status === "aguardando_ministerio");
-  const aguardandoAprovacao = demands.filter((d) => d.status === "aguardando_aprovacao");
-  const atrasadas = demands.filter((d) => isOverdue(d, hojeBr));
+  const porEstagio = new Map<StageKey, number>();
+  for (const d of demands) {
+    const k = stageOf(d.status);
+    porEstagio.set(k, (porEstagio.get(k) ?? 0) + 1);
+  }
+  const conta = (k: StageKey) => porEstagio.get(k) ?? 0;
 
   return {
     total: demands.length,
-    abertas: abertas.length,
-    concluidas: concluidas.length,
-    aguardandoMinisterio: aguardandoMinisterio.length,
-    aguardandoAprovacao: aguardandoAprovacao.length,
-    atrasadas: atrasadas.length,
+    emAndamento: conta("fila") + conta("producao") + conta("ministerio"),
+    comMinisterio: conta("ministerio"),
+    concluidas: conta("concluida"),
+    paradas: conta("parada"),
+    atrasadas: demands.filter((d) => isOverdue(d, hojeBr)).length,
   };
 }
