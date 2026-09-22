@@ -78,6 +78,7 @@ export const DEMANDS = Array.from({ length: 34 }, (_, i) => ({
   prazo_acordado: i % 7 === 0 ? null : dia(Math.round((i - 20) * 4.6)),
   data_conclusao: i % 5 === 0 ? dia(-3) : null,
   data_solicitacao: dia(-60),
+  data_inicio: i % 4 === 0 ? null : dia(-40),
   pendencia_atual: i % 6 === 0 ? "Aguardando texto final do ministério." : null,
   observacao_publicada: null,
   fonte_externa: "asana",
@@ -167,3 +168,63 @@ export const COMMENTS = [
     profiles: { full_name: null },
   },
 ];
+
+
+/* -------------------------------------------------------------------------
+   Subtarefas em escala
+   -------------------------------------------------------------------------
+   O sync do Asana já trouxe para esta base uma tarefa guarda-chuva com mais
+   de 1.500 filhas. Cento e vinte aqui já reproduz o que interessa para o
+   layout: a lista precisa de busca, recorte e carregamento por lote, e a
+   página tem que abrir rápido mesmo assim.
+   ------------------------------------------------------------------------- */
+export const SUBDEMANDS = Array.from({ length: 120 }, (_, i) => ({
+  id: `sub-${i}`,
+  identificador: `DEM-S${String(i + 1).padStart(3, "0")}`,
+  ministry_id: "min-1",
+  campaign_id: null as string | null,
+  parent_demand_id: "dem-0",
+  titulo: `Peça ${i + 1} do pacote — ${["post", "story", "banner", "convite", "vídeo"][i % 5]}`,
+  tipo_servico: ["design", "video", "social", "impresso"][i % 4],
+  prioridade: ["baixa", "media", "alta", "urgente"][i % 4],
+  status: STATUSES[i % STATUSES.length],
+  prazo_acordado: i % 9 === 0 ? null : dia(Math.round((i - 60) * 1.1)),
+  data_conclusao: i % 5 === 0 ? dia(-3) : null,
+  data_solicitacao: dia(-50),
+  data_inicio: dia(-30),
+  pendencia_atual: null as string | null,
+  observacao_publicada: null as string | null,
+  fonte_externa: "asana",
+  link_origem: "https://app.asana.com/0/0/0",
+  updated_at: new Date().toISOString(),
+  descricao_objetiva: null as string | null,
+  escopo_acordado: null as string | null,
+  dependencias: null as string | null,
+}));
+
+/* -------------------------------------------------------------------------
+   Histórico de status (audit_log, migration 0030)
+   -------------------------------------------------------------------------
+   `profiles` embutido porque é assim que o PostgREST devolve o vínculo, e
+   uma das linhas vem sem autor de propósito: é a escrita do sync, que roda
+   com service role e chega com auth.uid() nulo.
+   ------------------------------------------------------------------------- */
+const horasAtras = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+
+export const AUDIT_LOG = [
+  ["recebida", "em_triagem", 300, "Ana Ribeiro"],
+  ["em_triagem", "planejada", 240, "Ana Ribeiro"],
+  ["planejada", "em_producao", 180, null],
+  ["em_producao", "em_revisao_interna", 60, "Ana Ribeiro"],
+  ["em_revisao_interna", "aguardando_aprovacao", 30, "Ana Ribeiro"],
+  ["aguardando_aprovacao", "ajustes_solicitados", 6, "João Pereira da Silva Santos"],
+].map(([de, para, h, autor], i) => ({
+  id: `log-${i}`,
+  acao: "mudanca_status",
+  entidade_tipo: "demands",
+  entidade_id: "dem-0",
+  valor_anterior: { status: de as string },
+  valor_novo: { status: para as string },
+  created_at: horasAtras(h as number),
+  profiles: autor ? { full_name: autor as string } : null,
+}));

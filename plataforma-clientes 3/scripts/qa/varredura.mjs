@@ -38,6 +38,21 @@ const TELAS = [
   ["login", "/login"],
 ];
 
+// Recorte da varredura. Trabalhando página por página, varrer as quinze
+// telas a cada ajuste é desperdício (e, num ambiente apertado, o navegador
+// chega a ser morto por falta de memória no meio).
+//   QA_TELAS=demanda-detalhe node scripts/qa/varredura.mjs
+const FILTRO = (process.env.QA_TELAS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const TELAS_DA_VEZ = FILTRO.length > 0 ? TELAS.filter(([nome]) => FILTRO.includes(nome)) : TELAS;
+
+if (FILTRO.length > 0 && TELAS_DA_VEZ.length === 0) {
+  console.error(`Nenhuma tela chamada ${FILTRO.join(", ")}. Conhecidas: ${TELAS.map(([n]) => n).join(", ")}`);
+  process.exit(1);
+}
+
 const LARGURAS = [
   ["celular", 390, 844],
   ["tablet", 768, 1024],
@@ -69,7 +84,7 @@ for (const [nomeLargura, w, h] of LARGURAS) {
     });
     const pagina = await contexto.newPage();
 
-    for (const [nomeTela, rota] of TELAS) {
+    for (const [nomeTela, rota] of TELAS_DA_VEZ) {
       const erros = [];
       pagina.on("console", (m) => {
         if (m.type() === "error" && !IGNORAR.some((r) => r.test(m.text()))) erros.push(m.text());
