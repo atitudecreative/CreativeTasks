@@ -9,7 +9,7 @@ import {
 } from "@/lib/data/demands";
 import { getCampaignsForMinistry, getBudgetSummary, SAUDE_LABEL } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
-import { countByStage } from "@/lib/demandStages";
+import { countByStage, stageOf } from "@/lib/demandStages";
 import { TIMEZONE, hoje, formatarDiaMes, formatarMesPorExtenso } from "@/lib/dates";
 import { getUniversoComparacao } from "@/lib/data/campanhaPerfil";
 import { lerMinisterio } from "@/lib/carteira";
@@ -17,11 +17,14 @@ import { LeituraMinisterioPanel } from "@/components/intel/LeituraMinisterio";
 import { statusTone, saudeTone, deliverableTone } from "@/lib/statusColors";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import {
-  Badge, Button, Card, Icon, Metric, MetricRow, Panel, Progress, Section, EmptyState, Alert,
+  Badge, Board, BoardGroup, BoardRow, Button, Icon, Metric, MetricRow, PageBody,
+  Panel, Progress, RailBlock, Section, EmptyState,
 } from "@/components/ui";
 import { PageHeader } from "@/components/AppShell";
 import { StageBar } from "@/components/charts/StageBar";
-import { VolumeChart, BudgetChart } from "@/components/charts/Charts";
+import { BudgetChart } from "@/components/charts/Charts";
+import { StageColumns } from "@/components/charts/StageColumns";
+import { agruparPorMesEEstagio } from "@/lib/demandSeries";
 import { AttentionList } from "./AttentionList";
 
 export const metadata = { title: "Início" };
@@ -102,6 +105,13 @@ export default async function DashboardPage() {
   const resumo = summarizeDemands(demands);
   const stages = countByStage(demands.map((d) => d.status));
   const monthlyStats = getMonthlyDemandStats(demands, hojeBr);
+  // Mesma leitura da aba Demandas: mês de prazo cruzado com estágio. A
+  // versão anterior mostrava total e concluídas (coluna + linha); a
+  // composição responde as duas coisas e mais três, no mesmo espaço.
+  const composicao = agruparPorMesEEstagio(
+    demands.map((d) => ({ prazo: d.prazo_acordado, stage: stageOf(d.status) })),
+    mesAtual
+  );
   const budgetSummary = getBudgetSummary(campaigns);
 
   const taxaConclusao = resumo.total > 0 ? (resumo.concluidas / resumo.total) * 100 : null;
@@ -163,18 +173,13 @@ export default async function DashboardPage() {
   const temAtencao = atrasadas.length > 0 || aguardando.length > 0 || campanhasRisco.length > 0;
 
   return (
-    <div className="space-y-section">
+    <div>
       <PageHeader
         eyebrow={getTodayLabel()}
         title={
           <>
             {getGreeting()}, <span className="text-brand-600">{ministry.name}</span>
           </>
-        }
-        description={
-          resumo.total === 0
-            ? "Ainda não há demandas publicadas para este ministério."
-            : `${resumo.emAndamento} ${resumo.emAndamento === 1 ? "demanda em andamento" : "demandas em andamento"} e ${campanhasAtivas.length} ${campanhasAtivas.length === 1 ? "campanha ativa" : "campanhas ativas"}.`
         }
         actions={
           <>
@@ -192,271 +197,303 @@ export default async function DashboardPage() {
         }
       />
 
-      {/* ---------- NÍVEL 1 + 2: estado do trabalho e o que trava ---------- */}
-      {/* items-start: cada painel com a altura do próprio conteúdo. Com o
-          esticamento padrão do grid, o painel curto (situação) ganhava uma
-          faixa vazia de uns 180px para acompanhar o alto (atenção) — e o
-          alto, que era o que tinha conteúdo de sobra, é que rolava por
-          dentro. Alinhados pelo topo, os dois mostram o que têm. */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
-        <Panel
-          title="Situação das demandas"
-          description={`${resumo.total} ${resumo.total === 1 ? "demanda" : "demandas"} de 2026 em diante`}
-          className="lg:col-span-3"
-          action={
-            <Link href="/dashboard/demandas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
-              detalhar
+      {/* =====================================================================
+          ABERTURA — o estado da operação numa faixa, sem caixa.
+
+          A versão anterior abria com dois painéis lado a lado e depois
+          quatro cartões de indicador: seis retângulos antes de qualquer
+          leitura. Aqui a primeira coisa é a barra de estágios em tamanho
+          grande com os quatro números que importam abaixo dela. Sem borda
+          e sem sombra de propósito — é a declaração de abertura da página,
+          não mais um bloco competindo com os outros.
+          ===================================================================== */}
+      {resumo.total === 0 ? (
+        <EmptyState
+          icon={<Icon.ListChecks className="h-5 w-5" />}
+          title="Nada por aqui ainda"
+          description="Assim que a Comunicação publicar as primeiras demandas deste ministério, elas aparecem aqui."
+        />
+      ) : (
+        <section className="mb-section border-b border-line pb-6">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p className="font-mono text-label uppercase text-ink-3">Situação das demandas</p>
+            <Link
+              href="/dashboard/demandas"
+              className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
+            >
+              {resumo.total} {resumo.total === 1 ? "demanda" : "demandas"} de 2026 em diante
             </Link>
-          }
-        >
-          {resumo.total === 0 ? (
-            <EmptyState
-              size="sm"
-              icon={<Icon.ListChecks className="h-4 w-4" />}
-              title="Nada por aqui ainda"
-              description="Assim que a Comunicação publicar as primeiras demandas deste ministério, elas aparecem aqui."
+          </div>
+
+          <StageBar stages={stages} total={resumo.total} height="h-11" />
+
+          <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            <NumeroDeAbertura label="Em andamento" valor={resumo.emAndamento} hint="fila, produção e com você" />
+            <NumeroDeAbertura
+              label="Com você"
+              valor={resumo.comMinisterio}
+              hint="esperando resposta do ministério"
+              tone={resumo.comMinisterio > 0 ? "warning" : "default"}
+              href="/dashboard/demandas"
             />
-          ) : (
-            <>
-              <StageBar stages={stages} total={resumo.total} />
-              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-4">
-                <Metric size="compact" label="Em andamento" value={resumo.emAndamento} />
-                <Metric size="compact" label="Concluídas" value={resumo.concluidas} />
-                <Metric size="compact" label="Com você" value={resumo.comMinisterio} />
-                <Metric size="compact" label="Atrasadas" value={resumo.atrasadas} />
-              </div>
-            </>
-          )}
-        </Panel>
-
-        <Panel
-          title="Precisa de atenção"
-          className="lg:col-span-2"
-          bodyClassName={temAtencao ? "p-0 sm:p-0" : undefined}
-          noPadding={temAtencao}
-        >
-          {temAtencao ? (
-            <AttentionList
-              atrasadas={atrasadas.slice(0, 4).map((d) => ({
-                id: d.id,
-                titulo: d.titulo,
-                meta: `venceu em ${formatarDiaMes(d.prazo_acordado)}`,
-              }))}
-              atrasadasTotal={atrasadas.length}
-              aguardando={aguardando.slice(0, 4).map((d) => ({
-                id: d.id,
-                titulo: d.titulo,
-                meta: STATUS_LABEL[d.status] ?? d.status,
-              }))}
-              aguardandoTotal={aguardando.length}
-              campanhas={campanhasRisco.slice(0, 3).map((c) => ({
-                id: c.id,
-                titulo: c.nome,
-                meta: SAUDE_LABEL[c.saude] ?? c.saude,
-                critica: c.saude === "critica",
-              }))}
-              campanhasTotal={campanhasRisco.length}
+            <NumeroDeAbertura
+              label="Atrasadas"
+              valor={resumo.atrasadas}
+              hint="prazo já vencido"
+              tone={resumo.atrasadas > 0 ? "danger" : "default"}
+              href="/dashboard/demandas"
             />
-          ) : (
-            <div className="flex h-full min-h-[8rem] flex-col items-center justify-center text-center">
-              <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-success-soft text-success">
-                <Icon.CheckCircle className="h-5 w-5" />
-              </span>
-              <p className="text-h4 text-ink">Tudo em dia</p>
-              <p className="mt-1 max-w-[16rem] text-caption text-ink-2">
-                Nenhuma demanda atrasada, nada esperando por você e nenhuma campanha em risco.
-              </p>
-            </div>
-          )}
-        </Panel>
-      </div>
+            <NumeroDeAbertura
+              label="Concluídas"
+              valor={resumo.concluidas}
+              hint={
+                taxaConclusao == null
+                  ? undefined
+                  : `${taxaConclusao.toFixed(0)}% do total`
+              }
+            />
+          </div>
+        </section>
+      )}
 
-      {/* ---------- NÍVEL 3: indicadores de apoio ---------- */}
-      <Section
-        eyebrow="Indicadores"
-        title="Números do ministério"
-        description="Consolidado de tudo que está publicado para este ministério."
-      >
-        <MetricRow columns={4}>
-          <Metric
-            label="Taxa de conclusão"
-            value={taxaConclusao == null ? "—" : taxaConclusao.toFixed(0)}
-            unit={taxaConclusao == null ? undefined : "%"}
-            hint={
-              taxaConclusao == null
-                ? "nenhuma demanda para calcular"
-                : `${resumo.concluidas} de ${resumo.total} demandas`
-            }
-            icon={<Icon.CheckCircle className="h-4 w-4" />}
-            footer={
-              taxaConclusao == null ? undefined : (
-                <Progress
-                  value={taxaConclusao}
-                  tone={taxaConclusao >= 70 ? "success" : "accent"}
-                  showValue={false}
-                />
-              )
-            }
-          />
-          <Metric
-            label={`Prazos em ${formatarMesPorExtenso(mesAtual).split(" de ")[0].toLowerCase()}`}
-            value={mesCorrente?.total ?? 0}
-            delta={deltaVolume}
-            deltaLabel={mesAnterior ? `vs. ${mesAnterior.label}` : undefined}
-            hint={
-              !mesCorrente
-                ? "nenhuma demanda com prazo neste mês"
-                : !mesAnterior
-                  ? "sem mês anterior para comparar"
-                  : "demandas com prazo combinado para este mês"
-            }
-            icon={<Icon.Activity className="h-4 w-4" />}
-          />
-          <Metric
-            label="Campanhas ativas"
-            value={campanhasAtivas.length}
-            hint={
-              campanhasRisco.length > 0
-                ? `${campanhasRisco.length} exigindo atenção`
-                : campanhasAtivas.length === 0
-                  ? "nenhuma campanha em andamento"
-                  : "todas no caminho"
-            }
-            icon={<Icon.Megaphone className="h-4 w-4" />}
-          />
-          <Metric
-            label="Investimento realizado"
-            value={campanhasComInvestimento.length > 0 ? formatMoney(investimentoTotal) : "—"}
-            hint={
-              campanhasComInvestimento.length === 0
-                ? "nenhuma campanha com valor lançado"
-                : `em ${campanhasComInvestimento.length} de ${campaigns.length} ${campaigns.length === 1 ? "campanha" : "campanhas"}`
-            }
-            icon={<Icon.Wallet className="h-4 w-4" />}
-          />
-        </MetricRow>
-      </Section>
+      <PageBody
+        rail={
+          <>
+            <RailBlock label="Precisa de atenção">
+              {temAtencao ? (
+                <Board>
+                  <AttentionList
+                    atrasadas={atrasadas.slice(0, 4).map((d) => ({
+                      id: d.id,
+                      titulo: d.titulo,
+                      meta: `venceu em ${formatarDiaMes(d.prazo_acordado)}`,
+                    }))}
+                    atrasadasTotal={atrasadas.length}
+                    aguardando={aguardando.slice(0, 4).map((d) => ({
+                      id: d.id,
+                      titulo: d.titulo,
+                      meta: STATUS_LABEL[d.status] ?? d.status,
+                    }))}
+                    aguardandoTotal={aguardando.length}
+                    campanhas={campanhasRisco.slice(0, 3).map((c) => ({
+                      id: c.id,
+                      titulo: c.nome,
+                      meta: SAUDE_LABEL[c.saude] ?? c.saude,
+                      critica: c.saude === "critica",
+                    }))}
+                    campanhasTotal={campanhasRisco.length}
+                  />
+                </Board>
+              ) : (
+                <div className="flex flex-col items-center rounded-panel border border-line bg-surface px-4 py-8 text-center shadow-xs">
+                  <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-success-soft text-success">
+                    <Icon.CheckCircle className="h-5 w-5" />
+                  </span>
+                  <p className="text-h4 text-ink">Tudo em dia</p>
+                  <p className="mt-1 max-w-[16rem] text-caption text-ink-2">
+                    Nenhuma demanda atrasada, nada esperando por você e nenhuma campanha em risco.
+                  </p>
+                </div>
+              )}
+            </RailBlock>
 
-      {/* ---------- NÍVEL 4: tendência ---------- */}
-      <Section eyebrow="Tendência" title="Como o trabalho se distribui no tempo">
-        <Panel
-          title="Demandas por mês de prazo"
-          description="Quantas têm prazo em cada mês e quantas dessas já fecharam"
-        >
-          <VolumeChart data={monthlyStats} />
-        </Panel>
-      </Section>
-
-      {/* ---------- NÍVEL 4.5: leitura dos eventos ---------- */}
-      <Section
-        eyebrow="Leitura"
-        title="Como os eventos vêm performando"
-        description="Comparação entre os eventos publicados deste ministério e contra os demais."
-      >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Panel title="Histórico de eventos" className="lg:col-span-1">
-            {comparacaoIndisponivel ? (
-              <EmptyState
-                size="sm"
-                icon={<Icon.AlertTriangle className="h-4 w-4" />}
-                title="Não foi possível carregar a comparação"
-                description="Os números das campanhas não vieram agora. Atualize a página; se continuar, avise a Comunicação."
-              />
-            ) : (
-              <LeituraMinisterioPanel leitura={leitura} />
-            )}
-          </Panel>
-          <Panel
-            title="Orçamento das campanhas"
-            description="Planejado, aprovado e realizado"
-            className="lg:col-span-2"
-          >
-            <BudgetChart data={budgetSummary} />
-          </Panel>
-        </div>
-      </Section>
-
-      {/* ---------- NÍVEL 5: detalhe ---------- */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel
-          title="Próximos prazos"
-          action={
-            <Link href="/dashboard/demandas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
-              ver todas
-            </Link>
-          }
-          noPadding
-        >
-          {proximosPrazos.length === 0 ? (
-            <p className="px-5 py-8 text-center text-small text-ink-3">Nenhum prazo em aberto no momento.</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {proximosPrazos.map((d) => (
-                <li key={d.id}>
-                  <Link
-                    href={`/dashboard/demandas/${d.id}`}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors duration-120 hover:bg-surface-sunken sm:px-5"
-                  >
-                    <span className="min-w-0 flex-1">
+            <RailBlock
+              label="Próximos prazos"
+              action={
+                <Link
+                  href="/dashboard/demandas"
+                  className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
+                >
+                  ver todas
+                </Link>
+              }
+            >
+              <Board>
+                {proximosPrazos.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-caption text-ink-3">
+                    Nenhum prazo em aberto no momento.
+                  </p>
+                ) : (
+                  proximosPrazos.map((d) => (
+                    <BoardRow key={d.id} href={`/dashboard/demandas/${d.id}`}>
                       <span className="block truncate text-small font-medium text-ink">{d.titulo}</span>
                       <span className="mt-0.5 flex items-center gap-1.5 text-caption text-ink-3">
                         <Icon.Calendar className="h-3 w-3" />
                         {formatarDiaMes(d.prazo_acordado)}
+                        <Badge tone={statusTone(d.status)} size="sm" dot>
+                          {STATUS_LABEL[d.status] ?? d.status}
+                        </Badge>
                       </span>
-                    </span>
-                    <Badge tone={statusTone(d.status)} size="sm" dot>
-                      {STATUS_LABEL[d.status] ?? d.status}
-                    </Badge>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+                    </BoardRow>
+                  ))
+                )}
+              </Board>
+            </RailBlock>
 
-        <Panel
-          title="Material recente"
-          description="Últimos arquivos entregues"
+          </>
+        }
+      >
+        {/* ---------- Onde está o trabalho ---------- */}
+        {composicao.length > 1 && (
+          <Panel
+            title="Onde está o trabalho"
+            description="Demandas por mês de prazo, divididas por estágio"
+            className="mb-4"
+          >
+            <StageColumns colunas={composicao} className="pt-4" altura={148} />
+          </Panel>
+        )}
+
+        {/* ---------- Números de apoio ---------- */}
+        <Section
+          eyebrow="Indicadores"
+          title="Números do ministério"
+          description="Consolidado de tudo que está publicado para este ministério."
+          className="mb-section"
+        >
+          <MetricRow columns={3}>
+            <Metric
+              label={`Prazos em ${formatarMesPorExtenso(mesAtual).split(" de ")[0].toLowerCase()}`}
+              value={mesCorrente?.total ?? 0}
+              delta={deltaVolume}
+              deltaLabel={mesAnterior ? `vs. ${mesAnterior.label}` : undefined}
+              hint={
+                !mesCorrente
+                  ? "nenhuma demanda com prazo neste mês"
+                  : !mesAnterior
+                    ? "sem mês anterior para comparar"
+                    : "demandas com prazo combinado para este mês"
+              }
+              icon={<Icon.Activity className="h-4 w-4" />}
+            />
+            <Metric
+              label="Campanhas ativas"
+              value={campanhasAtivas.length}
+              hint={
+                campanhasRisco.length > 0
+                  ? `${campanhasRisco.length} exigindo atenção`
+                  : campanhasAtivas.length === 0
+                    ? "nenhuma campanha em andamento"
+                    : "todas no caminho"
+              }
+              icon={<Icon.Megaphone className="h-4 w-4" />}
+            />
+            <Metric
+              label="Investimento realizado"
+              value={campanhasComInvestimento.length > 0 ? formatMoney(investimentoTotal) : "—"}
+              hint={
+                campanhasComInvestimento.length === 0
+                  ? "nenhuma campanha com valor lançado"
+                  : `em ${campanhasComInvestimento.length} de ${campaigns.length} ${campaigns.length === 1 ? "campanha" : "campanhas"}`
+              }
+              icon={<Icon.Wallet className="h-4 w-4" />}
+            />
+          </MetricRow>
+        </Section>
+
+        {/* ---------- Material recente ---------- */}
+    <RailBlock
+          label="Material recente"
           action={
-            <Link href="/dashboard/entregas" className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline">
+            <Link
+              href="/dashboard/entregas"
+              className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
+            >
               ver todos
             </Link>
           }
-          noPadding
         >
-          {arquivosRecentes.length === 0 ? (
-            <p className="px-5 py-8 text-center text-small text-ink-3">Nenhum arquivo registrado ainda.</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {arquivosRecentes.map((e) => (
-                <li key={e.id}>
-                  <a
-                    href={e.link_principal ?? "/dashboard/entregas"}
-                    target={e.link_principal ? "_blank" : undefined}
-                    rel={e.link_principal ? "noreferrer" : undefined}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors duration-120 hover:bg-surface-sunken sm:px-5"
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-neutral-soft text-ink-3">
-                      <Icon.File className="h-4 w-4" />
+          <Board>
+            {arquivosRecentes.length === 0 ? (
+              <p className="px-4 py-6 text-center text-caption text-ink-3">
+                Nenhum arquivo registrado ainda.
+              </p>
+            ) : (
+              arquivosRecentes.map((e) => (
+                <BoardRow
+                  key={e.id}
+                  href={e.link_principal ?? "/dashboard/entregas"}
+                  leading={
+                    <span className="flex h-7 w-7 items-center justify-center rounded-control bg-neutral-soft text-ink-3">
+                      <Icon.File className="h-3.5 w-3.5" />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-small font-medium text-ink">{e.titulo}</span>
-                      <span className="block truncate text-caption text-ink-3">
-                        {e.tipo_arquivo ?? "arquivo"}
-                        {e.versao ? ` · v${e.versao}` : ""}
-                        {e.data_entrega ? ` · ${formatarDiaMes(e.data_entrega)}` : ""}
-                      </span>
+                  }
+                >
+                  <span className="block truncate text-small font-medium text-ink">{e.titulo}</span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-caption text-ink-3">
+                    <span className="truncate">
+                      {e.tipo_arquivo ?? "arquivo"}
+                      {e.versao ? ` · v${e.versao}` : ""}
+                      {e.data_entrega ? ` · ${formatarDiaMes(e.data_entrega)}` : ""}
                     </span>
                     <Badge tone={deliverableTone(e.status)} size="sm">
                       {DELIVERABLE_STATUS_LABEL[e.status] ?? e.status}
                     </Badge>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </div>
+                  </span>
+                </BoardRow>
+              ))
+            )}
+          </Board>
+    </RailBlock>
+        {/* ---------- Leitura dos eventos ---------- */}
+        <Section
+          eyebrow="Leitura"
+          title="Como os eventos vêm performando"
+          description="Comparação entre os eventos publicados deste ministério e contra os demais."
+        >
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+            <Panel title="Histórico de eventos">
+              {comparacaoIndisponivel ? (
+                <EmptyState
+                  size="sm"
+                  icon={<Icon.AlertTriangle className="h-4 w-4" />}
+                  title="Não foi possível carregar a comparação"
+                  description="Os números das campanhas não vieram agora. Atualize a página; se continuar, avise a Comunicação."
+                />
+              ) : (
+                <LeituraMinisterioPanel leitura={leitura} />
+              )}
+            </Panel>
+            <Panel title="Orçamento das campanhas" description="Planejado, aprovado e realizado">
+              <BudgetChart data={budgetSummary} />
+            </Panel>
+          </div>
+        </Section>
+      </PageBody>
     </div>
   );
+}
+
+/* Número de abertura: sem caixa, sem ícone, sem borda. O que separa um do
+   outro é o espaço, e o que os hierarquiza é o tamanho — não mais um
+   retângulo em volta de cada. */
+function NumeroDeAbertura({
+  label,
+  valor,
+  hint,
+  tone = "default",
+  href,
+}: {
+  label: string;
+  valor: number;
+  hint?: string;
+  tone?: "default" | "warning" | "danger";
+  href?: string;
+}) {
+  const cor = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-ink";
+  const corpo = (
+    <>
+      <p className="font-mono text-label uppercase text-ink-3">{label}</p>
+      <p className={`mt-1 text-metric tabular-nums lg:text-metric-lg ${cor}`}>{valor}</p>
+      {hint && <p className="mt-0.5 text-caption text-ink-3">{hint}</p>}
+    </>
+  );
+  if (href && valor > 0) {
+    return (
+      <a href={href} className="-mx-2 block rounded-control px-2 py-1 transition-colors duration-120 hover:bg-surface-sunken">
+        {corpo}
+      </a>
+    );
+  }
+  return <div className="px-0 py-1">{corpo}</div>;
 }

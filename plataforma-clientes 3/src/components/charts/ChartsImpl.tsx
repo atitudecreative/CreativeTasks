@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Cell, AreaChart,
 } from "recharts";
 import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable } from "./primitives";
-import { formatMoney } from "@/lib/metricLanguage";
+import { formatMoney, formatCompact } from "@/lib/metricLanguage";
 
 /* =========================================================================
    GRÁFICOS (implementação)
@@ -161,12 +161,14 @@ export function BudgetChart({
         <BarChart data={data} margin={{ ...MARGIN, left: 4 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
+          {/* Rótulo do eixo no mesmo formato do resto do produto. "1400k"
+              não é como esta plataforma escreve dinheiro em lugar nenhum. */}
           <YAxis
             width={56}
             tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+            tickFormatter={(v: number) => formatCompact(v)}
           />
           <RTooltip
             cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
@@ -233,7 +235,7 @@ export function TrendArea({
             tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)))}
+            tickFormatter={(v: number) => formatCompact(v)}
           />
           <RTooltip
             cursor={{ stroke: AXIS, strokeDasharray: "3 3" }}

@@ -7,7 +7,8 @@ import {
   Badge, Board, BoardGroup, Button, EmptyState, Icon, PageBody, Panel,
   RailBlock, RailStat, SearchInput, Select, cn,
 } from "@/components/ui";
-import { StageColumns, agruparPorMesEEstagio } from "@/components/charts/StageColumns";
+import { StageColumns } from "@/components/charts/StageColumns";
+import { agruparPorMesEEstagio } from "@/lib/demandSeries";
 import { DemandTable, type DemandRow } from "./DemandTable";
 import { STATUS_OPTIONS, PRIORIDADE_OPTIONS } from "@/lib/demandOptions";
 import { STAGE_META, STAGE_ORDER, stageOf, type StageKey } from "@/lib/demandStages";

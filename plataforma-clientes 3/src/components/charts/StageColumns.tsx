@@ -2,8 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/components/ui";
-import { STAGE_META, STAGE_ORDER, type StageKey } from "@/lib/demandStages";
+import { STAGE_META, STAGE_ORDER } from "@/lib/demandStages";
+import type { ColunaMes } from "@/lib/demandSeries";
 import { formatarMesCurto, formatarMesPorExtenso } from "@/lib/dates";
+
+// O cálculo vive em lib/demandSeries (puro). Função exportada de um módulo
+// "use client" não é a função quando um Server Component a importa — é uma
+// referência ao cliente, e chamá-la derruba a renderização.
+export type { ColunaMes } from "@/lib/demandSeries";
 
 /* =========================================================================
    COMPOSIÇÃO POR MÊS
@@ -26,55 +32,6 @@ import { formatarMesCurto, formatarMesPorExtenso } from "@/lib/dates";
    não pode depender só da cor; e a mesma paleta de estágio já validada para
    daltonismo nos dois temas.
    ========================================================================= */
-
-export type ColunaMes = {
-  chave: string;
-  porEstagio: Record<StageKey, number>;
-  total: number;
-  emCurso: boolean;
-  futuro: boolean;
-};
-
-export function agruparPorMesEEstagio(
-  itens: { prazo: string | null; stage: StageKey }[],
-  mesAtual: string
-): ColunaMes[] {
-  const mapa = new Map<string, Record<StageKey, number>>();
-  for (const i of itens) {
-    if (!i.prazo) continue;
-    const chave = i.prazo.slice(0, 7);
-    const atual =
-      mapa.get(chave) ?? ({ fila: 0, producao: 0, ministerio: 0, concluida: 0, parada: 0 } as Record<StageKey, number>);
-    atual[i.stage] += 1;
-    mapa.set(chave, atual);
-  }
-  if (mapa.size === 0) return [];
-
-  // Preenche os meses vazios do intervalo: coluna que some faz fevereiro
-  // encostar em maio e a inclinação mentir sobre o ritmo.
-  const chaves = Array.from(mapa.keys()).sort();
-  const meses: string[] = [];
-  let atual = chaves[0];
-  const fim = chaves[chaves.length - 1];
-  while (atual <= fim && meses.length < 120) {
-    meses.push(atual);
-    const ano = +atual.slice(0, 4);
-    const mes = +atual.slice(5, 7);
-    atual = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, "0")}`;
-  }
-
-  return meses.map((chave) => {
-    const porEstagio =
-      mapa.get(chave) ?? ({ fila: 0, producao: 0, ministerio: 0, concluida: 0, parada: 0 } as Record<StageKey, number>);
-    return {
-      chave,
-      porEstagio,
-      total: STAGE_ORDER.reduce((s, k) => s + porEstagio[k], 0),
-      emCurso: chave === mesAtual,
-      futuro: chave > mesAtual,
-    };
-  });
-}
 
 export function StageColumns({
   colunas,
