@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import { formatarMesPorExtenso } from "@/lib/dates";
 import { Badge, Button, EmptyState, Icon, SearchInput, Select, cn } from "@/components/ui";
 import { MonthAccordion } from "./MonthAccordion";
@@ -26,10 +27,6 @@ export type FilterCampaign = { id: string; nome: string };
    3. A busca varre título, identificador E campanha (já varria), agora
       com o campo certo (type=search, botão de limpar, ícone).
    ========================================================================= */
-
-function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 export function DemandasExplorer({
   demands,
@@ -80,13 +77,13 @@ export function DemandasExplorer({
   const hasActiveFilter = activeFilters.length > 0;
 
   const filtered = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     return demands.filter((d) => {
       const matchesSearch =
         !term ||
-        normalize(d.titulo).includes(term) ||
-        (d.identificador && normalize(d.identificador).includes(term)) ||
-        d.campanhas.some((c) => normalize(c.nome).includes(term));
+        normalizar(d.titulo).includes(term) ||
+        (d.identificador && normalizar(d.identificador).includes(term)) ||
+        d.campanhas.some((c) => normalizar(c.nome).includes(term));
       const matchesStage = !stage || stageOf(d.status) === stage;
       const matchesStatus = !status || d.status === status;
       const matchesPrioridade = !prioridade || d.prioridade === prioridade;

@@ -5,6 +5,16 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
 import { conferir } from "@/lib/data/erros";
+import { PAPEL_GLOBAL_OPTIONS, MINISTRY_ROLE_OPTIONS } from "@/lib/userOptions";
+
+/* Papéis aceitos, conferidos em tempo de execução.
+   O banco já tem CHECK nas duas colunas, então um valor inventado não
+   entra — mas a mensagem que voltava pra tela era o texto cru da
+   constraint do Postgres. Validar aqui devolve uma frase que a pessoa
+   entende, e mantém a checagem perto de quem escreve com service role
+   (que passa por cima de qualquer policy). */
+const PAPEIS_GLOBAIS = new Set<string>(PAPEL_GLOBAL_OPTIONS.map((o) => o.value));
+const PAPEIS_DE_MINISTERIO = new Set<string>(MINISTRY_ROLE_OPTIONS.map((o) => o.value));
 
 export async function createUser(
   _prevState: { error: string | null },
@@ -24,6 +34,12 @@ export async function createUser(
   }
   if (password.length < 6) {
     return { error: "A senha precisa ter pelo menos 6 caracteres." };
+  }
+  if (!PAPEIS_GLOBAIS.has(papelGlobal)) {
+    return { error: "Papel global inválido." };
+  }
+  if (ministryRole && !PAPEIS_DE_MINISTERIO.has(ministryRole)) {
+    return { error: "Papel no ministério inválido." };
   }
 
   const admin = createAdminClient();
@@ -83,6 +99,9 @@ export async function addMembership(
   if (!userId || !ministryId || !role) {
     return { error: "Selecione usuário, ministério e papel." };
   }
+  if (!PAPEIS_DE_MINISTERIO.has(role)) {
+    return { error: "Papel no ministério inválido." };
+  }
 
   // A policy "ministry_members: Comunicação gerencia vínculos" já
   // permite essa escrita pro papel_global de Comunicação — não precisa
@@ -120,6 +139,9 @@ export async function updateUserPapelGlobal(
   if (userId === current.id) {
     return { error: "Não é possível alterar seu próprio papel por aqui — peça a outro administrador." };
   }
+  if (!PAPEIS_GLOBAIS.has(papelGlobal)) {
+    return { error: "Papel global inválido." };
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.from("profiles").update({ papel_global: papelGlobal }).eq("id", userId);
@@ -146,6 +168,9 @@ export async function updateMembershipRole(
 
   if (!userId || !ministryId || !role) {
     return { error: "Dados inválidos." };
+  }
+  if (!PAPEIS_DE_MINISTERIO.has(role)) {
+    return { error: "Papel no ministério inválido." };
   }
 
   const supabase = await createClient();
@@ -194,7 +219,11 @@ export async function deleteUserAccount(formData: FormData) {
   if (!userId || userId === current.id) return;
 
   const admin = createAdminClient();
-  await admin.auth.admin.deleteUser(userId);
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  // Sem esta conferência, excluir uma conta que o Supabase recusou
+  // devolvia a mesma tela recarregada, com a pessoa ainda na lista e
+  // nenhuma explicação — e quem clicou tentava de novo.
+  conferir("excluir a conta", error);
 
   revalidatePath("/dashboard/admin/usuarios");
 }

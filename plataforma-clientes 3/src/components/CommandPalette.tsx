@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { normalizar } from "@/lib/texto";
 import { useRouter } from "next/navigation";
 import { globalSearch, type SearchResult } from "@/app/dashboard/search-actions";
 import { NAV_GROUPS } from "@/lib/navigation";
@@ -57,9 +58,9 @@ export function CommandPalette({
 
   const matchedPages = useMemo(() => {
     if (term.length === 0) return pages;
-    const norm = term.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const norm = normalizar(term);
     return pages.filter((p) =>
-      `${p.label} ${p.description ?? ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(norm)
+      normalizar(`${p.label} ${p.description ?? ""}`).includes(norm)
     );
   }, [pages, term]);
 

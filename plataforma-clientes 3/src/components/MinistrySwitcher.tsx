@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import { setActiveMinistry } from "@/app/dashboard/actions";
 import { cn, Icon } from "@/components/ui";
 
@@ -39,14 +40,10 @@ export function MinistrySwitcher({
   const current = options.find((o) => o.id === currentId);
 
   const filtered = useMemo(() => {
-    const term = query
-      .trim()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase();
+    const term = normalizar(query);
     if (!term) return options;
     return options.filter((o) =>
-      o.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(term)
+      normalizar(o.name).includes(term)
     );
   }, [options, query]);
 

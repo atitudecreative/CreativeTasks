@@ -30,24 +30,26 @@ const OPEN_STATUSES = new Set(
   Object.keys(STATUS_LABEL).filter((s) => s !== "concluida" && s !== "cancelada")
 );
 
-export type DemandFilters = {
-  status?: string;
-  // id de uma campanha específica, ou "none" para "sem campanha vinculada"
-  campaignId?: string;
-  prioridade?: string;
-};
-
 // Demandas com prazo antes disso são sincronizações antigas do Asana que só
 // poluem a aba — a partir daqui a visualização só mostra 2026 em diante.
 const DEMANDAS_CUTOFF_DATE = "2026-01-01";
 
-export async function getDemandsForMinistry(
-  ministryId: string,
-  filters: DemandFilters = {}
-): Promise<Demand[]> {
+// Traz as demandas do ministério cruas. Filtrar é trabalho da tela: a
+// aba Demandas carrega a lista uma vez e filtra no cliente, sem ida ao
+// servidor a cada clique — é o que faz os chips de estágio responderem
+// instantaneamente.
+//
+// Havia aqui um parâmetro `filters` com filtro por status, prioridade e
+// campanha. Nenhuma tela passava nada: era código morto desde que a
+// filtragem virou client-side. Morto e perigoso — o ramo "sem campanha"
+// carregava demand_campaigns INTEIRA e montava um `not.in(id1,id2,...)`
+// com todos os ids numa query string. Alguns milhares de vínculos e a URL
+// estoura o limite do PostgREST, que responde Bad Request. O mesmo tipo de
+// estouro já tinha derrubado getCampaignsForDemandsInMinistry antes.
+export async function getDemandsForMinistry(ministryId: string): Promise<Demand[]> {
   const supabase = await createClient();
 
-  let query = supabase
+  const query = supabase
     .from("demands")
     .select(
       "id, identificador, ministry_id, campaign_id, parent_demand_id, titulo, tipo_servico, prioridade, status, prazo_acordado, data_conclusao, pendencia_atual, observacao_publicada, fonte_externa, link_origem, updated_at"
@@ -64,31 +66,6 @@ export async function getDemandsForMinistry(
     // prazo definido"). Antes esse .gte() também excluía essas por engano,
     // porque no Postgres uma comparação com NULL nunca dá "true".
     .or(`prazo_acordado.gte.${DEMANDAS_CUTOFF_DATE},prazo_acordado.is.null`);
-
-  if (filters.status) query = query.eq("status", filters.status);
-  if (filters.prioridade) query = query.eq("prioridade", filters.prioridade);
-
-  // Uma demanda pode estar em várias campanhas (demand_campaigns), então o
-  // filtro por campanha precisa passar por essa tabela de junção — não dá
-  // mais pra confiar só na coluna campaign_id (que só guarda um vínculo
-  // "legado", de cadastro manual).
-  if (filters.campaignId === "none") {
-    const { data: linkedRows } = await supabase.from("demand_campaigns").select("demand_id");
-    const linkedIds = Array.from(new Set((linkedRows ?? []).map((r) => r.demand_id)));
-    if (linkedIds.length > 0) {
-      query = query.not("id", "in", `(${linkedIds.join(",")})`).is("campaign_id", null);
-    } else {
-      query = query.is("campaign_id", null);
-    }
-  } else if (filters.campaignId) {
-    const { data: linkedRows } = await supabase
-      .from("demand_campaigns")
-      .select("demand_id")
-      .eq("campaign_id", filters.campaignId);
-    const ids = (linkedRows ?? []).map((r) => r.demand_id);
-    if (ids.length === 0) return [];
-    query = query.in("id", ids);
-  }
 
   const { data, error } = await query.order("prazo_acordado", { ascending: true, nullsFirst: false });
 

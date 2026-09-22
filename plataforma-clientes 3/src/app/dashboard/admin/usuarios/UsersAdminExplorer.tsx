@@ -1,15 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import { Badge, EmptyState, Icon, SearchInput } from "@/components/ui";
 import { UserRow, type UserRowData } from "./UserRow";
-
-function normalize(s: string) {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
-}
 
 /* Grupo colapsável por ministério. O chevron era um caractere "›"
    rotacionado; virou ícone do sistema, e o botão ganhou aria-expanded. */
@@ -61,13 +55,13 @@ export function UsersAdminExplorer({
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     if (!term) return users;
     return users.filter(
       (u) =>
-        normalize(u.email).includes(term) ||
-        normalize(u.fullName ?? "").includes(term) ||
-        u.memberships.some((m) => normalize(m.ministryName).includes(term))
+        normalizar(u.email).includes(term) ||
+        normalizar(u.fullName ?? "").includes(term) ||
+        u.memberships.some((m) => normalizar(m.ministryName).includes(term))
     );
   }, [users, search]);
 

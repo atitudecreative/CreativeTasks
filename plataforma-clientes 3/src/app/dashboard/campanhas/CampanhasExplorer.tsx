@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import Link from "next/link";
 import { Badge, Button, Card, CodeTag, EmptyState, Icon, Progress, SearchInput, Select, cn } from "@/components/ui";
 import { saudeTone } from "@/lib/statusColors";
@@ -44,10 +45,6 @@ export type CampaignCardData = {
    ========================================================================= */
 
 type SortKey = "recentes" | "investimento" | "nome";
-
-function normalize(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 function shortDate(d: string | null) {
   if (!d) return null;
@@ -153,9 +150,9 @@ export function CampanhasExplorer({ campaigns }: { campaigns: CampaignCardData[]
   const hasFilter = Boolean(search.trim() || saude || tipo);
 
   const visible = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     const filtered = campaigns.filter((c) => {
-      const matchesSearch = !term || normalize(c.nome).includes(term) || normalize(c.identificador ?? "").includes(term);
+      const matchesSearch = !term || normalizar(c.nome).includes(term) || normalizar(c.identificador ?? "").includes(term);
       return matchesSearch && (!saude || c.saude === saude) && (!tipo || c.tipo === tipo);
     });
 
