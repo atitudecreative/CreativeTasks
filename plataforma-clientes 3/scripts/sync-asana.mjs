@@ -340,29 +340,59 @@ async function ensureCampaignId(ministryId, tagName, campaignMap) {
 // existente NUNCA é tocado — sem precisar checar "já existe?" antes, que
 // era a outra metade das idas e vindas ao banco por tarefa. Retorna o id
 // real (uuid) de cada linha gravada, indexado pelo gid do Asana.
+// Piso pra bissecção abaixo (ver upsertDemandsChunk): não vale a pena
+// dividir menos que isso — se até um lote pequeno assim ainda der timeout,
+// o problema não é o TAMANHO do lote (não é CPU/memória proporcional ao
+// número de linhas), e sim algo externo à query em si (ex: statement_timeout
+// curto demais no projeto do Supabase, ou lock disputado com outra sessão
+// no banco) — dividir mais não vai resolver, só multiplicar tentativas.
+const MIN_BATCH_SIZE = 20;
+
+// Grava um lote (ou pedaço de lote) de demandas; se o timeout persistir
+// mesmo depois das tentativas do withRetry, divide o lote ao meio e tenta
+// cada metade separada, em vez de descartar todo mundo de uma vez — um
+// lote de 159 demandas que dá timeout inteiro pode passar perfeitamente
+// bem quando dividido em pedaços menores.
+async function upsertDemandsChunk(batch) {
+  const { data, error } = await withRetry(
+    () =>
+      supabase
+        .from("demands")
+        .upsert(batch, { onConflict: "ministry_id,asana_task_gid" })
+        .select("id, asana_task_gid"),
+    { label: `gravar lote de ${batch.length} demanda(s)` }
+  );
+
+  if (!error) return data ?? [];
+
+  const isTimeout = /timeout/i.test(error.message ?? "");
+  if (isTimeout && batch.length > MIN_BATCH_SIZE) {
+    const mid = Math.ceil(batch.length / 2);
+    console.warn(
+      `  Lote de ${batch.length} demanda(s) continuou dando timeout — dividindo em dois pedaços de ` +
+        `${mid} e ${batch.length - mid} e tentando separado.`
+    );
+    // Sequencial, não em paralelo: se a causa for disputa de lock no banco
+    // (não custo computacional proporcional ao tamanho do lote), mandar as
+    // duas metades ao mesmo tempo só recriaria a mesma disputa.
+    const left = await upsertDemandsChunk(batch.slice(0, mid));
+    const right = await upsertDemandsChunk(batch.slice(mid));
+    return [...left, ...right];
+  }
+
+  console.error(
+    `  Erro ao gravar um lote de ${batch.length} demanda(s): ${error.message}. Pulando esse lote (${batch
+      .map((r) => r.titulo)
+      .slice(0, 3)
+      .join(", ")}${batch.length > 3 ? ", ..." : ""}).`
+  );
+  return [];
+}
+
 async function upsertDemandsBatch(rows) {
   const written = [];
   for (const batch of chunk(rows, BATCH_SIZE)) {
-    const { data, error } = await withRetry(
-      () =>
-        supabase
-          .from("demands")
-          .upsert(batch, { onConflict: "ministry_id,asana_task_gid" })
-          .select("id, asana_task_gid"),
-      { label: `gravar lote de ${batch.length} demanda(s)` }
-    );
-
-    if (error) {
-      console.error(
-        `  Erro ao gravar um lote de ${batch.length} demanda(s): ${error.message}. Pulando esse lote (${batch
-          .map((r) => r.titulo)
-          .slice(0, 3)
-          .join(", ")}${batch.length > 3 ? ", ..." : ""}).`
-      );
-      continue;
-    }
-
-    written.push(...(data ?? []));
+    written.push(...(await upsertDemandsChunk(batch)));
   }
   return written;
 }
