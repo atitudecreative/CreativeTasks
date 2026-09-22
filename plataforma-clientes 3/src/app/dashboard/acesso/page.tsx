@@ -1,22 +1,21 @@
 import { getCurrentUser, getUserMemberships, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { Alert, Avatar, Badge, EmptyState, Icon, Panel, Section, Table, TBody, TD, TH, THead, TR, TableScroll } from "@/components/ui";
 import { PageHeader } from "@/components/AppShell";
+import { MINISTRY_ROLE_LABEL, PAPEL_GLOBAL_LABEL } from "@/lib/userOptions";
 
 export const metadata = { title: "Meu acesso" };
 
-const ROLE: Record<string, { label: string; description: string }> = {
-  leitor: { label: "Leitor", description: "Acompanha demandas, campanhas e arquivos do ministério." },
-  colaborador: { label: "Colaborador", description: "Acompanha e participa das conversas das demandas." },
-  aprovador: { label: "Aprovador", description: "Além de acompanhar, aprova as entregas do ministério." },
-  supervisor: { label: "Supervisor", description: "Visão completa do ministério." },
-  atendimento: { label: "Atendimento", description: "Equipe da Comunicação responsável por este ministério." },
-};
-
-const PAPEL_GLOBAL: Record<string, string> = {
-  nenhum: "Sem papel global",
-  atendimento: "Atendimento da Comunicação",
-  gestor_comunicacao: "Gestor de Comunicação",
-  administrador_tecnico: "Administrador técnico",
+// Os RÓTULOS vêm de lib/userOptions, que é a lista que o cadastro de
+// usuários também usa — havia uma terceira cópia deles aqui, e um papel
+// renomeado num lugar só passaria a aparecer diferente conforme a tela.
+// O que é específico desta tela são as DESCRIÇÕES: o que cada papel pode
+// fazer, que é a dúvida de quem abre "Meu acesso".
+const ROLE_DESCRICAO: Record<string, string> = {
+  leitor: "Acompanha demandas, campanhas e arquivos do ministério.",
+  colaborador: "Acompanha e participa das conversas das demandas.",
+  aprovador: "Além de acompanhar, aprova as entregas do ministério.",
+  supervisor: "Visão completa do ministério.",
+  atendimento: "Equipe da Comunicação responsável por este ministério.",
 };
 
 /* Antes: uma tabela de duas colunas com o papel por extenso e nada
@@ -42,7 +41,7 @@ export default async function MeuAcessoPage() {
               <p className="truncate text-h4 text-ink">{nome}</p>
               {user.email && <p className="mt-0.5 truncate text-caption text-ink-3">{user.email}</p>}
               <Badge tone={comunicacao ? "accent" : "neutral"} size="sm" className="mt-2">
-                {PAPEL_GLOBAL[user.papelGlobal] ?? user.papelGlobal}
+                {PAPEL_GLOBAL_LABEL[user.papelGlobal] ?? user.papelGlobal}
               </Badge>
             </div>
           </div>
@@ -82,7 +81,6 @@ export default async function MeuAcessoPage() {
                   </THead>
                   <TBody>
                     {memberships.map((m) => {
-                      const role = ROLE[m.role];
                       return (
                         <TR key={m.ministry.id}>
                           <TD strong>
@@ -93,10 +91,10 @@ export default async function MeuAcessoPage() {
                           </TD>
                           <TD>
                             <Badge tone="neutral" size="sm">
-                              {role?.label ?? m.role}
+                              {MINISTRY_ROLE_LABEL[m.role] ?? m.role}
                             </Badge>
                           </TD>
-                          <TD className="hidden sm:table-cell">{role?.description ?? "—"}</TD>
+                          <TD className="hidden sm:table-cell">{ROLE_DESCRICAO[m.role] ?? "—"}</TD>
                         </TR>
                       );
                     })}

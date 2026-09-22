@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { falhaAoCarregar } from "./erros";
 import { createClient } from "@/lib/supabase/server";
 import { deriveMetaKpis } from "@/lib/metaAdsMath";
 import type { MetaMetricsSummary } from "@/lib/metaAdsMath";
@@ -41,8 +42,7 @@ export async function getMetaCampaignsForCampaign(campaignId: string): Promise<M
     .order("synced_at", { ascending: false });
 
   if (error) {
-    console.error("Erro ao buscar campanhas do Meta Ads:", error.message);
-    return [];
+    falhaAoCarregar("as campanhas de mídia desta campanha", error);
   }
 
   return data ?? [];
@@ -120,8 +120,7 @@ const getMetaCampaignIdsForCampaign = cache(async (campaignId: string): Promise<
     .eq("campaign_id", campaignId);
 
   if (error) {
-    console.error("Erro ao buscar campanhas do Meta vinculadas:", error.message);
-    return [];
+    falhaAoCarregar("as campanhas de mídia vinculadas", error);
   }
 
   return (data ?? []).map((r) => r.meta_campaign_id);
@@ -141,8 +140,7 @@ export async function getMetaAdsForCampaign(campaignId: string): Promise<MetaAd[
     .order("investimento", { ascending: false });
 
   if (error) {
-    console.error("Erro ao buscar anúncios do Meta:", error.message);
-    return [];
+    falhaAoCarregar("os anúncios desta campanha", error);
   }
 
   return data ?? [];
@@ -162,8 +160,7 @@ export async function getMetaWeeklyStatsForCampaign(campaignId: string): Promise
     .order("semana_inicio", { ascending: true });
 
   if (error) {
-    console.error("Erro ao buscar evolução semanal do Meta Ads:", error.message);
-    return [];
+    falhaAoCarregar("a evolução semanal da mídia", error);
   }
 
   const byWeek = new Map<string, MetaWeeklyStat>();
@@ -203,8 +200,7 @@ export async function getMetaDemographicsForCampaign(
     .in("meta_campaign_id", metaCampaignIds);
 
   if (error) {
-    console.error("Erro ao buscar demografia do Meta Ads:", error.message);
-    return { genero: [], idade: [] };
+    falhaAoCarregar("a demografia da mídia", error);
   }
 
   function aggregate(tipo: "genero" | "idade"): MetaDemographicItem[] {
@@ -234,8 +230,7 @@ export async function getUnmatchedMetaCampaigns(): Promise<MetaAdCampaign[]> {
     .order("synced_at", { ascending: false });
 
   if (error) {
-    console.error("Erro ao buscar campanhas do Meta Ads sem vínculo:", error.message);
-    return [];
+    falhaAoCarregar("as campanhas de mídia sem vínculo", error);
   }
 
   return data ?? [];
@@ -246,8 +241,7 @@ export async function getAllCampaignNamesForLinking(): Promise<{ id: string; nom
   const { data, error } = await supabase.from("campaigns").select("id, nome").order("nome");
 
   if (error) {
-    console.error("Erro ao buscar campanhas do portal:", error.message);
-    return [];
+    falhaAoCarregar("a lista de campanhas", error);
   }
 
   return data ?? [];

@@ -1,4 +1,5 @@
 import { cn } from "./cn";
+import { formatPercent } from "@/lib/metricLanguage";
 import { Icon } from "./icons";
 
 /* =========================================================================
@@ -142,7 +143,7 @@ export function Delta({
       className={cn("inline-flex items-center gap-1 font-medium tabular-nums", size === "sm" ? "text-[0.6875rem]" : "text-caption", tone, className)}
     >
       <Arrow className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} />
-      {flat ? "estável" : `${positive ? "+" : ""}${value.toFixed(1)}${suffix}`}
+      {flat ? "estável" : `${positive ? "+" : ""}${formatPercent(value, 1).replace("%", "")}${suffix}`}
     </span>
   );
 }

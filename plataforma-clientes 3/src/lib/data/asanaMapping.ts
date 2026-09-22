@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { falhaAoCarregar } from "./erros";
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL } from "@/lib/demandOptions";
 
@@ -54,8 +55,7 @@ export const getRegrasStatus = cache(async (): Promise<RegraStatus[]> => {
     .order("secao_normalizada");
 
   if (error) {
-    console.error("Erro ao buscar o de-para de status:", error.message);
-    return [];
+    falhaAoCarregar("as regras de status do Asana", error);
   }
 
   return (data ?? []).map((r) => ({
@@ -74,8 +74,7 @@ export const getSecoesVistas = cache(async (): Promise<SecaoVista[]> => {
     .order("total_tarefas", { ascending: false });
 
   if (error) {
-    console.error("Erro ao buscar colunas do Asana:", error.message);
-    return [];
+    falhaAoCarregar("as colunas dos quadros do Asana", error);
   }
 
   return (data ?? []).map((r) => {

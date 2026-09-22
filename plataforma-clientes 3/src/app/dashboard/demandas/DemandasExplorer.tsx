@@ -1,8 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge, Button, EmptyState, Icon, SearchInput, Select, cn } from "@/components/ui";
-import { MonthAccordion } from "./MonthAccordion";
+import { normalizar } from "@/lib/texto";
+import { formatarMesPorExtenso } from "@/lib/dates";
+import {
+  Badge, Board, BoardGroup, Button, EmptyState, Icon, PageBody, Panel,
+  RailBlock, RailStat, SearchInput, Select, cn,
+} from "@/components/ui";
+import { StageColumns } from "@/components/charts/StageColumns";
+import { agruparPorMesEEstagio } from "@/lib/demandSeries";
 import { DemandTable, type DemandRow } from "./DemandTable";
 import { STATUS_OPTIONS, PRIORIDADE_OPTIONS } from "@/lib/demandOptions";
 import { STAGE_META, STAGE_ORDER, stageOf, type StageKey } from "@/lib/demandStages";
@@ -26,16 +32,15 @@ export type FilterCampaign = { id: string; nome: string };
       com o campo certo (type=search, botão de limpar, ícone).
    ========================================================================= */
 
-function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 export function DemandasExplorer({
   demands,
   campaigns,
+  hoje,
 }: {
   demands: DemandRow[];
   campaigns: FilterCampaign[];
+  /** "YYYY-MM-DD" em Brasília, vindo do servidor. */
+  hoje: string;
 }) {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState<StageKey | "">("");
@@ -79,13 +84,13 @@ export function DemandasExplorer({
   const hasActiveFilter = activeFilters.length > 0;
 
   const filtered = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     return demands.filter((d) => {
       const matchesSearch =
         !term ||
-        normalize(d.titulo).includes(term) ||
-        (d.identificador && normalize(d.identificador).includes(term)) ||
-        d.campanhas.some((c) => normalize(c.nome).includes(term));
+        normalizar(d.titulo).includes(term) ||
+        (d.identificador && normalizar(d.identificador).includes(term)) ||
+        d.campanhas.some((c) => normalizar(c.nome).includes(term));
       const matchesStage = !stage || stageOf(d.status) === stage;
       const matchesStatus = !status || d.status === status;
       const matchesPrioridade = !prioridade || d.prioridade === prioridade;
@@ -99,16 +104,29 @@ export function DemandasExplorer({
 
   // Agrupamento por mês só vale na visão sem filtro — com filtro, o
   // usuário quer ver TUDO que bateu numa lista só, não caçar mês a mês.
+  // A composição por mês acompanha o filtro: um gráfico que ignora o
+  // recorte contradiz a lista logo abaixo dele.
+  const colunas = useMemo(
+    () =>
+      agruparPorMesEEstagio(
+        filtered.map((d) => ({ prazo: d.prazo, stage: stageOf(d.status) })),
+        hoje.slice(0, 7)
+      ),
+    [filtered, hoje]
+  );
+
+  const semPrazo = useMemo(() => filtered.filter((d) => !d.prazo).length, [filtered]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, DemandRow[]>();
-    for (const d of demands) {
+    for (const d of filtered) {
       const key = d.prazo ? d.prazo.slice(0, 7) : "sem-prazo";
       const list = map.get(key) ?? [];
       list.push(d);
       map.set(key, list);
     }
     return map;
-  }, [demands]);
+  }, [filtered]);
 
   function clearAll() {
     setSearch("");
@@ -117,13 +135,6 @@ export function DemandasExplorer({
     setPrioridade("");
     setCampanha("");
     setOnlyOverdue(false);
-  }
-
-  function formatMonthLabel(key: string): string {
-    if (key === "sem-prazo") return "Sem prazo definido";
-    const [year, month] = key.split("-").map(Number);
-    const label = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-    return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
   return (
@@ -192,12 +203,13 @@ export function DemandasExplorer({
       </div>
 
       {/* ---------- Busca e filtros secundários ---------- */}
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
         <SearchInput
           value={search}
           onValueChange={setSearch}
           placeholder="Nome, identificador (DEM-2026-…) ou campanha"
           aria-label="Buscar demandas"
+          className="col-span-2 sm:col-span-2 lg:col-span-1"
         />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filtrar por status">
           <option value="">Todos os status</option>
@@ -259,37 +271,96 @@ export function DemandasExplorer({
           title="Nenhuma demanda publicada ainda"
           description="Assim que a Comunicação publicar demandas deste ministério a partir de 2026, elas aparecem aqui."
         />
-      ) : hasActiveFilter ? (
-        filtered.length === 0 ? (
-          <EmptyState
-            icon={<Icon.Search className="h-5 w-5" />}
-            title="Nenhuma demanda com esses filtros"
-            description="Tente outro termo de busca ou remova um dos filtros ativos acima."
-            action={
-              <Button variant="secondary" onClick={clearAll} iconLeft={<Icon.Refresh className="h-4 w-4" />}>
-                Limpar filtros
-              </Button>
-            }
-          />
-        ) : (
-          <div className="overflow-hidden rounded-panel border border-line bg-surface shadow-xs">
-            <DemandTable demands={filtered} />
-          </div>
-        )
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Icon.Search className="h-5 w-5" />}
+          title="Nenhuma demanda com esses filtros"
+          description="Tente outro termo de busca ou remova um dos filtros ativos acima."
+          action={
+            <Button variant="secondary" onClick={clearAll} iconLeft={<Icon.Refresh className="h-4 w-4" />}>
+              Limpar filtros
+            </Button>
+          }
+        />
       ) : (
-        <div className="space-y-2.5">
-          {Array.from(grouped.entries()).map(([key, rows], i) => (
-            // O mês mais próximo já abre expandido — é o que a pessoa
-            // veio ver na maior parte das vezes.
-            <MonthAccordion key={key} monthLabel={formatMonthLabel(key)} demands={rows} defaultOpen={i === 0} />
-          ))}
-        </div>
-      )}
+        <PageBody
+          rail={
+            <RailBlock label={hasActiveFilter ? "No recorte atual" : "No total"}>
+              <div className="divide-y divide-line">
+                <RailStat
+                  label="Em andamento"
+                  value={
+                    filtered.filter((d) => ["fila", "producao", "ministerio"].includes(stageOf(d.status))).length
+                  }
+                  hint={`de ${filtered.length} ${filtered.length === 1 ? "demanda" : "demandas"}`}
+                />
+                <RailStat
+                  label="Com o ministério"
+                  value={filtered.filter((d) => stageOf(d.status) === "ministerio").length}
+                  hint="esperando resposta de vocês"
+                  tone="warning"
+                />
+                <RailStat
+                  label="Atrasadas"
+                  value={filtered.filter((d) => d.overdue).length}
+                  tone={filtered.some((d) => d.overdue) ? "danger" : "default"}
+                  hint="prazo já vencido"
+                />
+                <RailStat
+                  label="Sem prazo"
+                  value={semPrazo}
+                  hint={semPrazo > 0 ? "não entram na série por mês" : undefined}
+                />
+              </div>
+            </RailBlock>
+          }
+        >
+          {/* O cruzamento que faltava: em que ESTADO está o trabalho de
+              cada mês. Os chips acima dizem o estado agora; os grupos da
+              lista dizem o mês; nenhum dos dois cruzava as duas coisas. */}
+          {colunas.length > 1 && (
+            <Panel
+              title="Onde está o trabalho"
+              description="Demandas por mês de prazo, divididas por estágio"
+              className="mb-4"
+            >
+              <StageColumns colunas={colunas} className="pt-4" />
+            </Panel>
+          )}
 
-      {!hasActiveFilter && demands.length > 0 && (
-        <p className="mt-3 text-caption text-ink-3">
-          {demands.length} {demands.length === 1 ? "demanda" : "demandas"} de 2026 em diante, agrupadas por mês de prazo.
-        </p>
+          <Board>
+            {Array.from(grouped.entries()).map(([key, rows], i) => {
+              const atrasadas = rows.filter((d) => d.overdue).length;
+              const concluidas = rows.filter((d) => stageOf(d.status) === "concluida").length;
+              return (
+                <BoardGroup
+                  key={key}
+                  title={key === "sem-prazo" ? "Sem prazo definido" : formatarMesPorExtenso(key)}
+                  count={rows.length}
+                  meta={concluidas > 0 ? `${concluidas} já concluídas` : undefined}
+                  collapsible
+                  // O primeiro grupo abre; com filtro ativo, todos abrem —
+                  // quem filtrou quer ver o resultado, não caçar mês a mês.
+                  defaultOpen={hasActiveFilter || i === 0}
+                  trailing={
+                    atrasadas > 0 ? (
+                      <Badge tone="danger" size="sm" icon={<Icon.AlertTriangle className="h-3 w-3" />}>
+                        {atrasadas} {atrasadas === 1 ? "atrasada" : "atrasadas"}
+                      </Badge>
+                    ) : undefined
+                  }
+                >
+                  <DemandTable demands={rows} />
+                </BoardGroup>
+              );
+            })}
+          </Board>
+
+          <p className="mt-3 text-caption text-ink-3">
+            {filtered.length} {filtered.length === 1 ? "demanda" : "demandas"}
+            {hasActiveFilter ? ` de ${demands.length}` : " de 2026 em diante"}, agrupadas por mês de prazo.
+          </p>
+        </PageBody>
       )}
     </div>
   );

@@ -133,7 +133,7 @@ function VisibilityBlock({
         <input type="hidden" name="campaignId" value={campaign.id} />
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {ministries.map((m) => (
-            <label key={m.id} className="flex items-center gap-2 text-sm text-ink-2">
+            <label key={m.id} className="flex min-h-6 cursor-pointer items-center gap-2 py-1 text-sm text-ink-2">
               <input
                 type="checkbox"
                 name="ministryId"
@@ -253,8 +253,9 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
           <label className="mb-1 block text-xs font-medium text-ink-2">Orçamento planejado (R$)</label>
           <input
             name="orcamento_planejado"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            placeholder="ex: 12.500,00"
             defaultValue={campaign.orcamento_planejado ?? ""}
             className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
@@ -264,8 +265,9 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
           <label className="mb-1 block text-xs font-medium text-ink-2">Orçamento aprovado (R$)</label>
           <input
             name="orcamento_aprovado"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            placeholder="ex: 12.500,00"
             defaultValue={campaign.orcamento_aprovado ?? ""}
             className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />
@@ -275,8 +277,9 @@ function InfoForm({ campaign }: { campaign: Campaign }) {
           <label className="mb-1 block text-xs font-medium text-ink-2">Investimento realizado (R$)</label>
           <input
             name="investimento_realizado"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            placeholder="ex: 12.500,00"
             defaultValue={campaign.investimento_realizado ?? ""}
             className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
           />

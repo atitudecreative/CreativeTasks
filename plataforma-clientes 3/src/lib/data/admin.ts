@@ -1,4 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { hoje, jaPassou } from "@/lib/dates";
+import { stageOf, type StageKey } from "@/lib/demandStages";
+
+const ESTAGIOS_EM_ANDAMENTO = new Set<StageKey>(["fila", "producao", "ministerio"]);
 
 export type MinistryOverview = {
   id: string;
@@ -29,7 +33,11 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
       .eq("campaigns.publicada", true),
   ]);
 
-  const today = new Date(new Date().toDateString());
+  // Mesmo "hoje" de src/lib/dates.ts: dia em Brasília, comparado como
+  // texto. Antes esta linha misturava meia-noite UTC (o prazo) com
+  // meia-noite do servidor, e o painel da Comunicação contava demanda
+  // atrasada três horas antes de ela atrasar.
+  const hojeBr = hoje();
 
   // Uma passada só por cada tabela, acumulando num Map por ministério — em
   // vez de rodar 4 .filter() no array inteiro de demandas/campanhas pra
@@ -50,11 +58,17 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
     return c;
   };
 
+  // Mesma definição de "ativa" que o Início e a barra de estágios usam
+  // (lib/demandStages): fila, produção e com o ministério. A versão
+  // anterior tirava só concluida e cancelada, então demanda já aprovada ou
+  // publicada entrava como ativa aqui e como concluída lá — o painel da
+  // Comunicação e o do ministério mostravam números diferentes para a
+  // mesma pergunta.
   for (const d of demands ?? []) {
-    if (d.status === "concluida" || d.status === "cancelada") continue;
+    if (!ESTAGIOS_EM_ANDAMENTO.has(stageOf(d.status))) continue;
     const c = getCounts(d.ministry_id);
     c.demandasAtivas++;
-    if (d.prazo_acordado && new Date(d.prazo_acordado) < today) c.demandasAtrasadas++;
+    if (jaPassou(d.prazo_acordado, hojeBr)) c.demandasAtrasadas++;
   }
 
   // campanha pode ter várias demandas do mesmo ministério — conta a

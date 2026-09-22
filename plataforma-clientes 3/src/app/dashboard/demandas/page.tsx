@@ -1,4 +1,5 @@
 import { requireMinistry } from "@/lib/data/ministries";
+import { hoje } from "@/lib/dates";
 import {
   getDemandsForMinistry,
   getChildDemandCounts,
@@ -31,6 +32,10 @@ export default async function DemandasPage() {
     getChildDemandCounts(ministry.id),
   ]);
 
+  // Um "hoje" (em Brasília) para a lista inteira: a mesma data decide
+  // o atraso de todas as linhas, e não uma leitura de relógio por linha.
+  const hojeBr = hoje();
+
   const rows: DemandRow[] = demands.map((d) => ({
     id: d.id,
     identificador: d.identificador,
@@ -41,7 +46,7 @@ export default async function DemandasPage() {
     prioridadeLabel: d.prioridade ? PRIORIDADE_LABEL[d.prioridade] ?? d.prioridade : null,
     prazo: d.prazo_acordado,
     prazoFormatted: formatDate(d.prazo_acordado),
-    overdue: isOverdue(d),
+    overdue: isOverdue(d, hojeBr),
     campanhas: campaignsByDemand.get(d.id) ?? [],
     childCount: childCounts.get(d.id) ?? 0,
   }));
@@ -54,7 +59,7 @@ export default async function DemandasPage() {
         description={`Tudo que a Comunicação está produzindo para ${ministry.name}. Filtre por estágio para ver o que está em produção ou esperando por você.`}
       />
 
-      <DemandasExplorer demands={rows} campaigns={campaigns} />
+      <DemandasExplorer hoje={hojeBr} demands={rows} campaigns={campaigns} />
     </div>
   );
 }

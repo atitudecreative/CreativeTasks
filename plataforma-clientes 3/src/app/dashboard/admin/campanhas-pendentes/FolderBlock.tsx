@@ -37,16 +37,16 @@ export function FolderBlock({
               autoFocus
               className="min-w-0 flex-1 rounded-control border border-line-strong px-2 py-1 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
             />
-            <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+            <button type="submit" className="inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline">
               Salvar
             </button>
-            <button type="button" onClick={() => setRenaming(false)} className="text-xs text-ink-2 hover:underline">
+            <button type="button" onClick={() => setRenaming(false)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:underline">
               Cancelar
             </button>
           </form>
         ) : (
           <>
-            <button type="button" onClick={() => setRenaming(true)} className="flex items-center gap-2 text-sm font-medium text-ink-2">
+            <button type="button" onClick={() => setRenaming(true)} className="flex min-h-6 items-center gap-2 text-sm font-medium text-ink-2">
               <svg className="h-4 w-4 shrink-0 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
               </svg>
@@ -61,7 +61,7 @@ export function FolderBlock({
               }}
             >
               <input type="hidden" name="id" value={folder.id} />
-              <button type="submit" className="text-caption font-medium text-ink-3 hover:text-danger">
+              <button type="submit" className="inline-flex min-h-6 items-center text-caption font-medium text-ink-3 hover:text-danger">
                 Excluir pasta
               </button>
             </form>

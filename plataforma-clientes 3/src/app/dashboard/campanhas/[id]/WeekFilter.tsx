@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Metric, MetricRow, Panel, Tooltip, cn } from "@/components/ui";
 import { deriveMetaKpis, type MetaMetricsSummary } from "@/lib/metaAdsMath";
-import { METRICS, formatMoney, formatCompact, percentChange } from "@/lib/metricLanguage";
+import { METRICS, formatMoney, formatCompact, percentChange, formatPercent } from "@/lib/metricLanguage";
 import type { MetaWeeklyStat } from "@/lib/data/metaAds";
 
 /* =========================================================================
@@ -78,7 +78,7 @@ export function WeekPerformance({
       raw: current.vendas,
     },
     { key: "cpa" as const, value: formatMoney(current.cpa), raw: current.cpa },
-    { key: "ctr" as const, value: current.ctr != null ? `${current.ctr.toFixed(2)}%` : "—", raw: current.ctr },
+    { key: "ctr" as const, value: formatPercent(current.ctr, 2), raw: current.ctr },
     { key: "cpc" as const, value: formatMoney(current.cpc), raw: current.cpc },
     { key: "cpm" as const, value: formatMoney(current.cpm), raw: current.cpm },
   ];

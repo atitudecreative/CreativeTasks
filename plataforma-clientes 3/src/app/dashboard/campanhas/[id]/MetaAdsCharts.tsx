@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Icon, BarRow, EmptyState, Skeleton, cn } from "@/components/ui";
 import { MUTED, seriesColor, ChartEmpty, ChartLegend, ChartDataTable } from "@/components/charts/primitives";
-import { formatMoney } from "@/lib/metricLanguage";
+import { formatMoney, formatPercent } from "@/lib/metricLanguage";
 import type { MetaDemographicItem, MetaAd } from "@/lib/data/metaAds";
 
 /* =========================================================================
@@ -152,7 +152,7 @@ export function MetaAgeChart({ data }: { data: MetaDemographicItem[] }) {
         rows={sorted.map((d) => [
           `${d.chave} anos`,
           formatMoney(d.investimento),
-          total > 0 ? `${((d.investimento / total) * 100).toFixed(1)}%` : "—",
+          total > 0 ? formatPercent((d.investimento / total) * 100, 1) : "—",
         ])}
       />
     </div>
@@ -188,7 +188,7 @@ export function MetaAdsRanking({ ads, limit = 8 }: { ads: MetaAd[]; limit?: numb
             value={ad.investimento ?? 0}
             max={max}
             formatted={formatMoney(ad.investimento, true)}
-            meta={ad.ctr != null ? `CTR ${ad.ctr.toFixed(2)}%` : undefined}
+            meta={ad.ctr != null ? `CTR ${formatPercent(ad.ctr, 2)}` : undefined}
             colorVar={i === 0 ? "--chart-accent" : "--line-strong"}
           />
         ))}

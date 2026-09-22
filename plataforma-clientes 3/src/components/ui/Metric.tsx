@@ -81,7 +81,16 @@ export function Metric({
           <p className="min-w-0 font-mono text-label uppercase text-ink-3">{label}</p>
         </div>
 
-        <p className={cn("flex items-baseline gap-1 text-ink tabular-nums", valueClass, align === "center" && "justify-center")}>
+        {/* `whitespace-nowrap`: sem isso "R$ 1.297.571" quebrava depois do
+            penúltimo dígito num cartão estreito e virava "R$ 1.297.57 / 1".
+            Número partido no meio não é um número. */}
+        <p
+          className={cn(
+            "flex items-baseline gap-1 whitespace-nowrap text-ink tabular-nums",
+            valueClass,
+            align === "center" && "justify-center"
+          )}
+        >
           <span className="min-w-0 break-words">{value}</span>
           {unit && <span className="text-body font-medium text-ink-3">{unit}</span>}
         </p>

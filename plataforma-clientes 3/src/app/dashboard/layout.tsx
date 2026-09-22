@@ -6,6 +6,7 @@ import {
   isComunicacaoGlobal,
 } from "@/lib/data/ministries";
 import { getSiteTheme } from "@/lib/data/theme";
+import { getNavCounters } from "@/lib/data/navCounters";
 import { signOut } from "@/app/login/actions";
 import { AppShell } from "@/components/AppShell";
 
@@ -29,9 +30,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { ministry, role, user } = current;
   const comunicacao = isComunicacaoGlobal(user);
 
-  const switcherOptions = comunicacao
-    ? await getAllMinistries()
-    : (await getUserMemberships()).map((m) => m.ministry);
+  const [switcherOptions, counters] = await Promise.all([
+    comunicacao ? getAllMinistries() : getUserMemberships().then((ms) => ms.map((m) => m.ministry)),
+    // Sem ministério ativo não há o que contar (Comunicação sem nenhum
+    // ministério cadastrado ainda).
+    ministry ? getNavCounters(ministry.id) : Promise.resolve(undefined),
+  ]);
 
   return (
     <AppShell
@@ -45,6 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       switcherOptions={switcherOptions.map((m) => ({ id: m.id, name: m.name }))}
       currentMinistryId={ministry?.id ?? ""}
       signOutAction={signOut}
+      counters={counters}
     >
       {children}
     </AppShell>

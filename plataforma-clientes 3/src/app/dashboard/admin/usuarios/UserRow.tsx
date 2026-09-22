@@ -209,7 +209,7 @@ export function UserRow({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="ml-1 text-xs font-medium text-brand-600 hover:underline"
+            className="ml-1 inline-flex min-h-6 items-center text-xs font-medium text-brand-600 hover:underline"
           >
             {open ? "Fechar" : "Editar"}
           </button>

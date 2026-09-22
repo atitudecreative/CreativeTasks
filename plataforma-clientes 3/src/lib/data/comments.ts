@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { falhaAoCarregar } from "./erros";
 
 export type DemandComment = {
   id: string;
@@ -22,9 +23,10 @@ export async function getCommentsForDemand(demandId: string): Promise<DemandComm
     .eq("demand_id", demandId)
     .order("created_at", { ascending: true });
 
+  // Lista vazia por falha de leitura viraria "Nenhum comentário ainda" —
+  // e alguém responderia de novo achando que a mensagem não foi.
   if (error) {
-    console.error("Erro ao buscar comentários:", error.message);
-    return [];
+    falhaAoCarregar("a conversa desta demanda", error);
   }
 
   return (data ?? []).map((row) => {

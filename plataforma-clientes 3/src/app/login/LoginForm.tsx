@@ -51,7 +51,7 @@ export function LoginForm({ urlErrorMessage }: { urlErrorMessage: string | null 
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              className="rounded p-0.5 text-ink-3 transition hover:text-ink"
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-3 transition hover:text-ink"
             >
               {showPassword ? <Icon.EyeOff className="h-4 w-4" /> : <Icon.Eye className="h-4 w-4" />}
             </button>

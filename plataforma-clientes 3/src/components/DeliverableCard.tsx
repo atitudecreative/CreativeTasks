@@ -5,6 +5,7 @@ import { getLinkPreview } from "@/lib/linkPreview";
 import type { Deliverable } from "@/lib/data/deliverables";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import { deliverableTone } from "@/lib/statusColors";
+import { formatarDiaMes } from "@/lib/dates";
 import { setDeliverableStatus } from "@/app/dashboard/entregas/actions";
 import { Badge, Button, Card, Icon, cn, useToast } from "@/components/ui";
 
@@ -19,8 +20,7 @@ function hostOf(url: string): string {
 }
 
 function formatDate(dateStr: string | null) {
-  if (!dateStr) return null;
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" });
+  return dateStr ? formatarDiaMes(dateStr, "") || null : null;
 }
 
 /* Drive: tenta a miniatura (imagem de verdade, sem moldura do Drive em
@@ -44,31 +44,105 @@ function DrivePreview({ imageUrl, embedUrl, alt }: { imageUrl: string; embedUrl:
   );
 }
 
+/** Campo neutro com o domínio de destino — usado quando não há prévia
+ *  possível E quando a que existia não carregou. */
+function SemPrevia({ domain }: { domain: string }) {
+  return (
+    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
+      <Icon.Link className="h-5 w-5 text-ink-3" />
+      <span className="max-w-[80%] truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
+        {domain}
+      </span>
+    </div>
+  );
+}
+
+/** Imagem externa que, se não carregar, vira o campo neutro em vez do
+ *  ícone de imagem quebrada do navegador. O link pode ter expirado, o
+ *  arquivo pode ter mudado de permissão, a rede pode falhar — e esta tela
+ *  é a que o cliente abre. */
+function ImagemExterna({ url, domain }: { url: string; domain: string }) {
+  const [falhou, setFalhou] = useState(false);
+  if (falhou) return <SemPrevia domain={domain} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- link externo, sem domínio conhecido em build time
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setFalhou(true)}
+      className="aspect-video w-full bg-surface-sunken object-cover"
+    />
+  );
+}
+
+/** Fachada do YouTube: miniatura estática + botão de tocar, e o iframe só
+ *  entra depois do clique. Uma tela com nove entregas de vídeo montava nove
+ *  players do YouTube de uma vez — cada iframe é um contexto de navegador
+ *  completo, com script e rede próprios. A miniatura é uma imagem. */
+function YoutubePreview({ embedUrl, thumbUrl, alt }: { embedUrl: string; thumbUrl: string; alt: string }) {
+  const [tocando, setTocando] = useState(false);
+  const [semThumb, setSemThumb] = useState(false);
+
+  if (tocando) {
+    return (
+      <iframe
+        src={embedUrl}
+        title={alt}
+        className="aspect-video w-full bg-surface-sunken"
+        allow="autoplay; encrypted-media"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // O cartão inteiro é um link; tocar o vídeo não pode navegar.
+        e.preventDefault();
+        e.stopPropagation();
+        setTocando(true);
+      }}
+      aria-label={`Tocar vídeo: ${alt}`}
+      className="group/yt relative block aspect-video w-full overflow-hidden bg-surface-sunken"
+    >
+      {!semThumb && (
+        // eslint-disable-next-line @next/next/no-img-element -- miniatura do YouTube, domínio não conhecido em build time
+        <img
+          src={thumbUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setSemThumb(true)}
+          className="h-full w-full object-cover"
+        />
+      )}
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/70 text-white backdrop-blur-sm transition-transform duration-180 ease-snap group-hover/yt:scale-110">
+          <Icon.Play className="ml-0.5 h-5 w-5" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function Preview({ url, alt }: { url: string; alt: string }) {
   const preview = getLinkPreview(url);
 
   if (preview.kind === "drive") return <DrivePreview imageUrl={preview.imageUrl} embedUrl={preview.embedUrl} alt={alt} />;
 
   if (preview.kind === "youtube") {
-    return <iframe src={preview.embedUrl} title={alt} className="aspect-video w-full bg-surface-sunken" allow="autoplay" />;
+    return <YoutubePreview embedUrl={preview.embedUrl} thumbUrl={preview.thumbUrl} alt={alt} />;
   }
 
   if (preview.kind === "image") {
-    // eslint-disable-next-line @next/next/no-img-element -- link externo, sem domínio conhecido em build time
-    return <img src={preview.url} alt="" loading="lazy" className="aspect-video w-full bg-surface-sunken object-cover" />;
+    return <ImagemExterna url={preview.url} domain={hostOf(preview.url)} />;
   }
 
-  // Sem prévia possível: em vez de uma caixa tracejada com emoji 🔗,
-  // um campo neutro com o domínio de destino — diz pra onde o link leva
-  // antes de o usuário clicar.
-  return (
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
-      <Icon.Link className="h-5 w-5 text-ink-3" />
-      <span className="max-w-[80%] truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
-        {preview.domain}
-      </span>
-    </div>
-  );
+  // Sem prévia possível: em vez de uma caixa tracejada com emoji 🔗, um
+  // campo neutro com o domínio de destino — diz pra onde o link leva antes
+  // de o usuário clicar.
+  return <SemPrevia domain={preview.domain} />;
 }
 
 /* =========================================================================
@@ -100,7 +174,7 @@ export function DeliverableCard({
     setAction(status);
     startTransition(async () => {
       try {
-        await setDeliverableStatus(deliverable.id, deliverable.ministry_id, status);
+        await setDeliverableStatus(deliverable.id, status);
         toast.success({
           title: status === "aprovado" ? "Entrega aprovada" : "Ajuste solicitado",
           description:
@@ -167,7 +241,7 @@ export function DeliverableCard({
                     href={link}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1.5 text-caption text-brand-600 underline-offset-4 hover:underline"
+                    className="flex min-h-6 items-center gap-1.5 text-caption text-brand-600 underline-offset-4 hover:underline"
                   >
                     <Icon.Link className="h-3 w-3 shrink-0" />
                     <span className="truncate">{hostOf(link)}</span>

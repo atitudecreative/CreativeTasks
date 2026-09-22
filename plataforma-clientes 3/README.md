@@ -422,8 +422,33 @@ No SQL Editor do Supabase, rode nesta ordem (pule as que já rodaram antes):
 `0001_init.sql`, `0002_asana_tasks.sql`, `0003_metrics_unique.sql`,
 `0004_portal_ministerios_fase1.sql`.
 
+> **Se um arquivo vier truncado.** Script longo colado no SQL Editor às vezes
+> é cortado no meio, e o Postgres recusa o arquivo inteiro apontando para um
+> lugar onde não há nada de errado (`syntax error at or near ";"` ou
+> `syntax error at end of input`). Para as migrations `0030`, `0031` e `0032`
+> existe uma versão sem comentários, com menos da metade do tamanho, em
+> [`supabase/migrations/para-colar/`](supabase/migrations/para-colar/) — mesmo
+> SQL, e dividida em partes que podem ser coladas uma de cada vez.
+
 Opcionalmente, rode também `supabase/seed.sql` pra ter um ministério,
 campanha e demanda de exemplo.
+
+### Ver a interface sem um banco alcançável
+
+Para revisar a interface é preciso vê-la, e ver a interface exige dados.
+`QA_MOCK=1` troca o transporte do Supabase por fixtures e deixa a
+plataforma inteira rodar sem banco — útil para revisão visual e para os
+casos que o banco real não tem de propósito (ministério vazio, valor de
+sete dígitos, título de 140 caracteres):
+
+```bash
+QA_MOCK=1 npm run build && QA_MOCK=1 npm start
+node scripts/qa/varredura.mjs   # varre as telas em 4 larguras e 2 temas
+```
+
+A varredura reprova erro de console, rolagem horizontal, elemento que
+transborda o viewport e alvo de toque menor que 24px. Detalhes em
+[`scripts/qa/README.md`](scripts/qa/README.md).
 
 ### 3. Configurar as variáveis de ambiente
 

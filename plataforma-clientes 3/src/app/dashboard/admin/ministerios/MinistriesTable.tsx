@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import Link from "next/link";
 import {
   Avatar, Badge, Button, EmptyState, Icon, SearchInput, Select,
@@ -20,10 +21,6 @@ export type MinistryRow = {
   demandCount: number;
 };
 
-function normalize(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 /* Tabela de cadastro. Além do visual: colunas secundárias (sigla,
    categoria) somem em telas estreitas em vez de espremer as principais, e
    a ação de excluir sai do meio da linha — fica num menu no fim, que é
@@ -33,9 +30,9 @@ export function MinistriesTable({ ministries }: { ministries: MinistryRow[] }) {
   const [statusFilter, setStatusFilter] = useState("");
 
   const filtered = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     return ministries.filter((m) => {
-      const matchesSearch = !term || normalize(m.name).includes(term) || normalize(m.sigla ?? "").includes(term);
+      const matchesSearch = !term || normalizar(m.name).includes(term) || normalizar(m.sigla ?? "").includes(term);
       return matchesSearch && (!statusFilter || m.status === statusFilter);
     });
   }, [ministries, search, statusFilter]);

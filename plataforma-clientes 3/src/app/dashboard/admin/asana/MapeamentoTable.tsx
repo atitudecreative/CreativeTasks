@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { normalizar } from "@/lib/texto";
 import {
   Badge, Button, EmptyState, Icon, Panel, SearchInput, Select, Tooltip,
   Table, TBody, TD, TH, THead, TR, TableScroll, useToast, cn,
@@ -26,10 +27,6 @@ import type { SecaoConfigurada } from "@/lib/data/asanaMapping";
    ========================================================================= */
 
 type Escopo = "global" | "ministerio";
-
-function normalizar(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 const ORIGEM_META: Record<SecaoConfigurada["origem"], { label: string; tone: "accent" | "neutral" | "warning"; hint: string }> = {
   ministerio: {

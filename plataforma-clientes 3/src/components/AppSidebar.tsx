@@ -25,10 +25,15 @@ function NavLink({
   item,
   collapsed,
   onNavigate,
+  badge,
 }: {
   item: NavItem;
   collapsed: boolean;
   onNavigate?: () => void;
+  /** Contagem viva ao lado do rótulo. Só aparece quando há o que contar —
+   *  um "0" permanente vira ruído e ensina a ignorar o lugar onde o número
+   *  aparece. */
+  badge?: { valor: number; tom: "danger" | "warning"; titulo: string };
 }) {
   const pathname = usePathname();
   const active = isNavItemActive(item, pathname);
@@ -60,6 +65,22 @@ function NavLink({
       />
       <Ico className="h-[18px] w-[18px] shrink-0" />
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {badge && badge.valor > 0 && (
+        <span
+          title={badge.titulo}
+          className={cn(
+            "ml-auto shrink-0 rounded-full font-mono tabular-nums",
+            collapsed
+              ? // Recolhida não cabe número: vira um ponto no canto do ícone.
+                "absolute right-1 top-1 h-2 w-2"
+              : "px-1.5 py-0.5 text-[0.625rem] leading-4",
+            badge.tom === "danger" ? "bg-danger text-white" : "bg-warning text-white"
+          )}
+        >
+          {!collapsed && badge.valor}
+          {collapsed && <span className="sr-only">{badge.titulo}</span>}
+        </span>
+      )}
     </Link>
   );
 
@@ -74,6 +95,30 @@ function NavLink({
   );
 }
 
+/* Qual número cada item do menu carrega. O atraso vence a espera: se há as
+   duas coisas, o que já passou do prazo é o que precisa aparecer. */
+function badgeDoItem(
+  href: string,
+  counters?: { demandasAtrasadas: number; demandasComMinisterio: number }
+): { valor: number; tom: "danger" | "warning"; titulo: string } | undefined {
+  if (!counters || href !== "/dashboard/demandas") return undefined;
+  if (counters.demandasAtrasadas > 0) {
+    return {
+      valor: counters.demandasAtrasadas,
+      tom: "danger",
+      titulo: `${counters.demandasAtrasadas} ${counters.demandasAtrasadas === 1 ? "demanda atrasada" : "demandas atrasadas"}`,
+    };
+  }
+  if (counters.demandasComMinisterio > 0) {
+    return {
+      valor: counters.demandasComMinisterio,
+      tom: "warning",
+      titulo: `${counters.demandasComMinisterio} ${counters.demandasComMinisterio === 1 ? "demanda esperando" : "demandas esperando"} o ministério`,
+    };
+  }
+  return undefined;
+}
+
 export function AppSidebar({
   logoUrl,
   ministryName,
@@ -85,6 +130,7 @@ export function AppSidebar({
   onNavigate,
   switcher,
   userSlot,
+  counters,
 }: {
   logoUrl: string | null;
   ministryName: string;
@@ -96,6 +142,7 @@ export function AppSidebar({
   onNavigate?: () => void;
   switcher?: React.ReactNode;
   userSlot?: React.ReactNode;
+  counters?: { demandasAtrasadas: number; demandasComMinisterio: number };
 }) {
   const groups = NAV_GROUPS.filter((g) => !g.adminOnly || isAdmin);
 
@@ -177,7 +224,13 @@ export function AppSidebar({
               )}
               <div className="space-y-0.5">
                 {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    collapsed={collapsed}
+                    onNavigate={onNavigate}
+                    badge={badgeDoItem(item.href, counters)}
+                  />
                 ))}
               </div>
             </div>
@@ -185,7 +238,20 @@ export function AppSidebar({
         </nav>
 
         {/* ---------- Rodapé: contexto ativo + conta ---------- */}
-        <div className={cn("shrink-0 border-t border-white/10", collapsed ? "p-2" : "p-3")}>
+        {/* Fundo próprio, não só a borda: a navegação acima rola por baixo
+            deste bloco, e sem superfície o item que passava atrás aparecia
+            cortado ao meio junto do nome do usuário. Translúcido com blur
+            para a capa do ministério continuar visível. */}
+        <div
+          className={cn(
+            // Opaco, não translúcido: a navegação rola por baixo deste
+            // bloco e com 92% de opacidade o item que passava atrás ainda
+            // aparecia por trás do nome do usuário. O gradiente da capa já
+            // chega a 88% de preto nesta altura, então o corte não pesa.
+            "shrink-0 border-t border-line-inverse/60 bg-walnut-900",
+            collapsed ? "p-2" : "p-3"
+          )}
+        >
           {!collapsed && (
             <div className="mb-2 px-1">
               <p className="truncate text-caption font-medium text-white/90">{ministryName}</p>

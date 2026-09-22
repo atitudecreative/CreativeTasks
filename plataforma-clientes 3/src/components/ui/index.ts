@@ -4,6 +4,8 @@ export { Button, IconButton } from "./Button";
 export type { ButtonProps } from "./Button";
 export { Field, Input, Textarea, Select, SearchInput, Checkbox, Radio, Switch } from "./Field";
 export { Section, Card, Panel, Divider } from "./Card";
+export { Board, BoardGroup, BoardRow, BoardEmpty } from "./Board";
+export { PageBody, RailBlock, RailStat, Toolbar } from "./Layout";
 export { Badge, CodeTag, Delta } from "./Badge";
 export type { BadgeTone } from "./Badge";
 export { Metric, MetricRow, Progress, BarRow } from "./Metric";

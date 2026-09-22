@@ -1,10 +1,11 @@
 "use client";
 
 import {
-  ResponsiveContainer, ComposedChart, BarChart, LineChart, Bar, Line, Area,
+  ResponsiveContainer, BarChart, LineChart, Bar, Line, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Cell, AreaChart,
 } from "recharts";
-import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable } from "./primitives";
+import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartDataTable } from "./primitives";
+import { formatMoney, formatCompact } from "@/lib/metricLanguage";
 
 /* =========================================================================
    GRÁFICOS (implementação)
@@ -34,81 +35,11 @@ const MARGIN = { top: 8, right: 8, left: -18, bottom: 0 };
 function num(v: number) {
   return v.toLocaleString("pt-BR");
 }
+// Reaproveita o formatador da plataforma em vez de chamar o Intl de novo
+// aqui: a forma compacta precisa ser escrita à mão para servidor e
+// navegador coincidirem (ver a nota em lib/metricLanguage.ts).
 function money(v: number, compact = false) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: compact ? 0 : 2,
-    notation: compact && Math.abs(v) >= 10000 ? "compact" : "standard",
-  });
-}
-
-/* -------------------------------------------------------------------------
-   VOLUME POR MÊS — total x concluídas.
-   Forma: colunas (total) + linha (concluídas) no MESMO eixo, porque as
-   duas são contagem de demanda e concluídas é subconjunto do total. É
-   isso que deixa ler "quanto entrou" e "quanto fechou" de uma vez.
-   ------------------------------------------------------------------------- */
-export function VolumeChart({
-  data,
-  height = 240,
-}: {
-  data: { label: string; total: number; concluidas: number }[];
-  height?: number;
-}) {
-  if (data.length === 0) return <ChartEmpty label="Sem demandas com prazo definido para montar a série." />;
-
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={MARGIN}>
-          <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
-          <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-          <RTooltip
-            cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
-            content={({ active, payload, label }) =>
-              active && payload?.length ? (
-                <ChartTooltip
-                  title={String(label)}
-                  rows={[
-                    { label: "Demandas no mês", value: num(Number(payload[0]?.value ?? 0)), color: ACCENT },
-                    { label: "Concluídas", value: num(Number(payload[1]?.value ?? 0)), color: seriesColor(2) },
-                  ]}
-                />
-              ) : null
-            }
-          />
-          <Bar dataKey="total" fill={ACCENT} radius={[4, 4, 0, 0]} maxBarSize={36} animationDuration={480} />
-          <Line
-            type="monotone"
-            dataKey="concluidas"
-            stroke={seriesColor(2)}
-            strokeWidth={2}
-            dot={{ r: 3, fill: seriesColor(2), strokeWidth: 0 }}
-            // Anel de 2px na cor da superfície: separa o ponto da barra
-            // quando os dois se sobrepõem.
-            activeDot={{ r: 5, stroke: "rgb(var(--surface))", strokeWidth: 2 }}
-            animationDuration={560}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-      {/* Duas séries no gráfico => legenda sempre presente: a identidade
-          de cada série nunca pode depender só da cor. */}
-      <ChartLegend
-        className="mt-2"
-        items={[
-          { label: "Demandas abertas", color: ACCENT },
-          { label: "Concluídas", color: seriesColor(2) },
-        ]}
-      />
-      <ChartDataTable
-        caption="Demandas por mês"
-        columns={["Mês", "Total", "Concluídas"]}
-        rows={data.map((d) => [d.label, d.total, d.concluidas])}
-      />
-    </div>
-  );
+  return formatMoney(v, compact);
 }
 
 /* -------------------------------------------------------------------------
@@ -135,12 +66,14 @@ export function BudgetChart({
         <BarChart data={data} margin={{ ...MARGIN, left: 4 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
+          {/* Rótulo do eixo no mesmo formato do resto do produto. "1400k"
+              não é como esta plataforma escreve dinheiro em lugar nenhum. */}
           <YAxis
             width={56}
             tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+            tickFormatter={(v: number) => formatCompact(v)}
           />
           <RTooltip
             cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
@@ -207,7 +140,7 @@ export function TrendArea({
             tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)))}
+            tickFormatter={(v: number) => formatCompact(v)}
           />
           <RTooltip
             cursor={{ stroke: AXIS, strokeDasharray: "3 3" }}

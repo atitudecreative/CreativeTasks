@@ -1,11 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { Badge, Button, Card, CodeTag, EmptyState, Icon, Progress, SearchInput, Select, cn } from "@/components/ui";
+import { normalizar } from "@/lib/texto";
+import { formatarDiaMes } from "@/lib/dates";
+import {
+  Badge, Board, BoardEmpty, BoardGroup, BoardRow, CodeTag, EmptyState, Icon,
+  PageBody, Panel, RailBlock, RailStat, SearchInput, Select, Toolbar, cn,
+} from "@/components/ui";
 import { saudeTone } from "@/lib/statusColors";
-import { formatMoney } from "@/lib/metricLanguage";
+import { formatMoney, formatCompact, formatPercent } from "@/lib/metricLanguage";
 import { SAUDE_OPTIONS, TIPO_OPTIONS } from "@/lib/campaignOptions";
+import { Timeline } from "@/components/charts/Timeline";
 
 export type CampaignCardData = {
   id: string;
@@ -17,227 +22,369 @@ export type CampaignCardData = {
   faseLabel: string;
   saude: string;
   saudeLabel: string;
-  capaUrl: string | null;
   dataInicio: string | null;
   dataTermino: string | null;
   dataEvento: string | null;
   orcamentoAprovado: number | null;
-  investimentoRealizado: number | null;
+  investimento: number | null;
+  demandasTotal: number | null;
+  demandasConcluidas: number | null;
+  entregasTotal: number | null;
+  progressoMarcos: number | null;
+  alcance: number | null;
 };
 
 /* =========================================================================
-   LISTA DE CAMPANHAS E EVENTOS
+   CAMPANHAS E EVENTOS
    -------------------------------------------------------------------------
-   A versão anterior era um `grid-cols-3` fixo (três colunas em qualquer
-   tela, inclusive no celular) de cards mostrando nome, saúde, fase e
-   orçamento aprovado — sem busca, sem filtro, sem ordenação, e sem
-   nenhuma noção de quando o evento aconteceu.
+   O que esta tela era: uma grade de cards, cada um com 200px de retângulo
+   cinza e uma letra gigante no lugar da capa. Dois cards numa tela de
+   1440px deixavam dois terços da página vazios, e a informação real — nome,
+   saúde, período, orçamento — ocupava a faixa de baixo.
 
-   O que mudou:
-   - Grade responsiva de verdade: 1 / 2 / 3 colunas.
-   - Busca e filtro por saúde e tipo, mais ordenação por data ou verba.
-   - O card passa a mostrar PERÍODO e USO DO ORÇAMENTO, que é o que
-     diferencia um evento do outro numa lista — "R$ 8.000 aprovados" não
-     diz nada sozinho; "R$ 6.240 de R$ 8.000" diz.
-   - Campanha sem capa ganha uma marca tipográfica gerada do nome, em vez
-     do retângulo vazio que existia antes.
+   Três decisões:
+
+   1. A CAPA SAIU DA LISTA. Ela não distingue uma campanha da outra (quase
+      nenhuma tem), e o placeholder ocupava mais espaço do que todo o resto
+      do card junto. A capa continua no topo do relatório, onde é a arte do
+      evento e tem função.
+
+   2. A LISTA VIROU PRANCHA. Linha por campanha, densa, com o que diferencia
+      uma da outra: período, verba usada, quantas demandas, quantas
+      entregas, progresso dos marcos. Cabem doze campanhas onde cabiam
+      duas — e dá para comparar de cima a baixo, que é o que uma lista
+      serve para fazer.
+
+   3. ENTROU UMA LINHA DO TEMPO. A pergunta "quando é o quê" não tinha
+      resposta em lugar nenhum: as datas eram texto solto em cada card.
+      Agora o calendário do ministério se lê de uma vez, com sobreposições
+      visíveis.
+
+   Nenhum número aqui é novo: demandas, entregas, progresso e gasto de mídia
+   já estavam na view `campanha_perfil` e não apareciam antes de alguém
+   abrir a campanha.
    ========================================================================= */
 
-type SortKey = "recentes" | "investimento" | "nome";
-
-function normalize(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
-function shortDate(d: string | null) {
-  if (!d) return null;
-  return new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" });
-}
+type SortKey = "cronologica" | "investimento" | "nome";
 
 function periodLabel(c: CampaignCardData): string | null {
-  if (c.dataEvento) return `Evento em ${shortDate(c.dataEvento)}`;
-  const i = shortDate(c.dataInicio);
-  const f = shortDate(c.dataTermino);
+  if (c.dataEvento) return `Evento em ${formatarDiaMes(c.dataEvento, "")}`;
+  const i = formatarDiaMes(c.dataInicio, "");
+  const f = formatarDiaMes(c.dataTermino, "");
   if (i && f) return `${i} — ${f}`;
-  return i ?? f;
+  return i || f || null;
 }
 
-function sortDateOf(c: CampaignCardData): string {
+function dataDeOrdem(c: CampaignCardData): string {
   return c.dataEvento ?? c.dataTermino ?? c.dataInicio ?? "";
 }
 
-function CampaignCard({ c }: { c: CampaignCardData }) {
-  const uso =
-    c.orcamentoAprovado && c.orcamentoAprovado > 0 && c.investimentoRealizado != null
-      ? (c.investimentoRealizado / c.orcamentoAprovado) * 100
-      : null;
-  const periodo = periodLabel(c);
+/** Medidor de verba: barra fina com o aprovado como trilho. Acima de 100%
+ *  a barra fica vermelha — estourar o orçamento é a leitura que importa. */
+function Verba({ investimento, aprovado }: { investimento: number | null; aprovado: number | null }) {
+  if (investimento == null && aprovado == null) {
+    return <span className="text-caption text-ink-3">sem valor lançado</span>;
+  }
+  const pct = aprovado && aprovado > 0 && investimento != null ? (investimento / aprovado) * 100 : null;
+  const estourou = pct != null && pct > 100;
 
   return (
-    <Link href={`/dashboard/campanhas/${c.id}`} className="group block">
-      <Card interactive className="flex h-full flex-col overflow-hidden">
-        {c.capaUrl ? (
-          <div
-            className="aspect-[16/9] w-full shrink-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${c.capaUrl})` }}
-            role="img"
-            aria-label={`Capa de ${c.nome}`}
-          />
-        ) : (
-          // Sem arte cadastrada: marca tipográfica com a inicial sobre um
-          // campo neutro. Preenche o espaço com identidade em vez de um
-          // bloco cinza — e nunca compete com a capa de verdade.
-          <div className="flex aspect-[16/9] w-full shrink-0 items-center justify-center bg-surface-sunken">
-            <span className="select-none text-[3rem] font-bold leading-none tracking-tight text-line-strong">
-              {c.nome.trim().charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
-
-        <div className="flex min-w-0 flex-1 flex-col p-4">
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <Badge tone={saudeTone(c.saude)} size="sm" dot>
-              {c.saudeLabel}
-            </Badge>
-            <Badge tone="neutral" size="sm">
-              {c.tipoLabel}
-            </Badge>
-          </div>
-
-          <h3 className="text-h3 text-ink transition-colors duration-120 group-hover:text-brand-600">{c.nome}</h3>
-
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-caption text-ink-3">
-            {periodo && (
-              <span className="flex items-center gap-1">
-                <Icon.Calendar className="h-3 w-3" />
-                {periodo}
-              </span>
-            )}
-            <span>{c.faseLabel}</span>
-          </p>
-
-          <div className="mt-auto pt-4">
-            {uso != null ? (
-              <>
-                <div className="mb-1.5 flex items-baseline justify-between gap-2 text-caption">
-                  <span className="text-ink-2">
-                    <span className="font-medium tabular-nums text-ink">{formatMoney(c.investimentoRealizado, true)}</span>
-                    <span className="text-ink-3"> de {formatMoney(c.orcamentoAprovado, true)}</span>
-                  </span>
-                  <span className={cn("font-medium tabular-nums", uso > 100 ? "text-danger" : "text-ink-3")}>
-                    {uso.toFixed(0)}%
-                  </span>
-                </div>
-                <Progress value={Math.min(uso, 100)} tone={uso > 100 ? "danger" : "accent"} size="sm" showValue={false} />
-              </>
-            ) : (
-              <p className="text-caption text-ink-3">
-                {c.orcamentoAprovado != null
-                  ? `Orçamento aprovado: ${formatMoney(c.orcamentoAprovado, true)}`
-                  : "Sem orçamento lançado"}
-              </p>
-            )}
-          </div>
+    <div className="min-w-0">
+      <p className="flex flex-wrap items-baseline gap-x-1.5 text-caption sm:justify-end">
+        <span className="font-medium tabular-nums text-ink">{formatMoney(investimento, true)}</span>
+        {aprovado != null && <span className="text-ink-3">de {formatMoney(aprovado, true)}</span>}
+      </p>
+      {pct != null && (
+        <div className="mt-1 flex items-center gap-1.5 sm:justify-end">
+          <span className="h-1 w-16 overflow-hidden rounded-full bg-neutral-soft">
+            <span
+              className={cn("block h-full rounded-full", estourou ? "bg-danger" : "bg-brand-500")}
+              style={{ width: `${Math.min(pct, 100)}%` }}
+            />
+          </span>
+          {/* Acima de 200% o percentual deixa de comunicar. "7.139%" lê-se
+              como sete vírgula um, e o separador de milhar num percentual é
+              ruído; "71× o aprovado" diz a mesma coisa de uma vez. */}
+          <span className={cn("font-mono text-[0.625rem] tabular-nums", estourou ? "text-danger" : "text-ink-3")}>
+            {pct > 200 ? `${Math.round(pct / 100)}× o aprovado` : formatPercent(pct, 0)}
+          </span>
         </div>
-      </Card>
-    </Link>
+      )}
+    </div>
   );
 }
 
-export function CampanhasExplorer({ campaigns }: { campaigns: CampaignCardData[] }) {
-  const [search, setSearch] = useState("");
+function Linha({ c }: { c: CampaignCardData }) {
+  const periodo = periodLabel(c);
+  const emRisco = c.saude === "atencao" || c.saude === "critica";
+
+  return (
+    <BoardRow href={`/dashboard/campanhas/${c.id}`} tone={c.saude === "critica" ? "danger" : undefined}>
+      {/* Duas colunas, não quatro. Com o trilho ao lado, a coluna principal
+          tem ~770px: quatro blocos lado a lado truncavam todos, inclusive o
+          nome da campanha — que é a única coisa que ninguém pode perder. */}
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="min-w-0 truncate text-h4 text-ink">{c.nome}</span>
+            {c.identificador && <CodeTag className="shrink-0">{c.identificador}</CodeTag>}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-ink-3">
+            <Badge tone={saudeTone(c.saude)} size="sm" dot>
+              {c.saudeLabel}
+            </Badge>
+            <span>{c.tipoLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>{c.faseLabel}</span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-ink-2">
+            {periodo && (
+              <span className="flex items-center gap-1.5">
+                <Icon.Calendar className="h-3 w-3 shrink-0 text-ink-3" />
+                {periodo}
+              </span>
+            )}
+            {c.demandasTotal != null && c.demandasTotal > 0 && (
+              <span>
+                <span className="font-medium tabular-nums text-ink">{c.demandasTotal}</span>{" "}
+                {c.demandasTotal === 1 ? "demanda" : "demandas"}
+                {c.demandasConcluidas != null && c.demandasConcluidas > 0 && (
+                  <span className="text-ink-3"> ({c.demandasConcluidas} concluídas)</span>
+                )}
+              </span>
+            )}
+            {c.entregasTotal != null && c.entregasTotal > 0 && (
+              <span>
+                <span className="font-medium tabular-nums text-ink">{c.entregasTotal}</span>{" "}
+                {c.entregasTotal === 1 ? "material" : "materiais"}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 sm:w-44 sm:text-right">
+          <Verba investimento={c.investimento} aprovado={c.orcamentoAprovado} />
+          <p className="mt-1 flex flex-wrap gap-x-2 font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3 sm:justify-end">
+            {c.progressoMarcos != null && <span>{formatPercent(c.progressoMarcos, 0)} dos marcos</span>}
+            {c.alcance != null && c.alcance > 0 && <span>{formatCompact(c.alcance)} de alcance</span>}
+          </p>
+        </div>
+      </div>
+      {emRisco && c.saude !== "critica" && (
+        <span className="sr-only">Campanha exigindo atenção</span>
+      )}
+    </BoardRow>
+  );
+}
+
+export function CampanhasExplorer({
+  campaigns,
+  hoje,
+}: {
+  campaigns: CampaignCardData[];
+  hoje: string;
+}) {
+  const [busca, setBusca] = useState("");
   const [saude, setSaude] = useState("");
   const [tipo, setTipo] = useState("");
-  const [sort, setSort] = useState<SortKey>("recentes");
+  const [ordem, setOrdem] = useState<SortKey>("cronologica");
 
-  const hasFilter = Boolean(search.trim() || saude || tipo);
-
-  const visible = useMemo(() => {
-    const term = normalize(search.trim());
-    const filtered = campaigns.filter((c) => {
-      const matchesSearch = !term || normalize(c.nome).includes(term) || normalize(c.identificador ?? "").includes(term);
-      return matchesSearch && (!saude || c.saude === saude) && (!tipo || c.tipo === tipo);
+  const filtradas = useMemo(() => {
+    const termo = normalizar(busca);
+    const lista = campaigns.filter((c) => {
+      const casaBusca =
+        !termo ||
+        normalizar(c.nome).includes(termo) ||
+        (c.identificador ? normalizar(c.identificador).includes(termo) : false);
+      return casaBusca && (!saude || c.saude === saude) && (!tipo || c.tipo === tipo);
     });
 
-    return [...filtered].sort((a, b) => {
-      if (sort === "nome") return a.nome.localeCompare(b.nome, "pt-BR");
-      if (sort === "investimento") return (b.investimentoRealizado ?? 0) - (a.investimentoRealizado ?? 0);
-      // Mais recentes primeiro; sem data vai pro fim da lista.
-      const da = sortDateOf(a);
-      const db = sortDateOf(b);
+    return [...lista].sort((a, b) => {
+      if (ordem === "nome") return a.nome.localeCompare(b.nome, "pt-BR");
+      if (ordem === "investimento") return (b.investimento ?? -1) - (a.investimento ?? -1);
+      // Cronológica: mais próximo de hoje primeiro, sem data por último.
+      const da = dataDeOrdem(a);
+      const db = dataDeOrdem(b);
       if (!da && !db) return a.nome.localeCompare(b.nome, "pt-BR");
       if (!da) return 1;
       if (!db) return -1;
       return db.localeCompare(da);
     });
-  }, [campaigns, search, saude, tipo, sort]);
+  }, [campaigns, busca, saude, tipo, ordem]);
+
+  const temFiltro = Boolean(busca.trim() || saude || tipo);
+
+  // Totais do que está NA TELA — se o usuário filtrou, o resumo tem que
+  // falar do recorte dele, senão os números do trilho contradizem a lista.
+  const resumo = useMemo(() => {
+    const comInvestimento = filtradas.filter((c) => c.investimento != null);
+    return {
+      total: filtradas.length,
+      emRisco: filtradas.filter((c) => c.saude === "atencao" || c.saude === "critica").length,
+      ativas: filtradas.filter((c) => c.saude !== "concluida").length,
+      investimento: comInvestimento.reduce((s, c) => s + (c.investimento ?? 0), 0),
+      comInvestimento: comInvestimento.length,
+      demandas: filtradas.reduce((s, c) => s + (c.demandasTotal ?? 0), 0),
+      entregas: filtradas.reduce((s, c) => s + (c.entregasTotal ?? 0), 0),
+    };
+  }, [filtradas]);
+
+  // Agrupamento por situação: "exigindo atenção" primeiro é a ordem de
+  // leitura de quem abre esta tela para trabalhar, não para navegar.
+  const emRisco = filtradas.filter((c) => c.saude === "atencao" || c.saude === "critica");
+  const andamento = filtradas.filter(
+    (c) => c.saude !== "atencao" && c.saude !== "critica" && c.saude !== "concluida"
+  );
+  const concluidas = filtradas.filter((c) => c.saude === "concluida");
 
   return (
-    <div>
-      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
+    <>
+      <Toolbar>
         <SearchInput
-          value={search}
-          onValueChange={setSearch}
+          value={busca}
+          onValueChange={setBusca}
           placeholder="Buscar campanha ou evento..."
-          aria-label="Buscar campanha"
+          className="min-w-[12rem] flex-1 sm:max-w-xs"
         />
-        <Select value={saude} onChange={(e) => setSaude(e.target.value)} aria-label="Filtrar por saúde">
+        <Select
+          value={saude}
+          onChange={(e) => setSaude(e.target.value)}
+          aria-label="Filtrar por situação"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
           <option value="">Todas as situações</option>
-          {SAUDE_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
+          {SAUDE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Filtrar por tipo">
+        <Select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          aria-label="Filtrar por tipo"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
           <option value="">Todos os tipos</option>
-          {TIPO_OPTIONS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
+          {TIPO_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Ordenar">
-          <option value="recentes">Mais recentes</option>
+        <Select
+          value={ordem}
+          onChange={(e) => setOrdem(e.target.value as SortKey)}
+          aria-label="Ordenar"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
+          <option value="cronologica">Mais recentes</option>
           <option value="investimento">Maior investimento</option>
-          <option value="nome">Ordem alfabética</option>
+          <option value="nome">Nome</option>
         </Select>
-      </div>
+        {temFiltro && (
+          <span className="font-mono text-label uppercase text-ink-3">
+            {filtradas.length} de {campaigns.length}
+          </span>
+        )}
+      </Toolbar>
 
-      {visible.length === 0 ? (
+    <PageBody
+      rail={
+        <>
+          <RailBlock label={temFiltro ? "No recorte atual" : "No total"}>
+            <div className="divide-y divide-line">
+              <RailStat
+                label="Campanhas ativas"
+                value={resumo.ativas}
+                hint={
+                  resumo.total !== resumo.ativas
+                    ? `${resumo.total - resumo.ativas} já concluídas`
+                    : undefined
+                }
+              />
+              {resumo.emRisco > 0 && (
+                <RailStat label="Exigindo atenção" value={resumo.emRisco} tone="warning" />
+              )}
+              <RailStat
+                label="Investimento"
+                value={resumo.comInvestimento > 0 ? formatMoney(resumo.investimento, true) : "—"}
+                hint={
+                  resumo.comInvestimento > 0
+                    ? `em ${resumo.comInvestimento} de ${resumo.total}`
+                    : "nenhum valor lançado"
+                }
+              />
+              {resumo.demandas > 0 && (
+                <RailStat
+                  label="Produção vinculada"
+                  value={resumo.demandas}
+                  hint={`${resumo.entregas} ${resumo.entregas === 1 ? "material entregue" : "materiais entregues"}`}
+                />
+              )}
+            </div>
+          </RailBlock>
+        </>
+      }
+    >
+      {/* A linha do tempo só faz sentido com espaço horizontal: abaixo de
+          `md` uma barra de 3% de largura é um traço sem leitura, e a lista
+          logo abaixo já está em ordem cronológica. */}
+      {filtradas.length > 1 && (
+        <Panel
+          title="Quando é o quê"
+          description="Período de cada campanha, com a data do evento marcada"
+          className="mb-4 hidden md:block"
+        >
+          <Timeline
+            hoje={hoje}
+            itens={filtradas.map((c) => ({
+              id: c.id,
+              nome: c.nome,
+              inicio: c.dataInicio,
+              termino: c.dataTermino,
+              marco: c.dataEvento,
+              saude: c.saude,
+              saudeLabel: c.saudeLabel,
+              href: `/dashboard/campanhas/${c.id}`,
+            }))}
+          />
+        </Panel>
+      )}
+
+      {filtradas.length === 0 ? (
         <EmptyState
           icon={<Icon.Search className="h-5 w-5" />}
-          title="Nenhuma campanha com esses filtros"
-          description="Tente outro termo ou limpe os filtros para ver todas."
-          action={
-            <Button
-              variant="secondary"
-              iconLeft={<Icon.Refresh className="h-4 w-4" />}
-              onClick={() => {
-                setSearch("");
-                setSaude("");
-                setTipo("");
-              }}
-            >
-              Limpar filtros
-            </Button>
-          }
+          title="Nenhuma campanha para este filtro"
+          description="Tente outro termo de busca ou limpe os filtros para ver tudo de novo."
         />
       ) : (
-        <>
-          {hasFilter && (
-            <p className="mb-3 text-caption text-ink-3">
-              <span className="font-medium tabular-nums text-ink">{visible.length}</span> de {campaigns.length}{" "}
-              {campaigns.length === 1 ? "campanha" : "campanhas"}
-            </p>
+        <Board>
+          {emRisco.length > 0 && (
+            <BoardGroup
+              title="Exigindo atenção"
+              count={emRisco.length}
+              meta="Saúde marcada como atenção ou crítica"
+            >
+              {emRisco.map((c) => <Linha key={c.id} c={c} />)}
+            </BoardGroup>
           )}
-          <div className="signal-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visible.map((c) => (
-              <CampaignCard key={c.id} c={c} />
-            ))}
-          </div>
-        </>
+          {andamento.length > 0 && (
+            <BoardGroup title="Em andamento" count={andamento.length}>
+              {andamento.map((c) => <Linha key={c.id} c={c} />)}
+            </BoardGroup>
+          )}
+          {concluidas.length > 0 && (
+            <BoardGroup title="Concluídas" count={concluidas.length} collapsible defaultOpen={concluidas.length <= 6}>
+              {concluidas.length === 0 ? (
+                <BoardEmpty>Nenhuma campanha concluída.</BoardEmpty>
+              ) : (
+                concluidas.map((c) => <Linha key={c.id} c={c} />)
+              )}
+            </BoardGroup>
+          )}
+        </Board>
       )}
-    </div>
+    </PageBody>
+    </>
   );
 }

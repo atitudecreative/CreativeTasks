@@ -1,8 +1,7 @@
 import { cache } from "react";
+import { falhaAoCarregar } from "./erros";
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
-import { SAUDE_LABEL } from "@/lib/campaignOptions";
-import { SAUDE_COLOR } from "@/lib/statusColors";
 export { TIPO_LABEL, TIPO_OPTIONS, FASE_LABEL, FASE_OPTIONS, SAUDE_LABEL, SAUDE_OPTIONS } from "@/lib/campaignOptions";
 
 export type Campaign = {
@@ -64,25 +63,6 @@ export type Milestone = {
   data_conclusao: string | null;
 };
 
-export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
-
-// Contagem de campanhas por saúde (fase de andamento), pra gráfico de
-// pizza na Início. Recebe as campanhas já buscadas — não faz query nova.
-export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
-  const counts = new Map<string, number>();
-  for (const c of campaigns) {
-    counts.set(c.saude, (counts.get(c.saude) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .map(([saude, count]) => ({
-      saude,
-      label: SAUDE_LABEL[saude] ?? saude,
-      count,
-      color: SAUDE_COLOR[saude] ?? "rgb(var(--ink-3))",
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
 export type BudgetSummaryItem = { label: string; value: number; emphasis: boolean };
 
 // Soma planejado x aprovado x investido em cima de todas as campanhas
@@ -122,11 +102,12 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
   ]);
 
   if (linkError) {
-    console.error("Erro ao buscar campanhas do ministério:", linkError.message);
-    return [];
+    falhaAoCarregar("as campanhas deste ministério", linkError);
   }
+  // Falhar aqui não é detalhe: campanha liberada à mão pra este ministério
+  // simplesmente sumiria da lista dele, sem nenhum aviso.
   if (manualError) {
-    console.error("Erro ao buscar liberações manuais de campanha:", manualError.message);
+    falhaAoCarregar("as campanhas deste ministério", manualError);
   }
 
   const campaignIds = Array.from(
@@ -144,8 +125,7 @@ export async function getCampaignsForMinistry(ministryId: string): Promise<Campa
     .order("data_inicio", { ascending: false, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar campanhas:", error.message);
-    return [];
+    falhaAoCarregar("as campanhas", error);
   }
 
   return data ?? [];
@@ -173,8 +153,7 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
   ]);
 
   if (error) {
-    console.error("Erro ao buscar campanhas:", error.message);
-    return [];
+    falhaAoCarregar("as campanhas", error);
   }
 
   const rows = campaigns ?? [];
@@ -191,8 +170,11 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
       supabase.from("campaign_ministries").select("campaign_id, ministry_id").in("campaign_id", ids),
     ]);
 
+    // Estes dois números aparecem no aviso de exclusão ("apaga junto N
+    // demandas"). Mostrar zero por causa de uma falha de leitura levaria
+    // alguém a excluir achando que a campanha estava vazia.
     if (linkError) {
-      console.error("Erro ao contar demandas por campanha:", linkError.message);
+      falhaAoCarregar("as demandas por campanha", linkError);
     } else {
       for (const row of linkRows ?? []) {
         demandCounts.set(row.campaign_id, (demandCounts.get(row.campaign_id) ?? 0) + 1);
@@ -207,7 +189,7 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
     }
 
     if (manualError) {
-      console.error("Erro ao buscar liberações manuais de campanha:", manualError.message);
+      falhaAoCarregar("as liberações manuais de campanha", manualError);
     } else {
       for (const row of manualRows ?? []) {
         const list = manualMinistryIdsByCampaign.get(row.campaign_id) ?? [];
@@ -217,6 +199,11 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
     }
   }
 
+  // A ordem é a que a Comunicação montou: `posicao` primeiro, nome só pra
+  // desempatar. Havia um `.sort()` por nome no fim desta função que
+  // desfazia tudo isso — os botões "mover pra cima/baixo" gravavam a nova
+  // posição no banco, a página revalidava, e a linha voltava pro mesmo
+  // lugar. O recurso existia na tela e não funcionava.
   return rows
     .map((c) => {
       const ministryNames = Array.from(ministryIdsByCampaign.get(c.id) ?? [])
@@ -231,7 +218,7 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
         manualMinistryIds: manualMinistryIdsByCampaign.get(c.id) ?? [],
       };
     })
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    .sort((a, b) => a.posicao - b.posicao || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 // IDs dos ministérios liberados manualmente pra uma campanha específica
@@ -244,9 +231,12 @@ export async function getCampaignManualMinistryIds(campaignId: string): Promise<
     .select("ministry_id")
     .eq("campaign_id", campaignId);
 
+  // Lista vazia aqui não pode ser um palpite: ela pré-marca os checkboxes
+  // de visibilidade, e salvar o formulário SUBSTITUI a lista inteira. Uma
+  // falha silenciosa aqui renderiza tudo desmarcado e o próximo "salvar"
+  // apaga todas as liberações manuais da campanha.
   if (error) {
-    console.error("Erro ao buscar liberações manuais da campanha:", error.message);
-    return [];
+    falhaAoCarregar("as liberações manuais desta campanha", error);
   }
 
   return (data ?? []).map((r) => r.ministry_id);
@@ -262,8 +252,7 @@ export async function getAllCampaignFoldersAdmin(): Promise<CampaignFolder[]> {
     .order("posicao", { ascending: true });
 
   if (error) {
-    console.error("Erro ao buscar pastas de campanha:", error.message);
-    return [];
+    falhaAoCarregar("as pastas de campanha", error);
   }
 
   return data ?? [];
@@ -284,8 +273,7 @@ export const getCampaignById = cache(async (id: string): Promise<Campaign | null
     .maybeSingle();
 
   if (error) {
-    console.error("Erro ao buscar campanha:", error.message);
-    return null;
+    falhaAoCarregar("esta campanha", error);
   }
 
   return data as unknown as Campaign | null;
@@ -304,8 +292,7 @@ export async function getDemandsForCampaign(campaignId: string): Promise<Demand[
     .eq("campaign_id", campaignId);
 
   if (error) {
-    console.error("Erro ao buscar demandas da campanha:", error.message);
-    return [];
+    falhaAoCarregar("as demandas desta campanha", error);
   }
 
   return (data ?? [])
@@ -332,6 +319,9 @@ export async function getCampaignsForDemandsInMinistry(
     .eq("demands.ministry_id", ministryId);
 
   if (error) {
+    // Decoração: estes vínculos viram um badge de campanha ao lado do
+    // título da demanda. Sem eles a lista continua correta e completa, só
+    // sem o badge — não vale derrubar a tela inteira por isso.
     console.error("Erro ao buscar campanhas vinculadas às demandas:", error.message);
     return map;
   }
@@ -357,8 +347,7 @@ export async function getMilestonesForCampaign(campaignId: string): Promise<Mile
     .order("ordem", { ascending: true });
 
   if (error) {
-    console.error("Erro ao buscar marcos:", error.message);
-    return [];
+    falhaAoCarregar("os marcos desta campanha", error);
   }
 
   return data ?? [];

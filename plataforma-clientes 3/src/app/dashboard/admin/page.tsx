@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { hoje, somaDias } from "@/lib/dates";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
 import { getAllCampaignsAdmin } from "@/lib/data/campaigns";
@@ -34,7 +35,7 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [overview, allCampaigns, universo, ministerios] = await Promise.all([
+  const [overview, allCampaigns, universoCarga, ministerios] = await Promise.all([
     getAdminOverview(),
     getAllCampaignsAdmin(),
     getUniversoComparacao(),
@@ -44,9 +45,11 @@ export default async function AdminPage() {
   // Janela dos últimos 12 meses, comparada com os 12 anteriores. Fixa e
   // explícita na tela — "variação" sem dizer contra o quê não significa
   // nada.
-  const hoje = new Date();
-  const fimJanela = hoje.toISOString().slice(0, 10);
-  const inicioJanela = new Date(hoje.getTime() - 364 * 86400000).toISOString().slice(0, 10);
+  const fimJanela = hoje();
+  const inicioJanela = somaDias(fimJanela, -364);
+  // Ver a nota em getUniversoComparacao: a base de comparação degrada em
+  // vez de derrubar a tela, mas nunca em silêncio.
+  const universo = universoCarga.ok ? universoCarga.dados : [];
   const carteira = resumirCarteira(universo, { inicio: inicioJanela, fim: fimJanela });
   const nomePorMinisterio = new Map(ministerios.map((m) => [m.id, m.name] as const));
 
@@ -128,7 +131,15 @@ export default async function AdminPage() {
       </MetricRow>
 
       {/* ---------- Inteligência da carteira ---------- */}
-      {carteira.eventos > 0 && (
+      {!universoCarga.ok && (
+        <Alert tone="warning" className="mb-6" title="Carteira indisponível agora">
+          Não foi possível carregar os números consolidados dos eventos. O resto do painel está
+          correto — só a seção de carteira ficou de fora. Atualize a página; se continuar, avise a
+          equipe técnica.
+        </Alert>
+      )}
+
+      {universoCarga.ok && carteira.eventos > 0 && (
         <Section
           eyebrow="Carteira"
           title="Últimos 12 meses"

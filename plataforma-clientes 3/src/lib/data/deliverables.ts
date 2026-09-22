@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { falhaAoCarregar } from "./erros";
 
 export { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 
@@ -30,8 +31,7 @@ export async function getDeliverablesForMinistry(ministryId: string): Promise<De
     .order("data_entrega", { ascending: false, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar entregas:", error.message);
-    return [];
+    falhaAoCarregar("as entregas deste ministério", error);
   }
 
   return (data ?? []) as unknown as Deliverable[];
@@ -47,8 +47,7 @@ export async function getDeliverablesForCampaign(campaignId: string): Promise<De
     .order("data_entrega", { ascending: false, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar entregas da campanha:", error.message);
-    return [];
+    falhaAoCarregar("as entregas desta campanha", error);
   }
 
   return (data ?? []) as unknown as Deliverable[];
@@ -64,8 +63,7 @@ export async function getDeliverablesForDemand(demandId: string): Promise<Delive
     .order("data_entrega", { ascending: false, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar entregas da demanda:", error.message);
-    return [];
+    falhaAoCarregar("as entregas desta demanda", error);
   }
 
   return (data ?? []) as unknown as Deliverable[];

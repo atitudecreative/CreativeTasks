@@ -120,7 +120,7 @@ export function Breadcrumb({ items, className }: { items: { label: string; href?
             <li key={`${item.label}-${i}`} className="flex min-w-0 items-center gap-1">
               {i > 0 && <Icon.ChevronRight className="h-3 w-3 shrink-0 opacity-60" />}
               {item.href && !last ? (
-                <Link href={item.href} className="truncate rounded-sm transition-colors hover:text-ink">
+                <Link href={item.href} className="inline-flex min-h-6 items-center truncate rounded-sm transition-colors hover:text-ink">
                   {item.label}
                 </Link>
               ) : (
@@ -228,12 +228,21 @@ export function Tooltip({
   return (
     <span style={style} className={cn("group/tt relative inline-flex", className)}>
       {children}
+      {/* `hidden` até aparecer, e não `opacity-0`.
+          Elemento com opacidade zero continua ocupando lugar: é absoluto,
+          mas ainda entra na área rolável do ancestral. O tooltip do último
+          segmento da barra de estágios passava da borda direita e dava
+          ROLAGEM HORIZONTAL na página inteira — 1039px num viewport de
+          1024 —, sem nada visível para explicar. `display: none` tira do
+          layout de verdade. O preço é a transição de 120ms, que não vale
+          uma página que rola de lado. */}
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute left-1/2 z-dialog w-max max-w-[15rem] -translate-x-1/2 rounded-control",
+          "pointer-events-none absolute left-1/2 z-dialog w-max -translate-x-1/2 rounded-control",
+          "max-w-[min(15rem,calc(100vw-2rem))]",
           "bg-surface-inverse px-2 py-1 text-[0.6875rem] leading-4 text-ink-inverse shadow-md",
-          "opacity-0 transition-opacity duration-120 group-hover/tt:opacity-100 group-focus-within/tt:opacity-100",
+          "hidden group-hover/tt:block group-focus-within/tt:block",
           side === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
         )}
       >

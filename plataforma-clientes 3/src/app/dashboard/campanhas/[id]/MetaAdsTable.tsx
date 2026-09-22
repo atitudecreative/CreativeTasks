@@ -5,7 +5,7 @@ import {
   Icon, SearchInput, Table, TBody, TD, TH, THead, TR, TableScroll, TableEmpty,
   Tooltip, Pagination, cn,
 } from "@/components/ui";
-import { METRICS, formatMoney, formatCompact } from "@/lib/metricLanguage";
+import { METRICS, formatMoney, formatCompact, formatPercent } from "@/lib/metricLanguage";
 import type { MetaAd } from "@/lib/data/metaAds";
 
 type SortKey = "nome" | "investimento" | "impressoes" | "cliques" | "ctr" | "cpc" | "cpm" | "vendas" | "cpa";
@@ -120,7 +120,7 @@ export function MetaAdsTable({ ads }: { ads: MetaAd[] }) {
                       type="button"
                       onClick={() => toggleSort(col.key)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-sm transition-colors hover:text-ink",
+                        "inline-flex min-h-6 items-center gap-1 rounded-sm transition-colors hover:text-ink",
                         col.numeric && "flex-row-reverse",
                         active && "text-ink"
                       )}
@@ -161,7 +161,7 @@ export function MetaAdsTable({ ads }: { ads: MetaAd[] }) {
                   <TD numeric className="hidden md:table-cell">
                     {formatCompact(ad.cliques)}
                   </TD>
-                  <TD numeric>{ad.ctr != null ? `${ad.ctr.toFixed(2)}%` : "—"}</TD>
+                  <TD numeric>{formatPercent(ad.ctr, 2)}</TD>
                   <TD numeric className="hidden lg:table-cell">
                     {formatMoney(ad.cpc)}
                   </TD>

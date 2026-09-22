@@ -10,7 +10,11 @@ export type LinkPreview =
   // Drive como reserva caso a miniatura não carregue (arquivo não é
   // imagem, ou não está compartilhado como "qualquer pessoa com o link").
   | { kind: "drive"; imageUrl: string; embedUrl: string }
-  | { kind: "youtube"; embedUrl: string }
+  // YouTube devolve a MINIATURA junto do embed. O cartão mostra a
+  // miniatura e só monta o iframe quando a pessoa clica em tocar: nove
+  // entregas de vídeo numa tela eram nove iframes, e cada iframe é um
+  // contexto de navegador inteiro carregando o player.
+  | { kind: "youtube"; embedUrl: string; thumbUrl: string }
   | { kind: "image"; url: string }
   | { kind: "generic"; domain: string };
 
@@ -42,11 +46,22 @@ export function getLinkPreview(rawUrl: string): LinkPreview {
 
   // YouTube: watch?v=ID ou youtu.be/ID -> embed/ID.
   if (url.hostname.includes("youtube.com") && url.searchParams.get("v")) {
-    return { kind: "youtube", embedUrl: `https://www.youtube.com/embed/${url.searchParams.get("v")}` };
+    const id = url.searchParams.get("v")!;
+    return {
+      kind: "youtube",
+      embedUrl: `https://www.youtube.com/embed/${id}?autoplay=1`,
+      thumbUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    };
   }
   if (url.hostname === "youtu.be") {
     const videoId = url.pathname.replace("/", "");
-    if (videoId) return { kind: "youtube", embedUrl: `https://www.youtube.com/embed/${videoId}` };
+    if (videoId) {
+      return {
+        kind: "youtube",
+        embedUrl: `https://www.youtube.com/embed/${videoId}?autoplay=1`,
+        thumbUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      };
+    }
   }
 
   // Link direto pra imagem (ex: export do Drive, ou CDN qualquer).

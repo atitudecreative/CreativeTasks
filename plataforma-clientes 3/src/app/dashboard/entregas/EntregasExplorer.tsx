@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizar } from "@/lib/texto";
 import { Badge, Button, EmptyState, Icon, SearchInput, Select, cn } from "@/components/ui";
 import { DeliverableCard } from "@/components/DeliverableCard";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
@@ -16,10 +17,6 @@ import type { Deliverable } from "@/lib/data/deliverables";
    destaque para o que está esperando aprovação — que é a única coisa
    nessa tela que exige ação de alguém.
    ========================================================================= */
-
-function normalize(s: string) {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 export function EntregasExplorer({
   deliverables,
@@ -42,10 +39,10 @@ export function EntregasExplorer({
   const hasFilter = Boolean(search.trim() || status || campanha);
 
   const visible = useMemo(() => {
-    const term = normalize(search.trim());
+    const term = normalizar(search.trim());
     return deliverables.filter((d) => {
       const matchesSearch =
-        !term || normalize(d.titulo).includes(term) || normalize(d.tipo_arquivo ?? "").includes(term);
+        !term || normalizar(d.titulo).includes(term) || normalizar(d.tipo_arquivo ?? "").includes(term);
       const matchesStatus = !status || d.status === status;
       const matchesCampanha =
         !campanha || (campanha === "none" ? d.campaign_id == null : d.campaign_id === campanha);
