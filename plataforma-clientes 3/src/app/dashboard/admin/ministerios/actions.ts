@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
 import { isValidHex } from "@/lib/theme";
+import { conferir } from "@/lib/data/erros";
 
 const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB — foto de fundo pode ser um pouco maior que um PNG de logo
 
@@ -245,7 +246,8 @@ export async function deleteMinistry(formData: FormData) {
   // Cascade (migrations 0001/0004) apaga junto: vínculos de membro, fontes
   // de dados do Asana, métricas, campanhas, demandas e entregas desse
   // ministério. A confirmação na UI já avisa isso antes de chegar aqui.
-  await supabase.from("ministries").delete().eq("id", id);
+  const { error } = await supabase.from("ministries").delete().eq("id", id);
+  conferir("excluir o ministério", error);
 
   revalidatePath("/dashboard/admin/ministerios");
   revalidatePath("/dashboard/admin");

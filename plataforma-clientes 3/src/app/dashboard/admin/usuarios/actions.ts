@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
+import { conferir } from "@/lib/data/erros";
 
 export async function createUser(
   _prevState: { error: string | null },
@@ -173,7 +174,12 @@ export async function removeMembership(formData: FormData) {
   if (!userId || !ministryId) return;
 
   const supabase = await createClient();
-  await supabase.from("ministry_members").delete().eq("user_id", userId).eq("ministry_id", ministryId);
+  const { error } = await supabase
+    .from("ministry_members")
+    .delete()
+    .eq("user_id", userId)
+    .eq("ministry_id", ministryId);
+  conferir("remover o vínculo", error);
 
   revalidatePath("/dashboard/admin/usuarios");
 }

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
+import { conferir } from "@/lib/data/erros";
 
 const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB
 
@@ -34,7 +35,8 @@ export async function setCampaignVisibility(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await supabase.from("campaigns").update({ publicada }).eq("id", id);
+  const { error } = await supabase.from("campaigns").update({ publicada }).eq("id", id);
+  conferir(publicada ? "publicar a campanha" : "ocultar a campanha", error);
 
   revalidateCampaignPaths(id);
 }
@@ -49,14 +51,40 @@ export async function setCampaignMinistryVisibility(formData: FormData) {
   const campaignId = String(formData.get("campaignId") ?? "");
   if (!campaignId) return;
 
-  const ministryIds = formData.getAll("ministryId").map(String).filter(Boolean);
+  const desejados = new Set(formData.getAll("ministryId").map(String).filter(Boolean));
 
   const supabase = await createClient();
-  await supabase.from("campaign_ministries").delete().eq("campaign_id", campaignId);
-  if (ministryIds.length > 0) {
-    await supabase
+
+  // Antes isto era "apaga tudo e insere de novo". Duas escritas sem
+  // transação: se a segunda falhasse (policy, conexão, constraint), a
+  // campanha ficava sem NENHUMA liberação manual e ninguém era avisado —
+  // os ministérios liberados à mão simplesmente perdiam a campanha de
+  // vista. Agora só a diferença é escrita, então uma falha não zera o que
+  // já existia, e cada passo é conferido.
+  const { data: atuaisRows, error: leituraError } = await supabase
+    .from("campaign_ministries")
+    .select("ministry_id")
+    .eq("campaign_id", campaignId);
+  conferir("ler as liberações atuais da campanha", leituraError);
+
+  const atuais = new Set((atuaisRows ?? []).map((r) => String(r.ministry_id)));
+  const paraRemover = [...atuais].filter((id) => !desejados.has(id));
+  const paraAdicionar = [...desejados].filter((id) => !atuais.has(id));
+
+  if (paraRemover.length > 0) {
+    const { error } = await supabase
       .from("campaign_ministries")
-      .insert(ministryIds.map((ministryId) => ({ campaign_id: campaignId, ministry_id: ministryId })));
+      .delete()
+      .eq("campaign_id", campaignId)
+      .in("ministry_id", paraRemover);
+    conferir("remover a liberação de um ministério", error);
+  }
+
+  if (paraAdicionar.length > 0) {
+    const { error } = await supabase
+      .from("campaign_ministries")
+      .insert(paraAdicionar.map((ministryId) => ({ campaign_id: campaignId, ministry_id: ministryId })));
+    conferir("liberar a campanha para um ministério", error);
   }
 
   revalidateCampaignPaths(campaignId);
@@ -178,7 +206,8 @@ export async function removeCampaignCapa(formData: FormData) {
   if (!campaignId) return;
 
   const supabase = await createClient();
-  await supabase.from("campaigns").update({ capa_url: null }).eq("id", campaignId);
+  const { error } = await supabase.from("campaigns").update({ capa_url: null }).eq("id", campaignId);
+  conferir("remover a capa da campanha", error);
 
   revalidateCampaignPaths(campaignId);
 }
@@ -224,7 +253,8 @@ export async function deleteCampaign(formData: FormData) {
   // Apaga a campanha de vez, esteja ativa ou oculta — o vínculo em
   // demand_campaigns some junto (cascade). As demandas continuam existindo,
   // só ficam sem essa campanha.
-  await supabase.from("campaigns").delete().eq("id", id);
+  const { error } = await supabase.from("campaigns").delete().eq("id", id);
+  conferir("excluir a campanha", error);
 
   revalidateCampaignPaths();
 }
@@ -249,7 +279,8 @@ export async function createCampaignFolder(formData: FormData) {
     .limit(1);
   const posicao = (siblings?.[0]?.posicao ?? -1) + 1;
 
-  await supabase.from("campaign_folders").insert({ nome, posicao });
+  const { error } = await supabase.from("campaign_folders").insert({ nome, posicao });
+  conferir("criar a pasta", error);
 
   revalidateCampaignPaths();
 }
@@ -262,7 +293,8 @@ export async function renameCampaignFolder(formData: FormData) {
   if (!id || !nome) return;
 
   const supabase = await createClient();
-  await supabase.from("campaign_folders").update({ nome }).eq("id", id);
+  const { error } = await supabase.from("campaign_folders").update({ nome }).eq("id", id);
+  conferir("renomear a pasta", error);
 
   revalidateCampaignPaths();
 }
@@ -276,7 +308,8 @@ export async function deleteCampaignFolder(formData: FormData) {
   const supabase = await createClient();
   // As campanhas dentro da pasta ficam "sem pasta" (on delete set null) —
   // não são apagadas.
-  await supabase.from("campaign_folders").delete().eq("id", id);
+  const { error } = await supabase.from("campaign_folders").delete().eq("id", id);
+  conferir("excluir a pasta", error);
 
   revalidateCampaignPaths();
 }
@@ -299,7 +332,11 @@ export async function moveCampaignToFolder(formData: FormData) {
   const { data: siblings } = await query.order("posicao", { ascending: false }).limit(1);
   const posicao = (siblings?.[0]?.posicao ?? -1) + 1;
 
-  await supabase.from("campaigns").update({ folder_id: folderId, posicao }).eq("id", campaignId);
+  const { error } = await supabase
+    .from("campaigns")
+    .update({ folder_id: folderId, posicao })
+    .eq("id", campaignId);
+  conferir("mover a campanha de pasta", error);
 
   revalidateCampaignPaths();
 }

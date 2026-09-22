@@ -5,6 +5,7 @@ import { getLinkPreview } from "@/lib/linkPreview";
 import type { Deliverable } from "@/lib/data/deliverables";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import { deliverableTone } from "@/lib/statusColors";
+import { formatarDiaMes } from "@/lib/dates";
 import { setDeliverableStatus } from "@/app/dashboard/entregas/actions";
 import { Badge, Button, Card, Icon, cn, useToast } from "@/components/ui";
 
@@ -19,8 +20,7 @@ function hostOf(url: string): string {
 }
 
 function formatDate(dateStr: string | null) {
-  if (!dateStr) return null;
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" });
+  return dateStr ? formatarDiaMes(dateStr, "") || null : null;
 }
 
 /* Drive: tenta a miniatura (imagem de verdade, sem moldura do Drive em
@@ -100,7 +100,7 @@ export function DeliverableCard({
     setAction(status);
     startTransition(async () => {
       try {
-        await setDeliverableStatus(deliverable.id, deliverable.ministry_id, status);
+        await setDeliverableStatus(deliverable.id, status);
         toast.success({
           title: status === "aprovado" ? "Entrega aprovada" : "Ajuste solicitado",
           description:

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { falhaAoCarregar } from "./erros";
 import { hoje, jaPassou, formatarMesCurto } from "@/lib/dates";
 import { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 export { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
@@ -92,8 +93,7 @@ export async function getDemandsForMinistry(
   const { data, error } = await query.order("prazo_acordado", { ascending: true, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar demandas:", error.message);
-    return [];
+    falhaAoCarregar("as demandas deste ministério", error);
   }
 
   return data ?? [];
@@ -111,8 +111,7 @@ export async function getDemandById(id: string): Promise<Demand | null> {
     .maybeSingle();
 
   if (error) {
-    console.error("Erro ao buscar demanda:", error.message);
-    return null;
+    falhaAoCarregar("esta demanda", error);
   }
 
   return data as unknown as Demand | null;
@@ -134,8 +133,7 @@ export async function getChildDemands(parentDemandId: string): Promise<Demand[]>
     .order("prazo_acordado", { ascending: true, nullsFirst: false });
 
   if (error) {
-    console.error("Erro ao buscar demandas filhas:", error.message);
-    return [];
+    falhaAoCarregar("as subtarefas desta demanda", error);
   }
 
   return data ?? [];

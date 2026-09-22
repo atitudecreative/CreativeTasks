@@ -61,8 +61,18 @@ export function CommentsSection({
   function handleDelete(id: string) {
     if (!window.confirm("Apagar este comentário? Não tem como desfazer.")) return;
     startTransition(async () => {
-      await deleteComment(demandId, id);
-      toast.success("Comentário apagado");
+      try {
+        await deleteComment(demandId, id);
+        toast.success("Comentário apagado");
+      } catch {
+        // A ação agora lança quando a policy barra ou a escrita falha.
+        // Sem este catch, o toast verde apareceria de qualquer jeito e o
+        // comentário continuaria lá depois do F5.
+        toast.error({
+          title: "Não foi possível apagar",
+          description: "Você só pode apagar os próprios comentários. Se o comentário é seu, tente de novo.",
+        });
+      }
     });
   }
 

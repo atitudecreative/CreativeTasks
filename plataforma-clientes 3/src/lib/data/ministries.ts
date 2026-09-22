@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { falhaAoCarregar } from "./erros";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -105,9 +106,12 @@ export const getUserMemberships = cache(async (): Promise<MinistryMembership[]> 
     )
     .eq("user_id", user.id);
 
+  // Sem vínculo nenhum, requireMinistry() manda o usuário pra
+  // /login?erro=sem-ministerio. Devolver [] por causa de uma falha de
+  // leitura tiraria uma pessoa com acesso legítimo da plataforma, com a
+  // mensagem errada — ela pensaria que perdeu o acesso.
   if (error) {
-    console.error("Erro ao buscar vínculos de ministério:", error.message);
-    return [];
+    falhaAoCarregar("seus ministérios", error);
   }
 
   return (data ?? [])
@@ -126,8 +130,7 @@ export const getAllMinistries = cache(async (): Promise<Ministry[]> => {
     .order("name");
 
   if (error) {
-    console.error("Erro ao buscar ministérios:", error.message);
-    return [];
+    falhaAoCarregar("a lista de ministérios", error);
   }
 
   return data ?? [];
@@ -150,8 +153,7 @@ export async function getAllMinistriesWithCounts(): Promise<MinistryWithCounts[]
   ]);
 
   if (error) {
-    console.error("Erro ao buscar ministérios:", error.message);
-    return [];
+    falhaAoCarregar("a lista de ministérios", error);
   }
 
   const memberCounts = new Map<string, number>();
@@ -183,8 +185,7 @@ export const getMinistryById = cache(async (id: string): Promise<MinistryDetail 
     .maybeSingle();
 
   if (error) {
-    console.error("Erro ao buscar ministério:", error.message);
-    return null;
+    falhaAoCarregar("este ministério", error);
   }
 
   return data as unknown as MinistryDetail | null;
