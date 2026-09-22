@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatarMesPorExtenso } from "@/lib/dates";
 import { Badge, Button, EmptyState, Icon, SearchInput, Select, cn } from "@/components/ui";
 import { MonthAccordion } from "./MonthAccordion";
 import { DemandTable, type DemandRow } from "./DemandTable";
@@ -117,13 +118,6 @@ export function DemandasExplorer({
     setPrioridade("");
     setCampanha("");
     setOnlyOverdue(false);
-  }
-
-  function formatMonthLabel(key: string): string {
-    if (key === "sem-prazo") return "Sem prazo definido";
-    const [year, month] = key.split("-").map(Number);
-    const label = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-    return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
   return (
@@ -281,7 +275,7 @@ export function DemandasExplorer({
           {Array.from(grouped.entries()).map(([key, rows], i) => (
             // O mês mais próximo já abre expandido — é o que a pessoa
             // veio ver na maior parte das vezes.
-            <MonthAccordion key={key} monthLabel={formatMonthLabel(key)} demands={rows} defaultOpen={i === 0} />
+            <MonthAccordion key={key} monthLabel={key === "sem-prazo" ? "Sem prazo definido" : formatarMesPorExtenso(key)} demands={rows} defaultOpen={i === 0} />
           ))}
         </div>
       )}

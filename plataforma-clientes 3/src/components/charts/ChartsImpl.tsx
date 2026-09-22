@@ -48,15 +48,24 @@ function money(v: number, compact = false) {
    Forma: colunas (total) + linha (concluídas) no MESMO eixo, porque as
    duas são contagem de demanda e concluídas é subconjunto do total. É
    isso que deixa ler "quanto entrou" e "quanto fechou" de uma vez.
+
+   A série é de PRAZO, então os últimos meses são compromisso combinado e
+   não trabalho realizado. Mês em curso e mês futuro vêm com a barra vazada
+   (contorno, sem preenchimento) — a diferença que separa "já aconteceu" de
+   "ainda vai acontecer" não pode depender de o leitor saber que dia é hoje.
    ------------------------------------------------------------------------- */
 export function VolumeChart({
   data,
   height = 240,
 }: {
-  data: { label: string; total: number; concluidas: number }[];
+  data: { label: string; total: number; concluidas: number; emCurso?: boolean; futuro?: boolean }[];
   height?: number;
 }) {
   if (data.length === 0) return <ChartEmpty label="Sem demandas com prazo definido para montar a série." />;
+
+  const temProjecao = data.some((d) => d.emCurso || d.futuro);
+  const rotuloDoMes = (d: (typeof data)[number]) =>
+    d.futuro ? `${d.label} · prazo futuro` : d.emCurso ? `${d.label} · mês em curso` : d.label;
 
   return (
     <div>
@@ -67,19 +76,32 @@ export function VolumeChart({
           <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} axisLine={false} tickLine={false} />
           <RTooltip
             cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
-            content={({ active, payload, label }) =>
-              active && payload?.length ? (
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0]?.payload as (typeof data)[number] | undefined;
+              if (!d) return null;
+              return (
                 <ChartTooltip
-                  title={String(label)}
+                  title={rotuloDoMes(d)}
                   rows={[
-                    { label: "Demandas no mês", value: num(Number(payload[0]?.value ?? 0)), color: ACCENT },
-                    { label: "Concluídas", value: num(Number(payload[1]?.value ?? 0)), color: seriesColor(2) },
+                    { label: "Com prazo no mês", value: num(d.total), color: ACCENT },
+                    { label: "Já concluídas", value: num(d.concluidas), color: seriesColor(2) },
                   ]}
                 />
-              ) : null
-            }
+              );
+            }}
           />
-          <Bar dataKey="total" fill={ACCENT} radius={[4, 4, 0, 0]} maxBarSize={36} animationDuration={480} />
+          <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={36} animationDuration={480}>
+            {data.map((d, i) => (
+              <Cell
+                key={`${d.label}-${i}`}
+                fill={d.emCurso || d.futuro ? "transparent" : ACCENT}
+                stroke={d.emCurso || d.futuro ? ACCENT : undefined}
+                strokeWidth={d.emCurso || d.futuro ? 1.5 : 0}
+                strokeDasharray={d.futuro ? "3 2" : undefined}
+              />
+            ))}
+          </Bar>
           <Line
             type="monotone"
             dataKey="concluidas"
@@ -98,14 +120,19 @@ export function VolumeChart({
       <ChartLegend
         className="mt-2"
         items={[
-          { label: "Demandas abertas", color: ACCENT },
-          { label: "Concluídas", color: seriesColor(2) },
+          { label: "Com prazo no mês", color: ACCENT },
+          { label: "Já concluídas", color: seriesColor(2) },
         ]}
       />
+      {temProjecao && (
+        <p className="mt-1.5 text-caption text-ink-3">
+          Barra vazada: mês em curso ou prazo ainda no futuro — o número ainda pode mudar.
+        </p>
+      )}
       <ChartDataTable
-        caption="Demandas por mês"
-        columns={["Mês", "Total", "Concluídas"]}
-        rows={data.map((d) => [d.label, d.total, d.concluidas])}
+        caption="Demandas por mês de prazo"
+        columns={["Mês", "Com prazo no mês", "Já concluídas"]}
+        rows={data.map((d) => [rotuloDoMes(d), d.total, d.concluidas])}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import type { BadgeTone } from "@/components/ui/Badge";
-import { stageOf, STAGE_META } from "@/lib/demandStages";
+import { stageOf } from "@/lib/demandStages";
 
 /* =========================================================================
    TOM POR STATUS
@@ -37,11 +37,6 @@ export function statusTone(status: string): BadgeTone {
   return STATUS_TONE_OVERRIDE[status] ?? STAGE_TONE[stageOf(status)] ?? "neutral";
 }
 
-/** Hex/cor CSS por status — pra gráfico, onde não dá pra usar classe. */
-export function statusColor(status: string): string {
-  return `rgb(var(${STAGE_META[stageOf(status)].cssVar}))`;
-}
-
 /* --------------------------- SAÚDE DE CAMPANHA ---------------------------
    Aqui a escala é ordinal (no caminho -> atenção -> crítica), então o
    mapeamento é direto pros tons semânticos. Antes "concluída" era azul
@@ -58,14 +53,6 @@ export const SAUDE_TONE: Record<string, BadgeTone> = {
 export function saudeTone(saude: string): BadgeTone {
   return SAUDE_TONE[saude] ?? "neutral";
 }
-
-export const SAUDE_COLOR: Record<string, string> = {
-  no_caminho: "rgb(var(--success))",
-  atencao: "rgb(var(--warning))",
-  critica: "rgb(var(--danger))",
-  pausada: "rgb(var(--ink-3))",
-  concluida: "rgb(var(--info))",
-};
 
 /* --------------------------- ENTREGAS --------------------------- */
 export const DELIVERABLE_TONE: Record<string, BadgeTone> = {

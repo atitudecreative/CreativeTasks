@@ -1,8 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Demand } from "./demands";
-import { SAUDE_LABEL } from "@/lib/campaignOptions";
-import { SAUDE_COLOR } from "@/lib/statusColors";
 export { TIPO_LABEL, TIPO_OPTIONS, FASE_LABEL, FASE_OPTIONS, SAUDE_LABEL, SAUDE_OPTIONS } from "@/lib/campaignOptions";
 
 export type Campaign = {
@@ -63,25 +61,6 @@ export type Milestone = {
   data_prevista: string | null;
   data_conclusao: string | null;
 };
-
-export type SaudeBreakdownItem = { saude: string; label: string; count: number; color: string };
-
-// Contagem de campanhas por saúde (fase de andamento), pra gráfico de
-// pizza na Início. Recebe as campanhas já buscadas — não faz query nova.
-export function getSaudeBreakdown(campaigns: Campaign[]): SaudeBreakdownItem[] {
-  const counts = new Map<string, number>();
-  for (const c of campaigns) {
-    counts.set(c.saude, (counts.get(c.saude) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .map(([saude, count]) => ({
-      saude,
-      label: SAUDE_LABEL[saude] ?? saude,
-      count,
-      color: SAUDE_COLOR[saude] ?? "rgb(var(--ink-3))",
-    }))
-    .sort((a, b) => b.count - a.count);
-}
 
 export type BudgetSummaryItem = { label: string; value: number; emphasis: boolean };
 
@@ -217,6 +196,11 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
     }
   }
 
+  // A ordem é a que a Comunicação montou: `posicao` primeiro, nome só pra
+  // desempatar. Havia um `.sort()` por nome no fim desta função que
+  // desfazia tudo isso — os botões "mover pra cima/baixo" gravavam a nova
+  // posição no banco, a página revalidava, e a linha voltava pro mesmo
+  // lugar. O recurso existia na tela e não funcionava.
   return rows
     .map((c) => {
       const ministryNames = Array.from(ministryIdsByCampaign.get(c.id) ?? [])
@@ -231,7 +215,7 @@ export async function getAllCampaignsAdmin(): Promise<PendingCampaign[]> {
         manualMinistryIds: manualMinistryIdsByCampaign.get(c.id) ?? [],
       };
     })
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    .sort((a, b) => a.posicao - b.posicao || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 // IDs dos ministérios liberados manualmente pra uma campanha específica

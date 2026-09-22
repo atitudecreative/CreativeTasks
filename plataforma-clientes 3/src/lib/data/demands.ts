@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { statusColor } from "@/lib/statusColors";
+import { hoje, jaPassou, formatarMesCurto } from "@/lib/dates";
 import { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 export { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 
@@ -181,73 +181,89 @@ export function groupDemandsByMonth(demands: Demand[]): Map<string, Demand[]> {
   return groups;
 }
 
-export function formatMonthLabel(key: string): string {
-  const [year, month] = key.split("-").map(Number);
-  const label = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
+export type MonthlyDemandStat = {
+  month: string;
+  label: string;
+  total: number;
+  concluidas: number;
+  /** Mês que ainda não terminou: o total dele ainda vai crescer. */
+  emCurso: boolean;
+  /** Mês no futuro: são prazos combinados, não trabalho já realizado. */
+  futuro: boolean;
+};
 
-function formatMonthShortLabel(key: string): string {
-  const [year, month] = key.split("-").map(Number);
-  const raw = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "short" });
-  const cleaned = raw.replace(".", "");
-  const label = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  return `${label}/${String(year).slice(2)}`;
-}
-
-export type MonthlyDemandStat = { month: string; label: string; total: number; concluidas: number };
-
-// Total de demandas e quantas já concluíram, por mês (prazo acordado) —
-// pra o gráfico de colunas com linha na Início. Reaproveita o mesmo
-// agrupamento por mês da aba Demandas.
-export function getMonthlyDemandStats(demands: Demand[]): MonthlyDemandStat[] {
+// Demandas por mês de PRAZO, com quantas já fecharam.
+//
+// Duas correções em relação à versão anterior:
+//
+// 1. Mês sem nenhuma demanda deixava de existir na série. O gráfico então
+//    encostava fevereiro em maio como se fossem meses vizinhos, e a
+//    inclinação da linha passava a mentir sobre o ritmo. Agora o intervalo
+//    é preenchido: mês sem prazo nenhum aparece como zero de verdade.
+//
+// 2. Cada mês vem marcado como em curso ou futuro. Isso importa porque a
+//    série é de PRAZO, não de execução: os últimos pontos são compromisso
+//    combinado, não trabalho entregue, e comparar o mês corrente (parcial)
+//    com o anterior (fechado) produz uma queda que não aconteceu.
+export function getMonthlyDemandStats(
+  demands: Demand[],
+  referencia: string = hoje()
+): MonthlyDemandStat[] {
   const grouped = groupDemandsByMonth(demands);
-  return Array.from(grouped.entries()).map(([key, list]) => ({
-    month: key,
-    label: formatMonthShortLabel(key),
-    total: list.length,
-    concluidas: list.filter((d) => d.status === "concluida").length,
-  }));
-}
+  if (grouped.size === 0) return [];
 
-export type StatusBreakdownItem = { status: string; label: string; count: number; color: string };
+  const chaves = Array.from(grouped.keys()).sort();
+  const mesAtual = referencia.slice(0, 7);
 
-// Contagem de demandas por status, pra gráfico de pizza na Início.
-export function getStatusBreakdown(demands: Demand[]): StatusBreakdownItem[] {
-  const counts = new Map<string, number>();
-  for (const d of demands) {
-    counts.set(d.status, (counts.get(d.status) ?? 0) + 1);
+  const meses: string[] = [];
+  let atual = chaves[0];
+  const fim = chaves[chaves.length - 1];
+  // Guarda de sanidade: um prazo digitado errado (ano 2205) geraria
+  // milhares de meses vazios. 120 é uma década — muito além de qualquer
+  // planejamento real, e para o laço antes de a série virar um problema.
+  while (atual <= fim && meses.length < 120) {
+    meses.push(atual);
+    const ano = +atual.slice(0, 4);
+    const mes = +atual.slice(5, 7);
+    atual = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, "0")}`;
   }
-  return Array.from(counts.entries())
-    .map(([status, count]) => ({
-      status,
-      label: STATUS_LABEL[status] ?? status,
-      count,
-      color: statusColor(status),
-    }))
-    .sort((a, b) => b.count - a.count);
+
+  return meses.map((key) => {
+    const list = grouped.get(key) ?? [];
+    return {
+      month: key,
+      label: formatarMesCurto(key),
+      total: list.length,
+      concluidas: list.filter((d) => d.status === "concluida").length,
+      emCurso: key === mesAtual,
+      futuro: key > mesAtual,
+    };
+  });
 }
 
 // Demanda "atrasada": ainda aberta, tem prazo definido, e o prazo já
 // passou. Usado tanto no resumo da Início quanto pra destacar a linha na
 // lista de Demandas.
-export function isOverdue(d: Demand): boolean {
-  return (
-    OPEN_STATUSES.has(d.status) &&
-    !!d.prazo_acordado &&
-    new Date(d.prazo_acordado) < new Date(new Date().toDateString())
-  );
+//
+// `referencia` é a data de hoje em Brasília ("YYYY-MM-DD"). Fica como
+// parâmetro por dois motivos: quem percorre uma lista calcula uma vez só
+// em vez de uma por linha, e o comportamento vira testável sem mexer no
+// relógio do processo. A versão anterior comparava `new Date(prazo)`
+// (meia-noite UTC) com `new Date(new Date().toDateString())` (meia-noite
+// local do SERVIDOR) — dois relógios diferentes. Em produção o Node roda
+// em UTC, então das 21h às 23h59 de Brasília toda demanda que vencia
+// "hoje" já aparecia atrasada. Ver src/lib/dates.ts.
+export function isOverdue(d: Demand, referencia: string = hoje()): boolean {
+  return OPEN_STATUSES.has(d.status) && jaPassou(d.prazo_acordado, referencia);
 }
 
 export function summarizeDemands(demands: Demand[]) {
+  const hojeBr = hoje();
   const abertas = demands.filter((d) => OPEN_STATUSES.has(d.status));
   const concluidas = demands.filter((d) => d.status === "concluida");
   const aguardandoMinisterio = demands.filter((d) => d.status === "aguardando_ministerio");
   const aguardandoAprovacao = demands.filter((d) => d.status === "aguardando_aprovacao");
-  const atrasadas = demands.filter(isOverdue);
+  const atrasadas = demands.filter((d) => isOverdue(d, hojeBr));
 
   return {
     total: demands.length,

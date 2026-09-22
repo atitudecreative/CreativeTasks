@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { hoje, somaDias } from "@/lib/dates";
 import { getCurrentUser, isComunicacaoGlobal } from "@/lib/data/ministries";
 import { getAdminOverview } from "@/lib/data/admin";
 import { getAllCampaignsAdmin } from "@/lib/data/campaigns";
@@ -44,9 +45,8 @@ export default async function AdminPage() {
   // Janela dos últimos 12 meses, comparada com os 12 anteriores. Fixa e
   // explícita na tela — "variação" sem dizer contra o quê não significa
   // nada.
-  const hoje = new Date();
-  const fimJanela = hoje.toISOString().slice(0, 10);
-  const inicioJanela = new Date(hoje.getTime() - 364 * 86400000).toISOString().slice(0, 10);
+  const fimJanela = hoje();
+  const inicioJanela = somaDias(fimJanela, -364);
   const carteira = resumirCarteira(universo, { inicio: inicioJanela, fim: fimJanela });
   const nomePorMinisterio = new Map(ministerios.map((m) => [m.id, m.name] as const));
 

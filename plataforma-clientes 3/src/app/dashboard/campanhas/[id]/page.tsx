@@ -4,6 +4,7 @@ import {
   getCampaignById, getMilestonesForCampaign, getDemandsForCampaign, calculateProgress,
 } from "@/lib/data/campaigns";
 import { summarizeDemands, isOverdue } from "@/lib/data/demands";
+import { hoje } from "@/lib/dates";
 import { getDeliverablesForCampaign } from "@/lib/data/deliverables";
 import {
   getMetaCampaignsForCampaign, summarizeMetaMetrics, getMetaAdsForCampaign,
@@ -63,6 +64,7 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
   // no admin. Esta é a visão de prestação de contas, não de operação.
   const canApprove = isComunicacaoGlobal(currentUser);
 
+  const hojeBr = hoje();
   const resumoDemandas = summarizeDemands(demands);
   const demandasOrdenadas = [...demands]
     .sort((a, b) => {
@@ -75,7 +77,7 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
       titulo: d.titulo,
       status: d.status,
       prazo_acordado: d.prazo_acordado,
-      overdue: isOverdue(d),
+      overdue: isOverdue(d, hojeBr),
     }));
 
   return (

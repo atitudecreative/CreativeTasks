@@ -10,6 +10,7 @@ import {
 import { getCampaignsForMinistry, getBudgetSummary, SAUDE_LABEL } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { countByStage } from "@/lib/demandStages";
+import { TIMEZONE, hoje, formatarDiaMes, formatarMesPorExtenso } from "@/lib/dates";
 import { getUniversoComparacao } from "@/lib/data/campanhaPerfil";
 import { lerMinisterio } from "@/lib/carteira";
 import { LeituraMinisterioPanel } from "@/components/intel/LeituraMinisterio";
@@ -24,13 +25,6 @@ import { VolumeChart, BudgetChart } from "@/components/charts/Charts";
 import { AttentionList } from "./AttentionList";
 
 export const metadata = { title: "Início" };
-
-const TIMEZONE = "America/Sao_Paulo";
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "sem prazo";
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
 
 function formatMoney(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -93,33 +87,69 @@ export default async function DashboardPage() {
   // que o Início não respondia: ele mostrava só o estado de hoje.
   const leitura = lerMinisterio(ministry.id, universo);
 
+  // Uma leitura de "hoje" só, no fuso de Brasília, compartilhada por toda
+  // a página — em vez de cada filtro consultar o relógio por conta própria.
+  const hojeBr = hoje();
+  const mesAtual = hojeBr.slice(0, 7);
+
   const resumo = summarizeDemands(demands);
   const stages = countByStage(demands.map((d) => d.status));
-  const monthlyStats = getMonthlyDemandStats(demands);
+  const monthlyStats = getMonthlyDemandStats(demands, hojeBr);
   const budgetSummary = getBudgetSummary(campaigns);
 
-  const taxaConclusao = resumo.total > 0 ? (resumo.concluidas / resumo.total) * 100 : 0;
+  const taxaConclusao = resumo.total > 0 ? (resumo.concluidas / resumo.total) * 100 : null;
   const comMinisterio = stages.find((s) => s.key === "ministerio")?.count ?? 0;
   const campanhasRisco = campaigns.filter((c) => c.saude === "atencao" || c.saude === "critica");
-  const investimentoTotal = campaigns.reduce((sum, c) => sum + (c.investimento_realizado ?? 0), 0);
 
-  // Variação mês a mês: comparação real entre o último mês fechado e o
-  // anterior. Sem histórico suficiente (menos de 2 meses), não mostra
-  // delta nenhum — melhor nada do que uma seta sem base.
-  const ultimo = monthlyStats[monthlyStats.length - 1];
-  const penultimo = monthlyStats[monthlyStats.length - 2];
+  // "Ativas" quer dizer ativas. A contagem anterior era `campaigns.length`,
+  // que inclui campanha já concluída — o número só subia, nunca descia, e
+  // o cabeçalho da página repetia o mesmo erro.
+  const campanhasAtivas = campaigns.filter((c) => c.saude !== "concluida");
+
+  // Investimento pela MESMA regra do relatório de campanha: o gasto de
+  // mídia sincronizado quando existe, senão o lançado à mão. Somar só
+  // `investimento_realizado` (como era antes) zerava justamente as
+  // campanhas que têm Meta Ads ligado — as que mais gastam —, e o Início
+  // divergia do relatório que o cliente abre na tela seguinte.
+  const perfilPorCampanha = new Map(universo.map((c) => [c.id, c]));
+  const campanhasComInvestimento = campaigns.filter(
+    (c) => (perfilPorCampanha.get(c.id)?.investimento ?? c.investimento_realizado) != null
+  );
+  const investimentoTotal = campanhasComInvestimento.reduce(
+    (sum, c) => sum + (perfilPorCampanha.get(c.id)?.investimento ?? c.investimento_realizado ?? 0),
+    0
+  );
+
+  // Volume do mês corrente contra o mês anterior — os dois pela posição
+  // no calendário, não pelos dois últimos pontos da série. A versão
+  // anterior pegava `monthlyStats[length - 1]`, que é o ÚLTIMO MÊS COM
+  // PRAZO: quase sempre um mês no futuro. O card dizia "Demandas no mês"
+  // e mostrava, por exemplo, novembro.
+  const indiceAtual = monthlyStats.findIndex((m) => m.month === mesAtual);
+  const mesCorrente = indiceAtual >= 0 ? monthlyStats[indiceAtual] : null;
+  const mesAnterior = indiceAtual > 0 ? monthlyStats[indiceAtual - 1] : null;
   const deltaVolume =
-    ultimo && penultimo && penultimo.total > 0
-      ? ((ultimo.total - penultimo.total) / penultimo.total) * 100
+    mesCorrente && mesAnterior && mesAnterior.total > 0
+      ? ((mesCorrente.total - mesAnterior.total) / mesAnterior.total) * 100
       : null;
 
-  const atrasadas = demands.filter(isOverdue);
+  const atrasadas = demands.filter((d) => isOverdue(d, hojeBr));
   const aguardando = demands.filter((d) =>
     ["aguardando_ministerio", "aguardando_aprovacao", "ajustes_solicitados"].includes(d.status)
   );
 
+  // Ordenado por prazo, do mais próximo pro mais distante. Antes era um
+  // .slice(0, 5) em cima da ordem que viesse do banco — o painel se
+  // chamava "Próximos prazos" e listava cinco quaisquer.
   const proximosPrazos = demands
-    .filter((d) => d.prazo_acordado && !isOverdue(d) && d.status !== "concluida" && d.status !== "cancelada")
+    .filter(
+      (d) =>
+        d.prazo_acordado &&
+        !isOverdue(d, hojeBr) &&
+        d.status !== "concluida" &&
+        d.status !== "cancelada"
+    )
+    .sort((a, b) => (a.prazo_acordado ?? "").localeCompare(b.prazo_acordado ?? ""))
     .slice(0, 5);
 
   const arquivosRecentes = deliverables.slice(0, 4);
@@ -138,7 +168,7 @@ export default async function DashboardPage() {
         description={
           resumo.total === 0
             ? "Ainda não há demandas publicadas para este ministério."
-            : `${resumo.abertas} ${resumo.abertas === 1 ? "demanda em andamento" : "demandas em andamento"} e ${campaigns.length} ${campaigns.length === 1 ? "campanha ativa" : "campanhas ativas"}.`
+            : `${resumo.abertas} ${resumo.abertas === 1 ? "demanda em andamento" : "demandas em andamento"} e ${campanhasAtivas.length} ${campanhasAtivas.length === 1 ? "campanha ativa" : "campanhas ativas"}.`
         }
         actions={
           <>
@@ -199,7 +229,7 @@ export default async function DashboardPage() {
               atrasadas={atrasadas.slice(0, 4).map((d) => ({
                 id: d.id,
                 titulo: d.titulo,
-                meta: `venceu em ${formatDate(d.prazo_acordado)}`,
+                meta: `venceu em ${formatarDiaMes(d.prazo_acordado)}`,
               }))}
               atrasadasTotal={atrasadas.length}
               aguardando={aguardando.slice(0, 4).map((d) => ({
@@ -239,38 +269,69 @@ export default async function DashboardPage() {
         <MetricRow columns={4}>
           <Metric
             label="Taxa de conclusão"
-            value={taxaConclusao.toFixed(0)}
-            unit="%"
-            hint={`${resumo.concluidas} de ${resumo.total} demandas`}
+            value={taxaConclusao == null ? "—" : taxaConclusao.toFixed(0)}
+            unit={taxaConclusao == null ? undefined : "%"}
+            hint={
+              taxaConclusao == null
+                ? "nenhuma demanda para calcular"
+                : `${resumo.concluidas} de ${resumo.total} demandas`
+            }
             icon={<Icon.CheckCircle className="h-4 w-4" />}
-            footer={<Progress value={taxaConclusao} tone={taxaConclusao >= 70 ? "success" : "accent"} showValue={false} />}
+            footer={
+              taxaConclusao == null ? undefined : (
+                <Progress
+                  value={taxaConclusao}
+                  tone={taxaConclusao >= 70 ? "success" : "accent"}
+                  showValue={false}
+                />
+              )
+            }
           />
           <Metric
-            label="Demandas no mês"
-            value={ultimo?.total ?? 0}
+            label={`Prazos em ${formatarMesPorExtenso(mesAtual).split(" de ")[0].toLowerCase()}`}
+            value={mesCorrente?.total ?? 0}
             delta={deltaVolume}
-            deltaLabel={penultimo ? `vs. ${penultimo.label}` : undefined}
-            hint={!penultimo ? "sem mês anterior para comparar" : undefined}
+            deltaLabel={mesAnterior ? `vs. ${mesAnterior.label}` : undefined}
+            hint={
+              !mesCorrente
+                ? "nenhuma demanda com prazo neste mês"
+                : !mesAnterior
+                  ? "sem mês anterior para comparar"
+                  : "demandas com prazo combinado para este mês"
+            }
             icon={<Icon.Activity className="h-4 w-4" />}
           />
           <Metric
             label="Campanhas ativas"
-            value={campaigns.length}
-            hint={campanhasRisco.length > 0 ? `${campanhasRisco.length} exigindo atenção` : "todas no caminho"}
+            value={campanhasAtivas.length}
+            hint={
+              campanhasRisco.length > 0
+                ? `${campanhasRisco.length} exigindo atenção`
+                : campanhasAtivas.length === 0
+                  ? "nenhuma campanha em andamento"
+                  : "todas no caminho"
+            }
             icon={<Icon.Megaphone className="h-4 w-4" />}
           />
           <Metric
             label="Investimento realizado"
-            value={investimentoTotal > 0 ? formatMoney(investimentoTotal) : "—"}
-            hint="somado nas campanhas do ministério"
+            value={campanhasComInvestimento.length > 0 ? formatMoney(investimentoTotal) : "—"}
+            hint={
+              campanhasComInvestimento.length === 0
+                ? "nenhuma campanha com valor lançado"
+                : `em ${campanhasComInvestimento.length} de ${campaigns.length} ${campaigns.length === 1 ? "campanha" : "campanhas"}`
+            }
             icon={<Icon.Wallet className="h-4 w-4" />}
           />
         </MetricRow>
       </Section>
 
       {/* ---------- NÍVEL 4: tendência ---------- */}
-      <Section eyebrow="Tendência" title="Como o trabalho evoluiu">
-        <Panel title="Volume por mês" description="Demandas abertas e concluídas">
+      <Section eyebrow="Tendência" title="Como o trabalho se distribui no tempo">
+        <Panel
+          title="Demandas por mês de prazo"
+          description="Quantas têm prazo em cada mês e quantas dessas já fecharam"
+        >
           <VolumeChart data={monthlyStats} />
         </Panel>
       </Section>
@@ -320,7 +381,7 @@ export default async function DashboardPage() {
                       <span className="block truncate text-small font-medium text-ink">{d.titulo}</span>
                       <span className="mt-0.5 flex items-center gap-1.5 text-caption text-ink-3">
                         <Icon.Calendar className="h-3 w-3" />
-                        {formatDate(d.prazo_acordado)}
+                        {formatarDiaMes(d.prazo_acordado)}
                       </span>
                     </span>
                     <Badge tone={statusTone(d.status)} size="sm" dot>
@@ -363,7 +424,7 @@ export default async function DashboardPage() {
                       <span className="block truncate text-caption text-ink-3">
                         {e.tipo_arquivo ?? "arquivo"}
                         {e.versao ? ` · v${e.versao}` : ""}
-                        {e.data_entrega ? ` · ${formatDate(e.data_entrega)}` : ""}
+                        {e.data_entrega ? ` · ${formatarDiaMes(e.data_entrega)}` : ""}
                       </span>
                     </span>
                     <Badge tone={deliverableTone(e.status)} size="sm">

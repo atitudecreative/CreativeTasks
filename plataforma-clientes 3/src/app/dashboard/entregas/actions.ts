@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/data/ministries";
+import { hoje } from "@/lib/dates";
 
 export async function createDeliverable(
   ministryId: string,
@@ -38,7 +39,9 @@ export async function createDeliverable(
     campaign_id: campaignId,
     link_principal: linkPrincipal,
     links_complementares: linksComplementares,
-    data_entrega: new Date().toISOString().slice(0, 10),
+    // Data de hoje em Brasília. Com toISOString() a entrega registrada
+    // depois das 21h ficava com a data do dia seguinte.
+    data_entrega: hoje(),
     autor_id: user.id,
   });
 
