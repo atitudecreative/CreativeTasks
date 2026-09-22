@@ -248,7 +248,10 @@ export function CampaignReport({
           title="O que foi este evento"
           className="scroll-mt-28"
         >
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* items-start: o objetivo costuma ser uma frase e a ficha tem seis
+              campos. Esticados para a mesma altura, o painel do objetivo
+              ganhava 300px de vazio embaixo do texto. */}
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             <Panel className="lg:col-span-2">
               {objetivoEstrategico || escopoMacro ? (
                 <div className="space-y-4">
@@ -493,7 +496,7 @@ export function CampaignReport({
                 <MetaWeeklyChart data={metaWeekly} />
               </Panel>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
                 <Panel title="Público alcançado" description="Distribuição do investimento por gênero">
                   <MetaGenderChart data={metaDemographics.genero} />
                 </Panel>
