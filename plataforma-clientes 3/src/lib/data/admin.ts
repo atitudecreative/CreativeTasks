@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { hoje, jaPassou } from "@/lib/dates";
+import { stageOf, type StageKey } from "@/lib/demandStages";
+
+const ESTAGIOS_EM_ANDAMENTO = new Set<StageKey>(["fila", "producao", "ministerio"]);
 
 export type MinistryOverview = {
   id: string;
@@ -55,8 +58,14 @@ export async function getAdminOverview(): Promise<MinistryOverview[]> {
     return c;
   };
 
+  // Mesma definição de "ativa" que o Início e a barra de estágios usam
+  // (lib/demandStages): fila, produção e com o ministério. A versão
+  // anterior tirava só concluida e cancelada, então demanda já aprovada ou
+  // publicada entrava como ativa aqui e como concluída lá — o painel da
+  // Comunicação e o do ministério mostravam números diferentes para a
+  // mesma pergunta.
   for (const d of demands ?? []) {
-    if (d.status === "concluida" || d.status === "cancelada") continue;
+    if (!ESTAGIOS_EM_ANDAMENTO.has(stageOf(d.status))) continue;
     const c = getCounts(d.ministry_id);
     c.demandasAtivas++;
     if (jaPassou(d.prazo_acordado, hojeBr)) c.demandasAtrasadas++;
