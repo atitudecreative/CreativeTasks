@@ -43,6 +43,7 @@ export function AppShell({
   switcherOptions,
   currentMinistryId,
   signOutAction,
+  counters,
 }: {
   children: React.ReactNode;
   logoUrl: string | null;
@@ -55,6 +56,8 @@ export function AppShell({
   switcherOptions: { id: string; name: string }[];
   currentMinistryId: string;
   signOutAction: () => void;
+  /** Contagens vivas do menu lateral (ver lib/data/navCounters). */
+  counters?: { demandasAtrasadas: number; demandasComMinisterio: number };
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -161,6 +164,7 @@ export function AppShell({
       onNavigate={mobile ? () => setMobileOpen(false) : undefined}
       switcher={<MinistrySwitcher options={switcherOptions} currentId={currentMinistryId} />}
       userSlot={userMenu}
+      counters={counters}
     />
   );
 

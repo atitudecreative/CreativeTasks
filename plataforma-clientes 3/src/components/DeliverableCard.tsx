@@ -76,13 +76,63 @@ function ImagemExterna({ url, domain }: { url: string; domain: string }) {
   );
 }
 
+/** Fachada do YouTube: miniatura estática + botão de tocar, e o iframe só
+ *  entra depois do clique. Uma tela com nove entregas de vídeo montava nove
+ *  players do YouTube de uma vez — cada iframe é um contexto de navegador
+ *  completo, com script e rede próprios. A miniatura é uma imagem. */
+function YoutubePreview({ embedUrl, thumbUrl, alt }: { embedUrl: string; thumbUrl: string; alt: string }) {
+  const [tocando, setTocando] = useState(false);
+  const [semThumb, setSemThumb] = useState(false);
+
+  if (tocando) {
+    return (
+      <iframe
+        src={embedUrl}
+        title={alt}
+        className="aspect-video w-full bg-surface-sunken"
+        allow="autoplay; encrypted-media"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // O cartão inteiro é um link; tocar o vídeo não pode navegar.
+        e.preventDefault();
+        e.stopPropagation();
+        setTocando(true);
+      }}
+      aria-label={`Tocar vídeo: ${alt}`}
+      className="group/yt relative block aspect-video w-full overflow-hidden bg-surface-sunken"
+    >
+      {!semThumb && (
+        // eslint-disable-next-line @next/next/no-img-element -- miniatura do YouTube, domínio não conhecido em build time
+        <img
+          src={thumbUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setSemThumb(true)}
+          className="h-full w-full object-cover"
+        />
+      )}
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/70 text-white backdrop-blur-sm transition-transform duration-180 ease-snap group-hover/yt:scale-110">
+          <Icon.Play className="ml-0.5 h-5 w-5" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function Preview({ url, alt }: { url: string; alt: string }) {
   const preview = getLinkPreview(url);
 
   if (preview.kind === "drive") return <DrivePreview imageUrl={preview.imageUrl} embedUrl={preview.embedUrl} alt={alt} />;
 
   if (preview.kind === "youtube") {
-    return <iframe src={preview.embedUrl} title={alt} className="aspect-video w-full bg-surface-sunken" allow="autoplay" />;
+    return <YoutubePreview embedUrl={preview.embedUrl} thumbUrl={preview.thumbUrl} alt={alt} />;
   }
 
   if (preview.kind === "image") {
