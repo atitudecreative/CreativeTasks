@@ -59,7 +59,7 @@ export default async function DemandasPage() {
         description={`Tudo que a Comunicação está produzindo para ${ministry.name}. Filtre por estágio para ver o que está em produção ou esperando por você.`}
       />
 
-      <DemandasExplorer demands={rows} campaigns={campaigns} />
+      <DemandasExplorer hoje={hojeBr} demands={rows} campaigns={campaigns} />
     </div>
   );
 }

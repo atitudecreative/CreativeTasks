@@ -64,7 +64,7 @@ export const DEMANDS = Array.from({ length: 34 }, (_, i) => ({
   id: `dem-${i}`,
   identificador: `DEM-${String(i + 1).padStart(3, "0")}`,
   ministry_id: "min-1",
-  campaign_id: i % 3 === 0 ? "camp-1" : null,
+  campaign_id: i % 3 === 0 ? "camp-1" : i % 5 === 0 ? "camp-2" : null,
   parent_demand_id: null,
   titulo:
     i === 0

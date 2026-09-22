@@ -185,7 +185,16 @@ export function AppSidebar({
         </nav>
 
         {/* ---------- Rodapé: contexto ativo + conta ---------- */}
-        <div className={cn("shrink-0 border-t border-white/10", collapsed ? "p-2" : "p-3")}>
+        {/* Fundo próprio, não só a borda: a navegação acima rola por baixo
+            deste bloco, e sem superfície o item que passava atrás aparecia
+            cortado ao meio junto do nome do usuário. Translúcido com blur
+            para a capa do ministério continuar visível. */}
+        <div
+          className={cn(
+            "shrink-0 border-t border-white/10 bg-walnut-900/92 backdrop-blur-sm",
+            collapsed ? "p-2" : "p-3"
+          )}
+        >
           {!collapsed && (
             <div className="mb-2 px-1">
               <p className="truncate text-caption font-medium text-white/90">{ministryName}</p>
