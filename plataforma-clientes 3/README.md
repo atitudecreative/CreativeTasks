@@ -433,6 +433,23 @@ No SQL Editor do Supabase, rode nesta ordem (pule as que já rodaram antes):
 Opcionalmente, rode também `supabase/seed.sql` pra ter um ministério,
 campanha e demanda de exemplo.
 
+### Ver a interface sem um banco alcançável
+
+Para revisar a interface é preciso vê-la, e ver a interface exige dados.
+`QA_MOCK=1` troca o transporte do Supabase por fixtures e deixa a
+plataforma inteira rodar sem banco — útil para revisão visual e para os
+casos que o banco real não tem de propósito (ministério vazio, valor de
+sete dígitos, título de 140 caracteres):
+
+```bash
+QA_MOCK=1 npm run build && QA_MOCK=1 npm start
+node scripts/qa/varredura.mjs   # varre as telas em 4 larguras e 2 temas
+```
+
+A varredura reprova erro de console, rolagem horizontal, elemento que
+transborda o viewport e alvo de toque menor que 24px. Detalhes em
+[`scripts/qa/README.md`](scripts/qa/README.md).
+
 ### 3. Configurar as variáveis de ambiente
 
 ```bash

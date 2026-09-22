@@ -21,6 +21,7 @@ const nextConfig = {
       const trocas = [
         [/^@\/lib\/supabase\/server$/, "scripts/qa/supabase-mock.ts"],
         [/^@\/lib\/supabase\/middleware$/, "scripts/qa/middleware-mock.ts"],
+        [/^@\/lib\/supabase\/admin$/, "scripts/qa/supabase-mock.ts"],
       ];
       for (const [padrao, destino] of trocas) {
         config.plugins.push(

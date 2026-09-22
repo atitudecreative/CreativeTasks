@@ -119,10 +119,17 @@ for (const [nomeLargura, w, h] of LARGURAS) {
           for (const el of document.querySelectorAll("button, a, [role=button], input, select")) {
             const r = el.getBoundingClientRect();
             if (r.width === 0 || r.height === 0) continue;
-            if (r.height < 24 || r.width < 24) {
+            // Caixa de seleção dentro de um <label> não precisa ter 24px
+            // sozinha: clicar no rótulo aciona o controle, então o alvo
+            // real é o rótulo. Mede ele quando existe.
+            const rotulo = el.closest("label");
+            const alvo = rotulo && (el.tagName === "INPUT" || el.tagName === "SELECT")
+              ? rotulo.getBoundingClientRect()
+              : r;
+            if (alvo.height < 24 || alvo.width < 24) {
               alvosPequenos.push({
                 seletor: el.tagName.toLowerCase(),
-                tamanho: `${Math.round(r.width)}x${Math.round(r.height)}`,
+                tamanho: `${Math.round(alvo.width)}x${Math.round(alvo.height)}`,
                 texto: (el.textContent ?? "").trim().slice(0, 40),
               });
             }

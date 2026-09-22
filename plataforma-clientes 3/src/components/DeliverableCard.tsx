@@ -44,6 +44,38 @@ function DrivePreview({ imageUrl, embedUrl, alt }: { imageUrl: string; embedUrl:
   );
 }
 
+/** Campo neutro com o domínio de destino — usado quando não há prévia
+ *  possível E quando a que existia não carregou. */
+function SemPrevia({ domain }: { domain: string }) {
+  return (
+    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
+      <Icon.Link className="h-5 w-5 text-ink-3" />
+      <span className="max-w-[80%] truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
+        {domain}
+      </span>
+    </div>
+  );
+}
+
+/** Imagem externa que, se não carregar, vira o campo neutro em vez do
+ *  ícone de imagem quebrada do navegador. O link pode ter expirado, o
+ *  arquivo pode ter mudado de permissão, a rede pode falhar — e esta tela
+ *  é a que o cliente abre. */
+function ImagemExterna({ url, domain }: { url: string; domain: string }) {
+  const [falhou, setFalhou] = useState(false);
+  if (falhou) return <SemPrevia domain={domain} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- link externo, sem domínio conhecido em build time
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setFalhou(true)}
+      className="aspect-video w-full bg-surface-sunken object-cover"
+    />
+  );
+}
+
 function Preview({ url, alt }: { url: string; alt: string }) {
   const preview = getLinkPreview(url);
 
@@ -54,21 +86,13 @@ function Preview({ url, alt }: { url: string; alt: string }) {
   }
 
   if (preview.kind === "image") {
-    // eslint-disable-next-line @next/next/no-img-element -- link externo, sem domínio conhecido em build time
-    return <img src={preview.url} alt="" loading="lazy" className="aspect-video w-full bg-surface-sunken object-cover" />;
+    return <ImagemExterna url={preview.url} domain={hostOf(preview.url)} />;
   }
 
-  // Sem prévia possível: em vez de uma caixa tracejada com emoji 🔗,
-  // um campo neutro com o domínio de destino — diz pra onde o link leva
-  // antes de o usuário clicar.
-  return (
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
-      <Icon.Link className="h-5 w-5 text-ink-3" />
-      <span className="max-w-[80%] truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
-        {preview.domain}
-      </span>
-    </div>
-  );
+  // Sem prévia possível: em vez de uma caixa tracejada com emoji 🔗, um
+  // campo neutro com o domínio de destino — diz pra onde o link leva antes
+  // de o usuário clicar.
+  return <SemPrevia domain={preview.domain} />;
 }
 
 /* =========================================================================

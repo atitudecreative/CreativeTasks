@@ -40,9 +40,14 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
     case "deliverables": return F.DELIVERABLES as unknown as Linha[];
     case "milestones": return F.MILESTONES.map((m) => ({ ...m, campaign_id: "camp-1", ordem: 0 })) as unknown as Linha[];
     case "demand_campaigns":
+      // A demanda embutida vai INTEIRA. Quando aqui só havia
+      // { ministry_id }, getDemandsForCampaign devolvia objetos sem
+      // `status`, todo mundo caía no estágio "fila" e o relatório da
+      // campanha mostrava "12 demandas · 0 concluídas" — um número errado
+      // que parecia defeito da aplicação e era defeito do fixture.
       return F.DEMANDS.filter((d) => d.campaign_id).map((d) => ({
         demand_id: d.id, campaign_id: d.campaign_id,
-        demands: { ministry_id: d.ministry_id },
+        demands: d,
         campaigns: F.CAMPAIGNS.find((c) => c.id === d.campaign_id),
       })) as unknown as Linha[];
     case "campaign_ministries": return [{ campaign_id: "camp-3", ministry_id: "min-1" }];
@@ -227,6 +232,34 @@ export async function createClient() {
           async upload() { return { data: null, error: { message: "QA_MOCK: upload desativado" } }; },
           getPublicUrl() { return { data: { publicUrl: "" } }; },
         };
+      },
+    },
+  };
+}
+
+/** Substitui createAdminClient() de @/lib/supabase/admin. A tela de
+ *  usuários lê pelo cliente de service role, não pelo de sessão — sem
+ *  isto ela era a única que não renderizava no QA. */
+export function createAdminClient() {
+  return {
+    from(nome: string) { return new Consulta(nome); },
+    auth: {
+      admin: {
+        async listUsers({ page = 1 }: { page?: number; perPage?: number } = {}) {
+          if (page > 1) return { data: { users: [] }, error: null };
+          return {
+            data: {
+              users: [
+                { id: "user-1", email: "ana@atitude.com.br" },
+                { id: "user-2", email: "joao.pereira@ibatitude.com.br" },
+                { id: "user-3", email: "maria@ibatitude.com.br" },
+              ],
+            },
+            error: null,
+          };
+        },
+        async deleteUser() { return { data: null, error: null }; },
+        async createUser() { return { data: { user: null }, error: { message: "QA_MOCK: criação desativada" } }; },
       },
     },
   };

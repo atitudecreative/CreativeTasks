@@ -9,15 +9,25 @@ caracteres, campanha sem mídia vinculada).
 
 ## Como funciona
 
-`QA_MOCK=1` faz o `next.config.mjs` trocar **um único módulo**:
-`@/lib/supabase/server` passa a resolver para `scripts/qa/supabase-mock.ts`.
+`QA_MOCK=1` faz o `next.config.mjs` trocar **três módulos**, todos de
+transporte:
+
+| módulo real | vira |
+| --- | --- |
+| `@/lib/supabase/server` | `supabase-mock.ts` (consulta encadeável sobre os fixtures) |
+| `@/lib/supabase/admin` | `supabase-mock.ts` (service role — a tela de usuários lê por ele) |
+| `@/lib/supabase/middleware` | `middleware-mock.ts` (só deixa passar) |
+
+A troca é feita com `NormalModuleReplacementPlugin`, e não com
+`resolve.alias`: o Next resolve `@/...` com um plugin de resolução próprio
+que corre antes dos apelidos, então o alias era ignorado — em silêncio.
 
 Só o transporte é substituído. Todo o resto — as funções de leitura, os
 cálculos, os componentes, os gráficos, o RSC — é o código de produção
 rodando de verdade. Não existe uma "versão de QA" da interface que possa
 divergir da real.
 
-Sem a variável, o alias não é registrado e o build de produção não toca
+Sem a variável, nenhuma troca é registrada e o build de produção não toca
 em nada daqui.
 
 ## Rodar
