@@ -35,6 +35,7 @@ em nada daqui.
 ```bash
 QA_MOCK=1 npm run build && QA_MOCK=1 npm start   # ou: QA_MOCK=1 npm run dev
 node scripts/qa/varredura.mjs                    # varre as telas e reporta
+node scripts/qa/print.mjs /dashboard saida.png   # um print só, pra olhar
 ```
 
 A varredura abre cada tela em quatro larguras (390, 768, 1024, 1440),
