@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  ResponsiveContainer, ComposedChart, BarChart, LineChart, Bar, Line, Area,
+  ResponsiveContainer, BarChart, LineChart, Bar, Line, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Cell, AreaChart,
 } from "recharts";
-import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartLegend, ChartDataTable } from "./primitives";
+import { ACCENT, AXIS, AXIS_TICK, GRID, MUTED, seriesColor, ChartTooltip, ChartEmpty, ChartDataTable } from "./primitives";
 import { formatMoney, formatCompact } from "@/lib/metricLanguage";
 
 /* =========================================================================
@@ -40,101 +40,6 @@ function num(v: number) {
 // navegador coincidirem (ver a nota em lib/metricLanguage.ts).
 function money(v: number, compact = false) {
   return formatMoney(v, compact);
-}
-
-/* -------------------------------------------------------------------------
-   VOLUME POR MÊS — total x concluídas.
-   Forma: colunas (total) + linha (concluídas) no MESMO eixo, porque as
-   duas são contagem de demanda e concluídas é subconjunto do total. É
-   isso que deixa ler "quanto entrou" e "quanto fechou" de uma vez.
-
-   A série é de PRAZO, então os últimos meses são compromisso combinado e
-   não trabalho realizado. Mês em curso e mês futuro vêm com a barra vazada
-   (contorno, sem preenchimento) — a diferença que separa "já aconteceu" de
-   "ainda vai acontecer" não pode depender de o leitor saber que dia é hoje.
-   ------------------------------------------------------------------------- */
-export function VolumeChart({
-  data,
-  height = 240,
-}: {
-  data: { label: string; total: number; concluidas: number; emCurso?: boolean; futuro?: boolean }[];
-  height?: number;
-}) {
-  if (data.length === 0) return <ChartEmpty label="Sem demandas com prazo definido para montar a série." />;
-
-  const temProjecao = data.some((d) => d.emCurso || d.futuro);
-  const rotuloDoMes = (d: (typeof data)[number]) =>
-    d.futuro ? `${d.label} · prazo futuro` : d.emCurso ? `${d.label} · mês em curso` : d.label;
-
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={MARGIN}>
-          <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
-          <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} axisLine={false} tickLine={false} />
-          <RTooltip
-            cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const d = payload[0]?.payload as (typeof data)[number] | undefined;
-              if (!d) return null;
-              return (
-                <ChartTooltip
-                  title={rotuloDoMes(d)}
-                  rows={[
-                    { label: "Com prazo no mês", value: num(d.total), color: ACCENT },
-                    { label: "Já concluídas", value: num(d.concluidas), color: seriesColor(2) },
-                  ]}
-                />
-              );
-            }}
-          />
-          <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={36} animationDuration={480}>
-            {data.map((d, i) => (
-              <Cell
-                key={`${d.label}-${i}`}
-                fill={d.emCurso || d.futuro ? "transparent" : ACCENT}
-                stroke={d.emCurso || d.futuro ? ACCENT : undefined}
-                strokeWidth={d.emCurso || d.futuro ? 1.5 : 0}
-                strokeDasharray={d.futuro ? "3 2" : undefined}
-              />
-            ))}
-          </Bar>
-          <Line
-            type="monotone"
-            dataKey="concluidas"
-            stroke={seriesColor(2)}
-            strokeWidth={2}
-            dot={{ r: 3, fill: seriesColor(2), strokeWidth: 0 }}
-            // Anel de 2px na cor da superfície: separa o ponto da barra
-            // quando os dois se sobrepõem.
-            activeDot={{ r: 5, stroke: "rgb(var(--surface))", strokeWidth: 2 }}
-            animationDuration={560}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-      {/* Duas séries no gráfico => legenda sempre presente: a identidade
-          de cada série nunca pode depender só da cor. */}
-      <ChartLegend
-        className="mt-2"
-        items={[
-          { label: "Com prazo no mês", color: ACCENT },
-          { label: "Já concluídas", color: seriesColor(2) },
-        ]}
-      />
-      {temProjecao && (
-        <p className="mt-1.5 text-caption text-ink-3">
-          Barra vazada: mês em curso ou prazo ainda no futuro — o número ainda pode mudar.
-        </p>
-      )}
-      <ChartDataTable
-        caption="Demandas por mês de prazo"
-        columns={["Mês", "Com prazo no mês", "Já concluídas"]}
-        rows={data.map((d) => [rotuloDoMes(d), d.total, d.concluidas])}
-      />
-    </div>
-  );
 }
 
 /* -------------------------------------------------------------------------
