@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
 import { conferir } from "@/lib/data/erros";
+import { lerDinheiro, periodoInvalido } from "@/lib/numeros";
+import { TIPO_OPTIONS, FASE_OPTIONS, SAUDE_OPTIONS } from "@/lib/campaignOptions";
+
+const TIPOS = new Set(TIPO_OPTIONS.map((o) => o.value));
+const FASES = new Set(FASE_OPTIONS.map((o) => o.value));
+const SAUDES = new Set(SAUDE_OPTIONS.map((o) => o.value));
 
 const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB
 
@@ -18,12 +24,6 @@ function revalidateCampaignPaths(id?: string) {
   revalidatePath("/dashboard/admin");
 }
 
-function parseMoney(raw: FormDataEntryValue | null): number | null {
-  const value = String(raw ?? "").trim();
-  if (!value) return null;
-  const parsed = Number(value.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 // Liga/desliga a visibilidade da campanha pro ministério — um toggle só,
 // em vez de duas telas separadas de "publicar" e "ocultar".
@@ -109,14 +109,42 @@ export async function updateCampaignDetails(
   const dataInicio = String(formData.get("data_inicio") ?? "").trim() || null;
   const dataTermino = String(formData.get("data_termino") ?? "").trim() || null;
   const dataEvento = String(formData.get("data_evento") ?? "").trim() || null;
-  const orcamentoPlanejado = parseMoney(formData.get("orcamento_planejado"));
-  const orcamentoAprovado = parseMoney(formData.get("orcamento_aprovado"));
-  const investimentoRealizado = parseMoney(formData.get("investimento_realizado"));
   const resultadosObservacoes = String(formData.get("resultados_observacoes") ?? "").trim() || null;
 
   if (!id || !nome) {
     return { error: "Nome é obrigatório." };
   }
+  if (!TIPOS.has(tipo)) return { error: "Tipo de campanha inválido." };
+  if (!FASES.has(fase)) return { error: "Fase inválida." };
+  if (!SAUDES.has(saude)) return { error: "Situação inválida." };
+
+  // Os três valores em dinheiro são lidos com o mesmo parser, que aceita
+  // "1.234,56" (a versão anterior devolvia null para esse formato e o
+  // orçamento era salvo em branco, sem aviso nenhum).
+  const campos: [string, keyof typeof valores][] = [
+    ["Orçamento planejado", "orcamentoPlanejado"],
+    ["Orçamento aprovado", "orcamentoAprovado"],
+    ["Investimento realizado", "investimentoRealizado"],
+  ];
+  const valores = {
+    orcamentoPlanejado: lerDinheiro(formData.get("orcamento_planejado")),
+    orcamentoAprovado: lerDinheiro(formData.get("orcamento_aprovado")),
+    investimentoRealizado: lerDinheiro(formData.get("investimento_realizado")),
+  };
+  for (const [rotulo, chave] of campos) {
+    const r = valores[chave];
+    if (!r.ok) return { error: `${rotulo}: ${r.motivo}` };
+  }
+  const orcamentoPlanejado = valores.orcamentoPlanejado.ok ? valores.orcamentoPlanejado.valor : null;
+  const orcamentoAprovado = valores.orcamentoAprovado.ok ? valores.orcamentoAprovado.valor : null;
+  const investimentoRealizado = valores.investimentoRealizado.ok
+    ? valores.investimentoRealizado.valor
+    : null;
+
+  // Período ao contrário quebra o texto do relatório e a ordenação por
+  // data de referência — e passava sem nenhuma checagem.
+  const erroPeriodo = periodoInvalido(dataInicio, dataTermino);
+  if (erroPeriodo) return { error: erroPeriodo };
 
   const supabase = await createClient();
   const { error } = await supabase

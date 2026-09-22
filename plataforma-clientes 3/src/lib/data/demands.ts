@@ -132,6 +132,8 @@ export async function getChildDemandCounts(ministryId: string): Promise<Map<stri
 
   const counts = new Map<string, number>();
   if (error) {
+    // Decoração: vira um "+3 subtarefas" na linha. Ausente, a lista
+    // continua correta — degradar aqui é melhor que derrubar a tela.
     console.error("Erro ao contar demandas filhas:", error.message);
     return counts;
   }

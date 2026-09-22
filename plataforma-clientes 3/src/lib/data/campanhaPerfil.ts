@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { falhaAoCarregar } from "./erros";
 import { createClient } from "@/lib/supabase/server";
 import type { CampanhaPerfil } from "@/lib/insights";
 
@@ -87,10 +88,7 @@ export const getUniversoComparacao = cache(async (): Promise<CampanhaPerfil[]> =
     .eq("publicada", true);
 
   if (error) {
-    // Falha aqui não pode derrubar o relatório: sem universo, a tela
-    // simplesmente não mostra comparação.
-    console.error("Erro ao carregar o universo de comparação:", error.message);
-    return [];
+    falhaAoCarregar("a base de comparação entre campanhas", error);
   }
 
   return (data ?? []).map((r) => mapear(r as unknown as Linha));
@@ -106,8 +104,7 @@ export const getPerfilCampanha = cache(async (campaignId: string): Promise<Campa
     .maybeSingle();
 
   if (error) {
-    console.error("Erro ao carregar o perfil da campanha:", error.message);
-    return null;
+    falhaAoCarregar("os números consolidados desta campanha", error);
   }
 
   return data ? mapear(data as unknown as Linha) : null;

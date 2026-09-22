@@ -7,14 +7,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireComunicacao } from "@/lib/data/ministries";
 import { isValidHex } from "@/lib/theme";
 import { conferir } from "@/lib/data/erros";
+import { normalizar } from "@/lib/texto";
+import { CATEGORIA_OPTIONS, MINISTRY_STATUS_OPTIONS } from "@/lib/ministryOptions";
+
+const CATEGORIAS = new Set(CATEGORIA_OPTIONS.map((o) => o.value));
+const STATUS = new Set(MINISTRY_STATUS_OPTIONS.map((o) => o.value));
 
 const MAX_CAPA_SIZE = 4 * 1024 * 1024; // 4MB — foto de fundo pode ser um pouco maior que um PNG de logo
 
 function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+  return normalizar(value)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
@@ -35,6 +37,9 @@ export async function createMinistry(
   if (!name) {
     return { error: "Nome é obrigatório." };
   }
+  if (!CATEGORIAS.has(categoria)) {
+    return { error: "Categoria inválida." };
+  }
 
   const supabase = await createClient();
 
@@ -52,7 +57,14 @@ export async function createMinistry(
   });
 
   if (error) {
-    // slug único pode colidir se já existir um ministério com nome parecido
+    // 23505 é violação de unicidade: o slug sai do nome, então dois nomes
+    // que só diferem por acento ou pontuação colidem. Antes o que chegava
+    // à tela era o texto cru do Postgres ("duplicate key value violates
+    // unique constraint ministries_slug_key"), que não diz à pessoa o que
+    // fazer.
+    if (error.code === "23505") {
+      return { error: `Já existe um ministério com endereço "${slug}". Use um nome um pouco diferente.` };
+    }
     return { error: error.message };
   }
 
@@ -80,6 +92,12 @@ export async function updateMinistry(
 
   if (!id || !name) {
     return { error: "Nome é obrigatório." };
+  }
+  if (!CATEGORIAS.has(categoria)) {
+    return { error: "Categoria inválida." };
+  }
+  if (!STATUS.has(status)) {
+    return { error: "Situação inválida." };
   }
 
   const supabase = await createClient();

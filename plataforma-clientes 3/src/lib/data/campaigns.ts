@@ -319,6 +319,9 @@ export async function getCampaignsForDemandsInMinistry(
     .eq("demands.ministry_id", ministryId);
 
   if (error) {
+    // Decoração: estes vínculos viram um badge de campanha ao lado do
+    // título da demanda. Sem eles a lista continua correta e completa, só
+    // sem o badge — não vale derrubar a tela inteira por isso.
     console.error("Erro ao buscar campanhas vinculadas às demandas:", error.message);
     return map;
   }

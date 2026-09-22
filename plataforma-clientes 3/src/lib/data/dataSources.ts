@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { falhaAoCarregar } from "./erros";
 
 export type DataSource = {
   source: "asana" | "meta_ads" | "e_inscricao";
@@ -15,8 +16,7 @@ export async function getDataSources(ministryId: string): Promise<DataSource[]> 
     .eq("ministry_id", ministryId);
 
   if (error) {
-    console.error("Erro ao buscar integrações:", error.message);
-    return [];
+    falhaAoCarregar("as integrações deste ministério", error);
   }
 
   return data ?? [];
