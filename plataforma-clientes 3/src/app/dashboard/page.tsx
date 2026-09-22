@@ -74,7 +74,7 @@ function getTodayLabel() {
 export default async function DashboardPage() {
   const { ministry } = await requireMinistry();
 
-  const [demands, campaigns, deliverables, universo] = await Promise.all([
+  const [demands, campaigns, deliverables, universoCarga] = await Promise.all([
     getDemandsForMinistry(ministry.id),
     getCampaignsForMinistry(ministry.id),
     getDeliverablesForMinistry(ministry.id),
@@ -82,6 +82,13 @@ export default async function DashboardPage() {
     // ver, então um ministério compara contra o próprio histórico.
     getUniversoComparacao(),
   ]);
+
+  // A base de comparação pode não vir — é uma view (migration 0032) e um
+  // banco que ainda não a recebeu não deve derrubar o Início inteiro. O
+  // que ela NÃO pode fazer é falhar em silêncio: o painel diria "dados
+  // insuficientes", que significa outra coisa.
+  const universo = universoCarga.ok ? universoCarga.dados : [];
+  const comparacaoIndisponivel = !universoCarga.ok;
 
   // Leitura histórica do ministério — a pergunta "como estamos indo",
   // que o Início não respondia: ele mostrava só o estado de hoje.
@@ -348,7 +355,16 @@ export default async function DashboardPage() {
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Panel title="Histórico de eventos" className="lg:col-span-1">
-            <LeituraMinisterioPanel leitura={leitura} />
+            {comparacaoIndisponivel ? (
+              <EmptyState
+                size="sm"
+                icon={<Icon.AlertTriangle className="h-4 w-4" />}
+                title="Não foi possível carregar a comparação"
+                description="Os números das campanhas não vieram agora. Atualize a página; se continuar, avise a Comunicação."
+              />
+            ) : (
+              <LeituraMinisterioPanel leitura={leitura} />
+            )}
           </Panel>
           <Panel
             title="Orçamento das campanhas"

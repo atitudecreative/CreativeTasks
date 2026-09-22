@@ -44,12 +44,20 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
   // números de todas as campanhas junto.
   //
   // As duas consultas são independentes do resto e da própria campanha,
-  // então vão juntas. Falha em qualquer uma devolve null/vazio e a
-  // seção some: comparação é um extra, não pode derrubar o relatório.
-  const [perfil, universo] = await Promise.all([
+  // então vão juntas. Falha em qualquer uma degrada a seção de leitura em
+  // vez de derrubar o relatório — que é a tela que o cliente abre, e que
+  // funcionava bem antes de a camada de comparação existir (é a view da
+  // migration 0032).
+  const [perfilCarga, universoCarga] = await Promise.all([
     getPerfilCampanha(id),
     getUniversoComparacao(),
   ]);
+
+  const perfil = perfilCarga.ok ? perfilCarga.dados : null;
+  const universo = universoCarga.ok ? universoCarga.dados : [];
+  // Marcado, não engolido: "dados insuficientes" tem que significar "não
+  // há dados bastantes", nunca "a consulta falhou".
+  const comparacaoIndisponivel = !perfilCarga.ok || !universoCarga.ok;
 
   const leitura = perfil
     ? gerarInsights(perfil, universo)
@@ -121,6 +129,7 @@ export default async function CampanhaDetailPage({ params }: { params: Promise<{
         metaAds={metaAds}
         leitura={leitura}
         comparacoes={comparacoes}
+        comparacaoIndisponivel={comparacaoIndisponivel}
       />
     </div>
   );

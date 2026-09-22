@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { falhaAoCarregar } from "./erros";
+import { carregado, naoCarregou, type Carga } from "./erros";
 import { createClient } from "@/lib/supabase/server";
 import type { CampanhaPerfil } from "@/lib/insights";
 
@@ -80,32 +80,46 @@ function mapear(r: Linha): CampanhaPerfil {
  * Só campanhas publicadas entram: uma campanha ainda oculta está em
  * cadastro, com número pela metade, e contaminaria a mediana.
  */
-export const getUniversoComparacao = cache(async (): Promise<CampanhaPerfil[]> => {
+export const getUniversoComparacao = cache(async (): Promise<Carga<CampanhaPerfil[]>> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("campanha_perfil")
     .select(CAMPOS)
     .eq("publicada", true);
 
+  // Esta é a exceção deliberada à regra de "leitura que vira conteúdo
+  // lança". A view `campanha_perfil` é a migration 0032: num banco que
+  // ainda não a recebeu, lançar aqui derrubaria o Início e o painel da
+  // Comunicação INTEIROS — telas que funcionavam bem antes da camada de
+  // comparação existir. Degradar é o certo.
+  //
+  // O que não pode acontecer é degradar em silêncio: os painéis que leem
+  // isto dizem "Dados insuficientes para gerar este insight", e essa
+  // frase precisa significar "não há dados bastantes", nunca "a consulta
+  // falhou". Por isso a falha vem marcada, e a tela mostra outra coisa.
   if (error) {
-    falhaAoCarregar("a base de comparação entre campanhas", error);
+    return naoCarregou("a base de comparação entre campanhas", error);
   }
 
-  return (data ?? []).map((r) => mapear(r as unknown as Linha));
+  return carregado((data ?? []).map((r) => mapear(r as unknown as Linha)));
 });
 
-/** Perfil de UMA campanha — inclusive quando ela ainda está oculta. */
-export const getPerfilCampanha = cache(async (campaignId: string): Promise<CampanhaPerfil | null> => {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("campanha_perfil")
-    .select(CAMPOS)
-    .eq("id", campaignId)
-    .maybeSingle();
+/** Perfil de UMA campanha — inclusive quando ela ainda está oculta.
+ *  Degrada pelo mesmo motivo do universo: sem a migration 0032, o
+ *  relatório inteiro deixaria de abrir. */
+export const getPerfilCampanha = cache(
+  async (campaignId: string): Promise<Carga<CampanhaPerfil | null>> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("campanha_perfil")
+      .select(CAMPOS)
+      .eq("id", campaignId)
+      .maybeSingle();
 
-  if (error) {
-    falhaAoCarregar("os números consolidados desta campanha", error);
+    if (error) {
+      return naoCarregou("os números consolidados desta campanha", error);
+    }
+
+    return carregado(data ? mapear(data as unknown as Linha) : null);
   }
-
-  return data ? mapear(data as unknown as Linha) : null;
-});
+);

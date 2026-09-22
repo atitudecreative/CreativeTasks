@@ -102,7 +102,7 @@ export function CampaignReport({
   resumoDemandas, demandasOrdenadas, progress, proximoMarco, milestones,
   deliverables, canApprove,
   metaCampaigns, metaMetrics, metaWeekly, metaDemographics, metaAds,
-  leitura, comparacoes,
+  leitura, comparacoes, comparacaoIndisponivel,
 }: {
   campaignNome: string;
   identificador: string | null;
@@ -136,6 +136,10 @@ export function CampaignReport({
    *  partir da view campanha_perfil e das campanhas comparáveis. */
   leitura: ResultadoInsights;
   comparacoes: LinhaComparacao[];
+  /** A leitura automática não pôde ser carregada (falha de consulta, não
+   *  falta de dado). Sem isso, a tela diria "dados insuficientes" — que
+   *  significa outra coisa. */
+  comparacaoIndisponivel?: boolean;
 }) {
   const hasMeta = metaCampaigns.length > 0;
   const periodo = periodText(dataInicio, dataTermino);
@@ -310,7 +314,15 @@ export function CampaignReport({
             quem abre o relatório quer saber "como foi" antes de "quanto
             deu". A seção não inventa nada — quando não há base de
             comparação, ela diz exatamente isso. */}
-        {temLeitura && (
+        {comparacaoIndisponivel && (
+          <Alert tone="warning" title="Leitura automática indisponível agora">
+            Não foi possível carregar os números consolidados para comparar este evento com os
+            demais. O restante do relatório está completo — só esta seção ficou de fora. Atualize a
+            página; se continuar, avise a equipe de Comunicação.
+          </Alert>
+        )}
+
+        {!comparacaoIndisponivel && temLeitura && (
           <Section
             id="leitura"
             as="div"
