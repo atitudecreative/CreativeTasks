@@ -203,12 +203,13 @@ export function DemandasExplorer({
       </div>
 
       {/* ---------- Busca e filtros secundários ---------- */}
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
         <SearchInput
           value={search}
           onValueChange={setSearch}
           placeholder="Nome, identificador (DEM-2026-…) ou campanha"
           aria-label="Buscar demandas"
+          className="col-span-2 sm:col-span-2 lg:col-span-1"
         />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filtrar por status">
           <option value="">Todos os status</option>

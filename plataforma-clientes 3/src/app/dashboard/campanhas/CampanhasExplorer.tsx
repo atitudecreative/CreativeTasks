@@ -246,19 +246,37 @@ export function CampanhasExplorer({
           placeholder="Buscar campanha ou evento..."
           className="min-w-[12rem] flex-1 sm:max-w-xs"
         />
-        <Select value={saude} onChange={(e) => setSaude(e.target.value)} aria-label="Filtrar por situação">
+        <Select
+          value={saude}
+          onChange={(e) => setSaude(e.target.value)}
+          aria-label="Filtrar por situação"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
           <option value="">Todas as situações</option>
           {SAUDE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Filtrar por tipo">
+        <Select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          aria-label="Filtrar por tipo"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
           <option value="">Todos os tipos</option>
           {TIPO_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select value={ordem} onChange={(e) => setOrdem(e.target.value as SortKey)} aria-label="Ordenar">
+        <Select
+          value={ordem}
+          onChange={(e) => setOrdem(e.target.value as SortKey)}
+          aria-label="Ordenar"
+          className="w-full"
+          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
+        >
           <option value="cronologica">Mais recentes</option>
           <option value="investimento">Maior investimento</option>
           <option value="nome">Nome</option>

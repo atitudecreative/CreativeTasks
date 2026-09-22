@@ -188,8 +188,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const autoId = useId();
   const selectId = id ?? autoId;
 
+  // `containerClassName` valia só quando havia rótulo; sem rótulo a função
+  // devolvia o controle cru e a classe era descartada em silêncio. É por
+  // ela que a barra de filtros consegue dizer "dois por linha no celular".
   const control = (
-    <div className="relative">
+    <div className={cn("relative", !label && !hint && !error && containerClassName)}>
       <select
         ref={ref}
         id={selectId}
