@@ -11,11 +11,12 @@
     "start": "next start",
     "lint": "next lint",
     "sync:asana": "node scripts/sync-asana.mjs",
+    "diagnostico:asana": "node scripts/diagnostico-asana.mjs",
     "sync:meta-ads": "node scripts/sync-meta-ads.mjs",
     "send:weekly-digest": "node scripts/send-weekly-digest.mjs",
     "test:asana-status": "node --test scripts/asana-status.test.mjs",
     "test:insights": "node --test src/lib/dates.test.ts src/lib/texto.test.ts src/lib/insights.test.ts",
-    "test": "node --test src/lib/dates.test.ts src/lib/texto.test.ts src/lib/demandSeries.test.ts src/lib/numeros.test.ts src/lib/metricLanguage.test.ts src/lib/demandas.test.ts src/lib/insights.test.ts src/lib/carteira.test.ts scripts/asana-status.test.mjs",
+    "test": "node --test scripts/asana-client.test.mjs scripts/asana-arvore.test.mjs src/lib/dates.test.ts src/lib/texto.test.ts src/lib/demandSeries.test.ts src/lib/demandTimeline.test.ts src/lib/numeros.test.ts src/lib/metricLanguage.test.ts src/lib/demandas.test.ts src/lib/insights.test.ts src/lib/carteira.test.ts scripts/asana-status.test.mjs",
     "test:carteira": "node --test src/lib/carteira.test.ts"
   },
   "dependencies": {

@@ -334,27 +334,45 @@ export function CampaignReport({
             description="Gerado a partir dos próprios registros do portal, comparando este evento com os do mesmo tipo e com o histórico do ministério."
             className="scroll-mt-28"
           >
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-              <Panel
-                title="Destaques"
-                className="lg:col-span-3"
-                action={<InsightResumo insights={leitura.insights} />}
-              >
-                <InsightList
-                  insights={leitura.insights}
-                  amostraComparavel={leitura.amostraComparavel}
-                  dadosInsuficientes={leitura.dadosInsuficientes}
-                />
+            {/* Quando não há NADA para ler, os dois painéis mostram vazios
+                que dizem quase a mesma coisa, lado a lado — duas caixas
+                grandes para explicar uma ausência só. Um painel basta, e
+                com o número real de eventos comparáveis dentro dele. */}
+            {leitura.insights.length === 0 && comparacoes.length === 0 ? (
+              <Panel title="Ainda não há base de comparação">
+                <p className="text-small leading-relaxed text-ink-2">
+                  A leitura automática compara este evento com os do mesmo tipo já publicados, e
+                  precisa de pelo menos quatro deles.{" "}
+                  {leitura.amostraComparavel === 0
+                    ? "Hoje não há nenhum."
+                    : `Hoje há ${leitura.amostraComparavel}.`}{" "}
+                  Conforme mais eventos forem registrados e publicados, esta seção passa a se
+                  preencher sozinha — nada aqui é digitado à mão.
+                </p>
               </Panel>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+                <Panel
+                  title="Destaques"
+                  className="lg:col-span-3"
+                  action={<InsightResumo insights={leitura.insights} />}
+                >
+                  <InsightList
+                    insights={leitura.insights}
+                    amostraComparavel={leitura.amostraComparavel}
+                    dadosInsuficientes={leitura.dadosInsuficientes}
+                  />
+                </Panel>
 
-              <Panel
-                title="Contra eventos semelhantes"
-                description="Onde este evento cai na faixa usual"
-                className="lg:col-span-2"
-              >
-                <ComparacaoPanel linhas={comparacoes} />
-              </Panel>
-            </div>
+                <Panel
+                  title="Contra eventos semelhantes"
+                  description="Onde este evento cai na faixa usual"
+                  className="lg:col-span-2"
+                >
+                  <ComparacaoPanel linhas={comparacoes} />
+                </Panel>
+              </div>
+            )}
           </Section>
         )}
 

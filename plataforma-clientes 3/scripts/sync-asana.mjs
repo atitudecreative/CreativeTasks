@@ -16,6 +16,8 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { normalizaSecao, secaoDaTarefa, resolveStatus, dataDe } from "./asana-status.mjs";
+import { asanaPaginado, contadores as chamadasAsana, zerarContadores } from "./asana-client.mjs";
+import { raizesDoQuadro, montarArvore } from "./asana-arvore.mjs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -68,14 +70,14 @@ async function withRetry(operationFn, { attempts = 3, delayMs = 2000, label = ""
   return result;
 }
 
-const ASANA_API = "https://app.asana.com/api/1.0";
+// Campos pedidos ao Asana.
+//
 // `parent` entra pra dar pra detectar, na listagem de primeiro nível do
 // projeto, uma tarefa que na verdade é subtarefa de outra (o Asana deixa
 // adicionar uma subtarefa como card independente do quadro também — nesse
 // caso ela aparece tanto em /projects/{gid}/tasks quanto em
 // /tasks/{pai}/subtasks). Sem isso não dá pra diferenciar tarefa de topo
 // de verdade de subtarefa "solta" no quadro.
-// Campos pedidos ao Asana.
 //
 // `memberships.section.name` + `memberships.project.gid` são o que
 // destrava o status de verdade: `memberships` é a lista de (projeto,
@@ -97,8 +99,19 @@ const TASK_FIELDS = [
   "due_on",
   "permalink_url",
   "notes",
+  // gid E nome da tag. O gid é o que identifica a tag de verdade: nome
+  // muda no Asana a qualquer momento, e casar campanha por nome fazia um
+  // "Funday" renomeado para "Funday 2026" virar uma campanha NOVA,
+  // deixando a antiga (com todas as demandas) órfã.
+  "tags.gid",
   "tags.name",
   "parent",
+  // Quantas subtarefas a tarefa tem. Sem isso o sync chamava
+  // /tasks/{gid}/subtasks para TODA tarefa — inclusive as folhas, que
+  // nunca têm filhas. Num projeto de 1.500 tarefas eram 1.500
+  // requisições, quase todas para receber uma lista vazia, e era essa
+  // rajada que estourava o limite de taxa do Asana.
+  "num_subtasks",
   "memberships.section.name",
   "memberships.project.gid",
 ].join(",");
@@ -170,119 +183,63 @@ async function registrarSecoes(ministryId, contagemPorSecao) {
 
 
 async function fetchAllTasks(projectGid) {
-  const tasks = [];
-  let offset;
-
-  do {
-    const url = new URL(`${ASANA_API}/projects/${projectGid}/tasks`);
-    url.searchParams.set("opt_fields", TASK_FIELDS);
-    url.searchParams.set("limit", "100");
-    if (offset) url.searchParams.set("offset", offset);
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${ASANA_ACCESS_TOKEN}` },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(
-        `Asana API retornou ${res.status} para o projeto ${projectGid}: ${body}`
-      );
-    }
-
-    const json = await res.json();
-    tasks.push(...json.data);
-    offset = json.next_page?.offset;
-  } while (offset);
-
-  return tasks;
+  const { itens, paginas } = await asanaPaginado(`/projects/${projectGid}/tasks`, {
+    token: ASANA_ACCESS_TOKEN,
+    optFields: TASK_FIELDS,
+    rotulo: `tarefas do projeto ${projectGid}`,
+  });
+  return { tarefas: itens, paginas };
 }
 
 // `/projects/{gid}/tasks` só devolve tarefas de primeiro nível — subtarefas
 // (demandas "filhas") precisam de uma chamada à parte, por tarefa pai.
 async function fetchSubtasks(taskGid) {
-  const tasks = [];
-  let offset;
-
-  do {
-    const url = new URL(`${ASANA_API}/tasks/${taskGid}/subtasks`);
-    url.searchParams.set("opt_fields", TASK_FIELDS);
-    url.searchParams.set("limit", "100");
-    if (offset) url.searchParams.set("offset", offset);
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${ASANA_ACCESS_TOKEN}` },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(
-        `Asana API retornou ${res.status} para as subtarefas de ${taskGid}: ${body}`
-      );
-    }
-
-    const json = await res.json();
-    tasks.push(...json.data);
-    offset = json.next_page?.offset;
-  } while (offset);
-
-  return tasks;
+  const { itens } = await asanaPaginado(`/tasks/${taskGid}/subtasks`, {
+    token: ASANA_ACCESS_TOKEN,
+    optFields: TASK_FIELDS,
+    rotulo: `subtarefas de ${taskGid}`,
+  });
+  return itens;
 }
 
-// Trava de segurança: uma hierarquia de subtarefas do Asana não deveria
-// nunca chegar nem perto disso, mas evita recursão descontrolada (ex: se
-// algum dado vier estranho) travar a sincronização inteira.
-const MAX_SUBTASK_DEPTH = 15;
-
-// Busca a árvore INTEIRA de tarefas (topo + subtarefas, recursivamente)
-// direto do Asana, sem tocar no banco ainda — isso é só o lado "leitura da
-// API do Asana" do sync, separado de propósito da parte "gravar no
-// Postgres" (ver syncMinistry). Cada entrada guarda o gid do pai no Asana
-// (não o id da demanda — esse só existe depois de gravar), pra resolver o
-// parent_demand_id de verdade numa fase posterior, depois que todo mundo
-// já tem um id real no banco.
-async function collectTaskTree(topLevelTasks) {
-  const flat = [];
-
-  async function walk(tasks, parentAsanaGid, depth) {
-    if (depth >= MAX_SUBTASK_DEPTH) {
-      console.warn(`  Profundidade máxima (${MAX_SUBTASK_DEPTH}) atingida, parando de descer aqui.`);
-      return;
-    }
-    for (const t of tasks) {
-      flat.push({ task: t, parentAsanaGid });
-      try {
-        const subtasks = await fetchSubtasks(t.gid);
-        if (subtasks.length > 0) await walk(subtasks, t.gid, depth + 1);
-      } catch (err) {
-        console.error(
-          `  Erro ao buscar subtarefas de "${t.name}" (${t.gid}) no Asana: ${err.message}. Pulando essa ramificação.`
-        );
-      }
-    }
-  }
-
-  await walk(topLevelTasks, null, 0);
-  return flat;
-}
-
-// Busca TODAS as campanhas já cadastradas (de qualquer ministério) e
-// monta um mapa nome (minúsculo) -> id. Global, não por ministério: uma
+// Busca TODAS as campanhas já cadastradas (de qualquer ministério) e monta
+// dois índices: por gid da tag do Asana (o identificador de verdade) e por
+// nome em minúsculas (usado só para adotar campanhas antigas, criadas antes
+// de o gid ser guardado). Global, não por ministério: uma
 // tag com o mesmo nome em projetos do Asana de ministérios diferentes
 // tem que cair na MESMA campanha, não criar uma por ministério — é o
 // que faz um ministério enxergar as demandas de outro que compartilha a
 // tag. Carregado uma vez em main() e reaproveitado (e atualizado) em
 // todos os ministérios sincronizados na mesma rodada.
 async function loadCampaignMap() {
-  const { data, error } = await supabase.from("campaigns").select("id, nome");
+  // Tenta ler o gid da tag; se a coluna ainda não existir (migration 0033
+  // não rodou), cai no comportamento antigo — por nome — em vez de
+  // derrubar o sync inteiro.
+  let porGid = new Map();
+  let temColunaGid = true;
+
+  let { data, error } = await supabase.from("campaigns").select("id, nome, asana_tag_gid");
+
+  if (error && /asana_tag_gid/.test(error.message ?? "")) {
+    temColunaGid = false;
+    console.warn(
+      "  Aviso: a coluna campaigns.asana_tag_gid ainda não existe (migration 0033). " +
+        "Seguindo por NOME da tag — renomear uma tag no Asana vai criar campanha nova."
+    );
+    ({ data, error } = await supabase.from("campaigns").select("id, nome"));
+  }
 
   if (error) {
     throw new Error(`Erro ao buscar campanhas: ${error.message}`);
   }
 
-  const map = new Map();
-  for (const c of data ?? []) map.set(c.nome.trim().toLowerCase(), c.id);
-  return map;
+  const porNome = new Map();
+  for (const c of data ?? []) {
+    porNome.set(c.nome.trim().toLowerCase(), { id: c.id, nome: c.nome });
+    if (c.asana_tag_gid) porGid.set(c.asana_tag_gid, { id: c.id, nome: c.nome });
+  }
+
+  return { porGid, porNome, temColunaGid };
 }
 
 // Todas as tags de uma tarefa do Asana viram campanhas/eventos no portal —
@@ -297,29 +254,73 @@ async function loadCampaignMap() {
 // vinculada. Fica sequencial mesmo (não em lote): o número de tags
 // DISTINTAS por rodada é pequeno comparado ao número de tarefas, e
 // `campaignMap` já evita reconsultar/reinserir a mesma tag duas vezes.
-async function ensureCampaignId(ministryId, tagName, campaignMap) {
-  const key = tagName.trim().toLowerCase();
-  if (campaignMap.has(key)) return campaignMap.get(key);
+async function ensureCampaignId(ministryId, tag, campaignMap) {
+  const gid = tag.gid;
+  const nome = (tag.name ?? "").trim();
+  if (!nome && !gid) return null;
+  const chaveNome = nome.toLowerCase();
 
-  const { data, error } = await supabase
-    .from("campaigns")
-    .insert({
-      ministry_id: ministryId,
-      nome: tagName.trim(),
-      tipo: "campanha",
-      origem: "asana_tag",
-      publicada: false, // fica escondida do ministério até a Comunicação abrir o evento
-    })
-    .select("id")
-    .single();
+  // 1. Pelo ID da tag — o único identificador estável. Se o nome mudou no
+  //    Asana, a campanha é a MESMA: só renomeia.
+  if (gid && campaignMap.porGid.has(gid)) {
+    const atual = campaignMap.porGid.get(gid);
+    if (nome && atual.nome.trim() !== nome) {
+      const { error } = await supabase.from("campaigns").update({ nome }).eq("id", atual.id);
+      if (error) {
+        console.warn(`  Não consegui renomear a campanha "${atual.nome}" para "${nome}": ${error.message}`);
+      } else {
+        console.log(`  ~ Tag renomeada no Asana: "${atual.nome}" -> "${nome}" (mesma campanha, ${atual.id}).`);
+        campaignMap.porNome.delete(atual.nome.trim().toLowerCase());
+        atual.nome = nome;
+        campaignMap.porNome.set(chaveNome, atual);
+      }
+    }
+    return atual.id;
+  }
+
+  // 2. Já existe uma campanha com esse nome, criada antes de o sync
+  //    conhecer gid: adota o gid em vez de criar uma segunda campanha.
+  if (campaignMap.porNome.has(chaveNome)) {
+    const atual = campaignMap.porNome.get(chaveNome);
+    if (gid && campaignMap.temColunaGid) {
+      const { error } = await supabase
+        .from("campaigns")
+        .update({ asana_tag_gid: gid })
+        .eq("id", atual.id)
+        .is("asana_tag_gid", null);
+      if (error) {
+        console.warn(`  Não consegui guardar o ID da tag na campanha "${atual.nome}": ${error.message}`);
+      } else {
+        campaignMap.porGid.set(gid, atual);
+      }
+    }
+    return atual.id;
+  }
+
+  // 3. Não existe: cria.
+  const payload = {
+    ministry_id: ministryId,
+    nome,
+    tipo: "campanha",
+    origem: "asana_tag",
+    publicada: false, // fica escondida do ministério até a Comunicação abrir o evento
+  };
+  if (gid && campaignMap.temColunaGid) payload.asana_tag_gid = gid;
+
+  const { data, error } = await supabase.from("campaigns").insert(payload).select("id").single();
 
   if (error) {
-    console.warn(`  Não consegui criar a campanha "${tagName}": ${error.message}`);
+    console.warn(`  Não consegui criar a campanha "${nome}": ${error.message}`);
     return null;
   }
 
-  campaignMap.set(key, data.id);
-  console.log(`  + Nova campanha PENDENTE criada a partir da tag do Asana: "${tagName.trim()}" (aguardando abertura pela Comunicação)`);
+  const criada = { id: data.id, nome };
+  campaignMap.porNome.set(chaveNome, criada);
+  if (gid) campaignMap.porGid.set(gid, criada);
+  console.log(
+    `  + Nova campanha PENDENTE criada a partir da tag do Asana: "${nome}" (tag ${gid ?? "sem id"}) ` +
+      `— aguardando abertura pela Comunicação`
+  );
   return data.id;
 }
 
@@ -502,28 +503,106 @@ async function syncMinistry(dataSource, campaignMap, statusMap) {
     console.warn(
       `Ministério ${ministryId}: data_sources sem external_id (gid do projeto Asana). Pulando.`
     );
-    return;
+    // Vira alerta, não só um aviso no meio do log: um ministério cadastrado
+    // sem o gid do projeto nunca recebe demanda nenhuma, e isso parece
+    // "quadro vazio" para quem olha o portal.
+    return {
+      ministryId,
+      projectGid: null,
+      porTag: new Map(),
+      alertas: [`ministério ${ministryId} está cadastrado em data_sources sem o gid do projeto do Asana — nunca sincroniza.`],
+    };
   }
 
   console.log(`Sincronizando projeto Asana ${projectGid} (ministério ${ministryId})...`);
 
-  const allTasks = await fetchAllTasks(projectGid);
+  const { tarefas: allTasks, paginas } = await fetchAllTasks(projectGid);
 
-  // Só processa aqui quem NÃO tem `parent` (tarefa de topo de verdade).
-  // Quem tem `parent` é uma subtarefa que também foi adicionada como card
-  // do quadro — ela é ignorada neste laço e só entra via collectTaskTree,
-  // chamado a partir do pai verdadeiro. Sem esse filtro, ela seria gravada
-  // duas vezes (uma vez como se fosse pai, outra como filha de verdade).
-  const topLevelTasks = allTasks.filter((t) => !t.parent);
+
+  // Antes daqui saía só `allTasks.filter((t) => !t.parent)`: toda tarefa
+  // com `parent` era descartada, no raciocínio de que ela entraria depois
+  // pela varredura a partir do pai. Isso só vale quando o pai está no
+  // MESMO quadro — ver raizesDoQuadro() e o teste asana-arvore.test.mjs.
+  // A ordem importa: as de topo primeiro, para que quem for alcançado
+  // pela árvore de verdade guarde o pai certo; as órfãs depois, e o
+  // controle de duplicidade de montarArvore ignora as já visitadas.
+  const { topo: raizesDeTopo, orfas } = raizesDoQuadro(allTasks);
+  if (orfas.length > 0) {
+    console.log(
+      `  ${orfas.length} tarefa(s) do quadro são subtarefas cujo pai não está neste projeto — ` +
+        `entram como raiz (antes eram descartadas silenciosamente).`
+    );
+  }
 
   // Fase 1: busca a árvore inteira (topo + subtarefas) no Asana, sem
   // tocar no banco ainda.
-  const flatEntries = await collectTaskTree(topLevelTasks);
+  const { flat: flatEntries, contagem } = await montarArvore(
+    [...raizesDeTopo, ...orfas],
+    fetchSubtasks,
+    {
+      aoErrar: (tarefa, err) =>
+        console.error(
+          `  ERRO ao buscar subtarefas de "${tarefa.name}" (${tarefa.gid}): ${err.message}. ` +
+            `As subtarefas dessa ramificação ficaram de fora desta rodada.`
+        ),
+      aoAvisar: (msg) => console.warn(`  ${msg}`),
+    }
+  );
+
+  // Quantas demandas do Asana já existem no banco para este ministério.
+  // É a régua para detectar anomalia mais adiante: o sync nunca APAGA
+  // demanda, então o que já está gravado é piso — encontrar menos do que
+  // já existe significa que alguma coisa se perdeu no caminho de hoje.
+  // (Não é limite inventado: a comparação é com o número real da rodada
+  // anterior, não com um palpite.)
+  const { count: jaNoBanco } = await supabase
+    .from("demands")
+    .select("id", { count: "exact", head: true })
+    .eq("ministry_id", ministryId)
+    .eq("fonte_externa", "asana");
+
+  const resumo = {
+    ministryId,
+    projectGid,
+    paginas,
+    listadas: allTasks.length,
+    topo: raizesDeTopo.length,
+    orfas: orfas.length,
+    coletadas: flatEntries.length,
+    duplicadas: contagem.duplicadas,
+    folhasPuladas: contagem.folhasPuladas,
+    chamadasDeSubtarefa: contagem.chamadasDeSubtarefa,
+    errosDeSubtarefa: contagem.errosDeSubtarefa,
+    gravadas: 0,
+    naoGravadas: 0,
+    jaNoBanco: jaNoBanco ?? null,
+    porTag: new Map(),
+    comTag: 0,
+    semTag: 0,
+    alertas: [],
+  };
+
+  for (const { task } of flatEntries) {
+    const tags = (task.tags ?? []).filter((t) => t && (t.gid || t.name));
+    if (tags.length === 0) resumo.semTag++;
+    else resumo.comTag++;
+    for (const t of tags) {
+      const chave = `${t.name ?? "(sem nome)"} [${t.gid ?? "sem id"}]`;
+      resumo.porTag.set(chave, (resumo.porTag.get(chave) ?? 0) + 1);
+    }
+  }
 
   if (flatEntries.length === 0) {
     console.log(`  -> nenhuma tarefa encontrada nesse projeto.`);
+    if ((jaNoBanco ?? 0) > 0) {
+      resumo.alertas.push(
+        `projeto ${projectGid}: o Asana não devolveu NENHUMA tarefa, mas o banco já tem ` +
+          `${jaNoBanco} demanda(s) vinda(s) daqui. Isso não é projeto vazio — é sinal de ` +
+          `projeto trocado, permissão perdida ou quadro arquivado.`
+      );
+    }
     await touchDataSource(ministryId);
-    return;
+    return resumo;
   }
 
   // Fase 2: grava todas as demandas de uma vez, em lotes — ainda sem
@@ -573,10 +652,10 @@ async function syncMinistry(dataSource, campaignMap, statusMap) {
     const demandId = gidToId.get(task.gid);
     if (!demandId) continue; // ficou de fora por erro no lote — já foi avisado acima
 
-    const tagNames = (task.tags ?? []).map((t) => t.name).filter(Boolean);
+    const tags = (task.tags ?? []).filter((t) => t && (t.gid || t.name));
     const campaignIds = new Set();
-    for (const tagName of tagNames) {
-      const campaignId = await ensureCampaignId(ministryId, tagName, campaignMap);
+    for (const tag of tags) {
+      const campaignId = await ensureCampaignId(ministryId, tag, campaignMap);
       if (campaignId) campaignIds.add(campaignId);
     }
     desiredLinksByDemandId.set(demandId, campaignIds);
@@ -589,6 +668,33 @@ async function syncMinistry(dataSource, campaignMap, statusMap) {
   const openCount = demandCount - completedCount;
   const skippedCount = demandCount - written.length;
 
+  resumo.gravadas = written.length;
+  resumo.naoGravadas = skippedCount;
+
+  // Anomalia: encontrar menos do que já está gravado. O sync nunca apaga
+  // demanda, então o número só cai quando alguma coisa se perdeu na
+  // leitura (permissão, limite de taxa, projeto trocado) — ou quando
+  // alguém apagou tarefas no Asana de verdade. Nos dois casos é para
+  // aparecer no log, não para passar batido.
+  if (resumo.jaNoBanco != null && demandCount < resumo.jaNoBanco) {
+    resumo.alertas.push(
+      `projeto ${projectGid}: encontrei ${demandCount} tarefa(s), mas o banco já tinha ` +
+        `${resumo.jaNoBanco} demanda(s) deste ministério vindas do Asana ` +
+        `(${resumo.jaNoBanco - demandCount} a menos).` +
+        (resumo.errosDeSubtarefa > 0
+          ? ` Houve ${resumo.errosDeSubtarefa} erro(s) ao buscar subtarefas — a queda provavelmente é isso.`
+          : " Nenhum erro de leitura nesta rodada: ou tarefas foram apagadas no Asana, ou saíram do projeto.")
+    );
+  }
+  if (skippedCount > 0) {
+    resumo.alertas.push(`projeto ${projectGid}: ${skippedCount} demanda(s) não foram gravadas por erro no banco.`);
+  }
+  if (resumo.errosDeSubtarefa > 0) {
+    resumo.alertas.push(
+      `projeto ${projectGid}: ${resumo.errosDeSubtarefa} ramificação(ões) de subtarefas ficaram de fora por erro na API.`
+    );
+  }
+
   await touchDataSource(ministryId);
 
   console.log(
@@ -596,6 +702,13 @@ async function syncMinistry(dataSource, campaignMap, statusMap) {
       `${completedCount} concluídas, ${subtaskCount} são subtarefas)` +
       (skippedCount > 0 ? ` — ${skippedCount} não gravada(s) por erro (veja acima).` : ".")
   );
+  console.log(
+    `     páginas: ${paginas} | listadas no quadro: ${allTasks.length} (${raizesDeTopo.length} de topo, ` +
+      `${orfas.length} órfã(s)) | subtarefas consultadas: ${contagem.chamadasDeSubtarefa} ` +
+      `(${contagem.folhasPuladas} folha(s) sem consulta) | repetidas ignoradas: ${contagem.duplicadas}`
+  );
+
+  return resumo;
 }
 
 // Trava manual (tabela `sync_lock`, migration 0020) pra impedir duas
@@ -629,7 +742,69 @@ async function releaseSyncLock() {
   }
 }
 
+// =========================================================================
+// RELATÓRIO DA RODADA
+// =========================================================================
+// O log antigo dizia "X demandas gravadas" e parava por aí. Quando o
+// portal mostrava menos do que o Asana tem, não havia como saber ONDE a
+// conta quebrou — se na leitura da API, no filtro de topo, na gravação ou
+// nas tags. Este bloco existe para que a resposta esteja no próprio log
+// do Render, sem precisar rodar nada.
+function relatorioDaRodada({ comecou, sources, resumos, falhas }) {
+  const soma = (campo) => resumos.reduce((acc, r) => acc + (r[campo] ?? 0), 0);
+  const segundos = ((Date.now() - comecou) / 1000).toFixed(1);
+
+  console.log("");
+  console.log("================ RELATÓRIO DA RODADA ================");
+  console.log(`duração: ${segundos}s`);
+  console.log(`ministérios cadastrados: ${sources.length} | sincronizados: ${resumos.length} | com falha: ${falhas.length}`);
+  console.log(`requisições ao Asana: ${chamadasAsana.requisicoes} em ${chamadasAsana.paginas} página(s) de coleção`);
+  console.log(
+    `esperas por limite de taxa (429): ${chamadasAsana.esperasPorLimite} | novas tentativas (rede/5xx): ` +
+      `${chamadasAsana.novasTentativas} | tempo esperando: ${(chamadasAsana.msEsperando / 1000).toFixed(1)}s`
+  );
+  console.log(
+    `tarefas listadas nos quadros: ${soma("listadas")} | coletadas (com subtarefas): ${soma("coletadas")} | ` +
+      `repetidas ignoradas: ${soma("duplicadas")}`
+  );
+  console.log(
+    `subtarefas órfãs recuperadas: ${soma("orfas")} | ramificações perdidas por erro: ${soma("errosDeSubtarefa")}`
+  );
+  console.log(`gravadas: ${soma("gravadas")} | não gravadas por erro: ${soma("naoGravadas")}`);
+  console.log(`com pelo menos uma tag: ${soma("comTag")} | sem nenhuma tag: ${soma("semTag")}`);
+
+  // Contagem por tag: é o número que responde "quantas demandas com a tag
+  // X o cron encontrou HOJE", sem precisar abrir o banco.
+  const porTag = new Map();
+  for (const r of resumos) {
+    for (const [tag, n] of r.porTag) porTag.set(tag, (porTag.get(tag) ?? 0) + n);
+  }
+  if (porTag.size > 0) {
+    console.log("");
+    console.log("tarefas por tag encontradas nesta rodada:");
+    for (const [tag, n] of [...porTag].sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${String(n).padStart(5)}  ${tag}`);
+    }
+  }
+
+  const alertas = resumos.flatMap((r) => r.alertas);
+  if (falhas.length > 0 || alertas.length > 0) {
+    console.log("");
+    console.log("ALERTAS:");
+    for (const f of falhas) {
+      console.log(`  ! ministério ${f.ministryId} (projeto ${f.projectGid ?? "sem gid"}) não sincronizou: ${f.mensagem}`);
+    }
+    for (const a of alertas) console.log(`  ! ${a}`);
+  }
+  console.log("=====================================================");
+  console.log("");
+}
+
 async function main() {
+  const comecou = Date.now();
+  zerarContadores();
+  console.log(`Sincronização com o Asana iniciada em ${new Date().toISOString()}.`);
+
   const acquired = await tryAcquireSyncLock();
   if (!acquired) {
     console.log(
@@ -671,19 +846,28 @@ async function main() {
     // o job ainda termina com status de erro (exit code 1) se algum
     // falhou, pra não mascarar o problema no painel do Render.
     let hadError = false;
+    const resumos = [];
+    const falhas = [];
     for (const source of sources) {
       try {
-        await syncMinistry(source, campaignMap, statusMap);
+        const resumo = await syncMinistry(source, campaignMap, statusMap);
+        if (resumo) resumos.push(resumo);
       } catch (err) {
         hadError = true;
+        falhas.push({ ministryId: source.ministry_id, projectGid: source.external_id, mensagem: err.message });
         console.error(`Erro ao sincronizar ministério ${source.ministry_id}: ${err.message}. Seguindo pros próximos.`);
       }
     }
 
+    relatorioDaRodada({ comecou, sources, resumos, falhas });
+
+    const alertas = resumos.flatMap((r) => r.alertas);
+    if (alertas.length > 0 || falhas.length > 0) hadError = true;
+
     console.log(
       hadError
-        ? "Sincronização com o Asana concluída — com erro em pelo menos um ministério (veja acima)."
-        : "Sincronização com o Asana concluída."
+        ? "Sincronização com o Asana concluída — COM PENDÊNCIAS (veja o relatório acima)."
+        : "Sincronização com o Asana concluída sem pendências."
     );
 
     if (hadError) process.exitCode = 1;

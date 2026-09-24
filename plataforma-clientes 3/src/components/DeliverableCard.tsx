@@ -23,15 +23,22 @@ function formatDate(dateStr: string | null) {
   return dateStr ? formatarDiaMes(dateStr, "") || null : null;
 }
 
-/* Drive: tenta a miniatura (imagem de verdade, sem moldura do Drive em
-   volta) primeiro; só se ela falhar cai pro visualizador embutido.
-   Comportamento preservado do desenho anterior — funciona bem. */
-function DrivePreview({ imageUrl, embedUrl, alt }: { imageUrl: string; embedUrl: string; alt: string }) {
+/* Drive: tenta a miniatura, que é a imagem de verdade, sem a moldura do
+   Drive em volta.
+   Quando ela falha, o fallback era o visualizador embutido — um iframe por
+   card. Só que a miniatura e o visualizador dependem da MESMA permissão:
+   se o arquivo não está compartilhado, o iframe também não mostra o
+   arquivo, mostra a tela de login do Google. Ou seja, o fallback pesado
+   (um contexto de navegador completo por card, com script e rede próprios,
+   vezes o número de entregas na tela) quase nunca entregava o que
+   prometia. Agora cai na faixa neutra, que diz para onde o link leva e
+   deixa o clique abrir no Drive — que é onde a permissão pode ser
+   resolvida de verdade. */
+function DrivePreview({ imageUrl, domain }: { imageUrl: string; domain: string }) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  if (imageFailed) {
-    return <iframe src={embedUrl} title={alt} className="aspect-video w-full bg-surface-sunken" allow="autoplay" />;
-  }
+  if (imageFailed) return <SemPrevia domain={domain} />;
+
   return (
     // eslint-disable-next-line @next/next/no-img-element -- vem do Drive, sem domínio conhecido em build time
     <img
@@ -44,13 +51,19 @@ function DrivePreview({ imageUrl, embedUrl, alt }: { imageUrl: string; embedUrl:
   );
 }
 
-/** Campo neutro com o domínio de destino — usado quando não há prévia
- *  possível E quando a que existia não carregou. */
+/** Faixa neutra com o domínio de destino — para quando não há prévia
+ *  possível, ou quando a que existia não carregou.
+ *
+ *  Era uma caixa 16/9, do mesmo tamanho de uma prévia de verdade. Numa
+ *  biblioteca com nove PDFs, isso são nove retângulos cinzas de 200px de
+ *  altura ocupando a maior parte da tela para não mostrar nada. A faixa
+ *  diz a mesma coisa (para onde o link leva) em um sexto do espaço, e o
+ *  que sobra é ocupado pelo que se lê: título, versão, data. */
 function SemPrevia({ domain }: { domain: string }) {
   return (
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
-      <Icon.Link className="h-5 w-5 text-ink-3" />
-      <span className="max-w-[80%] truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
+    <div className="flex w-full items-center gap-2 border-b border-line bg-surface-sunken px-4 py-2.5">
+      <Icon.Link className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+      <span className="min-w-0 truncate font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
         {domain}
       </span>
     </div>
@@ -129,7 +142,9 @@ function YoutubePreview({ embedUrl, thumbUrl, alt }: { embedUrl: string; thumbUr
 function Preview({ url, alt }: { url: string; alt: string }) {
   const preview = getLinkPreview(url);
 
-  if (preview.kind === "drive") return <DrivePreview imageUrl={preview.imageUrl} embedUrl={preview.embedUrl} alt={alt} />;
+  if (preview.kind === "drive") {
+    return <DrivePreview imageUrl={preview.imageUrl} domain={hostOf(preview.embedUrl)} />;
+  }
 
   if (preview.kind === "youtube") {
     return <YoutubePreview embedUrl={preview.embedUrl} thumbUrl={preview.thumbUrl} alt={alt} />;
@@ -153,9 +168,12 @@ function Preview({ url, alt }: { url: string; alt: string }) {
    1. FEEDBACK. Aprovar ou pedir ajuste disparava a ação e não dizia nada —
       o card só mudava em silêncio, e num erro de rede nem isso. Agora tem
       estado de carregamento no botão e toast de confirmação/erro.
-   2. A PRÉVIA vem antes do título e ocupa proporção fixa (16/9), então a
-      grade não fica com cards de alturas diferentes quando um link tem
-      imagem e o outro não.
+   2. A PRÉVIA vem antes do título. Quando há imagem de verdade ela ocupa
+      16/9; quando não há (PDF, documento, link solto), o que aparece é uma
+      FAIXA com o domínio de destino, não uma caixa cinza do mesmo tamanho
+      de uma prévia. A grade fica com cards de alturas diferentes — e é o
+      certo: altura igual só valia a pena quando o preço era encher meia
+      tela de cinza.
    ========================================================================= */
 export function DeliverableCard({
   deliverable,
@@ -194,7 +212,11 @@ export function DeliverableCard({
   }
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden">
+    // Sem h-full: num grid, altura percentual resolve contra a ALTURA DA
+    // LINHA, não contra o conteúdo — então `h-full` esticava todo card até
+    // o mais alto da fileira e devolvia, em espaço vazio, exatamente o que
+    // a faixa compacta acabou de economizar.
+    <Card className="flex flex-col overflow-hidden">
       {deliverable.link_principal && (
         <a
           href={deliverable.link_principal}

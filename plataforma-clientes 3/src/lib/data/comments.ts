@@ -37,7 +37,11 @@ export async function getCommentsForDemand(demandId: string): Promise<DemandComm
       corpo: row.corpo,
       created_at: row.created_at,
       authorId: row.author_id,
-      authorName: profile?.full_name ?? "Usuário removido",
+      // Três casos diferentes, e antes os três viravam "Usuário removido":
+      // sem author_id é conta apagada (ON DELETE SET NULL); com conta mas
+      // sem nome preenchido a pessoa continua lá — dizer que ela foi
+      // removida é falso, e ela pode estar lendo a própria mensagem.
+      authorName: profile?.full_name ?? (row.author_id ? "Usuário sem nome" : "Usuário removido"),
     };
   });
 }

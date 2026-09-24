@@ -29,6 +29,13 @@ export type Demand = {
   descricao_objetiva?: string | null;
   escopo_acordado?: string | null;
   dependencias?: string | null;
+  // Só vêm em getDemandById (a listagem não pede): são as datas que montam
+  // a linha do tempo do detalhe. Opcionais no tipo justamente para que
+  // usar uma delas numa tela que não as carregou seja erro de compilação.
+  data_solicitacao?: string | null;
+  data_inicio?: string | null;
+  objetivo_entrega?: string | null;
+  fase_atual?: string | null;
 };
 
 

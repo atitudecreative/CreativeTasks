@@ -35,7 +35,7 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
         { id: "user-2", full_name: "João Pereira da Silva Santos", papel_global: "nenhum", brand_color: null, walnut_color: null },
         { id: "user-3", full_name: null, papel_global: "atendimento", brand_color: null, walnut_color: null },
       ];
-    case "demands": return F.DEMANDS as unknown as Linha[];
+    case "demands": return [...F.DEMANDS, ...F.SUBDEMANDS] as unknown as Linha[];
     case "campaigns": return F.CAMPAIGNS as unknown as Linha[];
     case "deliverables": return F.DELIVERABLES as unknown as Linha[];
     case "milestones": return F.MILESTONES.map((m) => ({ ...m, campaign_id: "camp-1", ordem: 0 })) as unknown as Linha[];
@@ -99,7 +99,7 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
     case "data_sources": return [{ id: "ds-1", ministry_id: "min-1", tipo: "asana", nome: "Quadro da Comunicação", ativo: true }];
     case "site_theme": return [{ id: 1, brand_color: null, walnut_color: null }];
     case "metrics": return [];
-    case "audit_log": return [];
+    case "audit_log": return F.AUDIT_LOG as unknown as Linha[];
     default: return SEM_FIXTURE;
   }
 }

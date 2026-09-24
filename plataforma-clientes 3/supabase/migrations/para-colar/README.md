@@ -1,6 +1,6 @@
 # Versões enxutas para colar no SQL Editor do Supabase
 
-Os arquivos aqui são **o mesmo SQL** das migrations `0030`, `0031` e `0032`
+Os arquivos aqui são **o mesmo SQL** das migrations `0030`, `0031`, `0032` e `0033`
 da pasta acima, só que sem os blocos de comentário que explicam as decisões.
 São para colar no SQL Editor do Supabase quando o arquivo comentado chega
 truncado — um script longo colado num editor web às vezes é cortado no meio,
@@ -15,6 +15,7 @@ Menos da metade do tamanho:
 | `0030_historico_status_e_indices.sql` | 6.585 bytes | 2.930 bytes |
 | `0031_asana_de_para_status.sql` | 8.657 bytes | 4.009 bytes |
 | `0032_perfil_campanha.sql` | 6.680 bytes | 4.015 bytes |
+| `0033_campanha_tag_asana.sql` | 2.462 bytes | 385 bytes |
 
 **A documentação continua valendo.** O raciocínio por trás de cada decisão
 está nos arquivos da pasta acima, que são a fonte de verdade do repositório.
@@ -22,7 +23,7 @@ Estes aqui existem só para o transporte até o editor.
 
 ## Como rodar
 
-Na ordem: `0030` → `0031` → `0032`. Cada arquivo pode ser colado inteiro.
+Na ordem: `0030` → `0031` → `0032` → `0033`. Cada arquivo pode ser colado inteiro.
 
 Se ainda assim vier truncado, cada arquivo está dividido em partes marcadas
 com `-- ===== PARTE n de N =====`. Cole e execute uma parte de cada vez, na
