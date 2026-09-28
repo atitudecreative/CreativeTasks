@@ -52,6 +52,39 @@ export const CAMPAIGNS = [
     orcamento_planejado: null, orcamento_aprovado: null, investimento_realizado: null,
     publicada: true, origem: "manual", folder_id: null, posicao: 2, capa_url: null,
   },
+  // A galeria de campanhas mostra quatro colunas: com três itens nunca se
+  // veria a quarta, nem a segunda fileira. Estas completam a grade e
+  // cobrem os dois estados da capa — com imagem e sem.
+  ...["Semana da Família", "Encontro de Casais", "Missões Urbanas", "Natal Solidário", "Retiro de Jovens", "Ação de Graças"].map(
+    (nome, i) => ({
+      id: `camp-${i + 4}`,
+      identificador: `CAMP-${String(i + 4).padStart(3, "0")}`,
+      ministry_id: "min-1",
+      nome,
+      tipo: i % 2 === 0 ? "evento" : "campanha",
+      fase: ["planejamento", "criacao", "producao", "distribuicao_execucao"][i % 4],
+      saude: ["no_caminho", "atencao", "no_caminho", "concluida", "critica", "no_caminho"][i],
+      data_inicio: dia(-60 + i * 12),
+      data_termino: dia(-20 + i * 12),
+      data_evento: i % 3 === 0 ? dia(-25 + i * 12) : null,
+      orcamento_planejado: 12000 + i * 3000,
+      orcamento_aprovado: 12000 + i * 2500,
+      investimento_realizado: i % 4 === 0 ? null : 8000 + i * 1900,
+      publicada: true,
+      origem: "manual",
+      folder_id: null,
+      posicao: 3 + i,
+      // Capa em data: URI — imagem de verdade, sem depender de rede (o
+      // ambiente de QA não alcança host externo). Alternadas com null para
+      // a grade mostrar os dois estados lado a lado.
+      capa_url:
+        i % 2 === 0
+          ? `data:image/svg+xml;utf8,${encodeURIComponent(
+              `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4b2a"/><stop offset="1" stop-color="#d9a066"/></linearGradient></defs><rect width="300" height="200" fill="url(#g)"/><circle cx="${60 + i * 30}" cy="90" r="46" fill="#ffffff" opacity="0.14"/></svg>`
+            )}`
+          : null,
+    })
+  ),
 ];
 
 const STATUSES = [

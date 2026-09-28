@@ -50,7 +50,14 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
         demands: d,
         campaigns: F.CAMPAIGNS.find((c) => c.id === d.campaign_id),
       })) as unknown as Linha[];
-    case "campaign_ministries": return [{ campaign_id: "camp-3", ministry_id: "min-1" }];
+    // camp-1 e camp-2 chegam ao ministério por demanda vinculada; estas
+    // vêm pela liberação manual (migration 0026), que é o outro caminho
+    // que getCampaignsForMinistry considera.
+    case "campaign_ministries":
+      return F.CAMPAIGNS.filter((c) => c.id !== "camp-1" && c.id !== "camp-2").map((c) => ({
+        campaign_id: c.id,
+        ministry_id: "min-1",
+      }));
     case "campaign_folders": return [{ id: "pasta-1", nome: "Eventos recorrentes", posicao: 0 }];
     case "demand_comments": return F.COMMENTS as unknown as Linha[];
     case "meta_ad_campaigns": return F.META_AD_CAMPAIGNS as unknown as Linha[];

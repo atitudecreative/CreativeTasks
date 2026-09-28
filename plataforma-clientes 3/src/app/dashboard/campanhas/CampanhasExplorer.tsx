@@ -1,14 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { normalizar } from "@/lib/texto";
 import { formatarDiaMes } from "@/lib/dates";
 import {
-  Badge, Board, BoardEmpty, BoardGroup, BoardRow, CodeTag, EmptyState, Icon,
-  PageBody, Panel, RailBlock, RailStat, SearchInput, Select, Toolbar, cn,
+  Badge, EmptyState, Icon, Panel, SearchInput, Select, Toolbar, cn,
 } from "@/components/ui";
 import { saudeTone } from "@/lib/statusColors";
-import { formatMoney, formatCompact, formatPercent } from "@/lib/metricLanguage";
+import { formatMoney } from "@/lib/metricLanguage";
 import { SAUDE_OPTIONS, TIPO_OPTIONS } from "@/lib/campaignOptions";
 import { Timeline } from "@/components/charts/Timeline";
 
@@ -32,6 +32,7 @@ export type CampaignCardData = {
   entregasTotal: number | null;
   progressoMarcos: number | null;
   alcance: number | null;
+  capaUrl: string | null;
 };
 
 /* =========================================================================
@@ -44,21 +45,26 @@ export type CampaignCardData = {
 
    Três decisões:
 
-   1. A CAPA SAIU DA LISTA. Ela não distingue uma campanha da outra (quase
-      nenhuma tem), e o placeholder ocupava mais espaço do que todo o resto
-      do card junto. A capa continua no topo do relatório, onde é a arte do
-      evento e tem função.
+   1. A LISTA É UMA GALERIA DE QUATRO COLUNAS: capa e nome, que é como se
+      reconhece um evento. Para a capa caber de verdade, o trilho lateral
+      saiu desta tela — com ele, a coluna principal tem ~770px e quatro
+      cartões ficariam com 180px cada, ou seja, uma miniatura. Sem ele são
+      ~265px, que é uma capa. Os números do trilho viraram uma faixa acima
+      da grade, na mesma ordem de leitura.
 
-   2. A LISTA VIROU PRANCHA. Linha por campanha, densa, com o que diferencia
-      uma da outra: período, verba usada, quantas demandas, quantas
-      entregas, progresso dos marcos. Cabem doze campanhas onde cabiam
-      duas — e dá para comparar de cima a baixo, que é o que uma lista
-      serve para fazer.
+   2. CAMPANHA SEM CAPA não recebe um retângulo cinza com uma letra
+      gigante, que era o que havia antes: recebe um campo neutro com o
+      ícone do tipo, da mesma altura dos outros, para a grade não ficar
+      irregular. Nada é inventado para preencher — capa que não existe
+      continua não existindo.
 
-   3. ENTROU UMA LINHA DO TEMPO. A pergunta "quando é o quê" não tinha
+   3. A LINHA DO TEMPO CONTINUA. A pergunta "quando é o quê" não tinha
       resposta em lugar nenhum: as datas eram texto solto em cada card.
       Agora o calendário do ministério se lê de uma vez, com sobreposições
-      visíveis.
+      visíveis — e, sem o trilho, na largura inteira.
+
+   O agrupamento por situação continua: o que exige atenção vem primeiro,
+   porque é a ordem de quem abre esta tela para trabalhar.
 
    Nenhum número aqui é novo: demandas, entregas, progresso e gasto de mídia
    já estavam na view `campanha_perfil` e não apareciam antes de alguém
@@ -79,101 +85,99 @@ function dataDeOrdem(c: CampaignCardData): string {
   return c.dataEvento ?? c.dataTermino ?? c.dataInicio ?? "";
 }
 
-/** Medidor de verba: barra fina com o aprovado como trilho. Acima de 100%
- *  a barra fica vermelha — estourar o orçamento é a leitura que importa. */
-function Verba({ investimento, aprovado }: { investimento: number | null; aprovado: number | null }) {
-  if (investimento == null && aprovado == null) {
-    return <span className="text-caption text-ink-3">sem valor lançado</span>;
+/** Capa da campanha. Link externo ou do storage, então pode falhar: se
+ *  falhar, cai no mesmo campo neutro de quem não tem capa, em vez do ícone
+ *  de imagem quebrada do navegador. */
+function Capa({ url, tipoLabel }: { url: string | null; tipoLabel: string }) {
+  const [falhou, setFalhou] = useState(false);
+
+  if (!url || falhou) {
+    // Campanha sem capa é a maioria hoje. Em vez de um retângulo mudo, o
+    // campo neutro diz o TIPO — dado que já existe no cadastro, e a única
+    // coisa que distingue um cartão sem imagem do outro.
+    return (
+      <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-1.5 bg-surface-sunken">
+        <Icon.Megaphone className="h-5 w-5 text-ink-3" aria-hidden="true" />
+        <span className="font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3">
+          {tipoLabel}
+        </span>
+      </div>
+    );
   }
-  const pct = aprovado && aprovado > 0 && investimento != null ? (investimento / aprovado) * 100 : null;
-  const estourou = pct != null && pct > 100;
 
   return (
-    <div className="min-w-0">
-      <p className="flex flex-wrap items-baseline gap-x-1.5 text-caption sm:justify-end">
-        <span className="font-medium tabular-nums text-ink">{formatMoney(investimento, true)}</span>
-        {aprovado != null && <span className="text-ink-3">de {formatMoney(aprovado, true)}</span>}
-      </p>
-      {pct != null && (
-        <div className="mt-1 flex items-center gap-1.5 sm:justify-end">
-          <span className="h-1 w-16 overflow-hidden rounded-full bg-neutral-soft">
-            <span
-              className={cn("block h-full rounded-full", estourou ? "bg-danger" : "bg-brand-500")}
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-          </span>
-          {/* Acima de 200% o percentual deixa de comunicar. "7.139%" lê-se
-              como sete vírgula um, e o separador de milhar num percentual é
-              ruído; "71× o aprovado" diz a mesma coisa de uma vez. */}
-          <span className={cn("font-mono text-[0.625rem] tabular-nums", estourou ? "text-danger" : "text-ink-3")}>
-            {pct > 200 ? `${Math.round(pct / 100)}× o aprovado` : formatPercent(pct, 0)}
-          </span>
-        </div>
-      )}
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element -- capa vem de URL externa, sem domínio conhecido em build time
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setFalhou(true)}
+      className="aspect-[3/2] w-full bg-surface-sunken object-cover transition-transform duration-240 ease-snap group-hover/capa:scale-[1.03]"
+    />
   );
 }
 
-function Linha({ c }: { c: CampaignCardData }) {
+function CartaoCampanha({ c }: { c: CampaignCardData }) {
   const periodo = periodLabel(c);
-  const emRisco = c.saude === "atencao" || c.saude === "critica";
 
   return (
-    <BoardRow href={`/dashboard/campanhas/${c.id}`} tone={c.saude === "critica" ? "danger" : undefined}>
-      {/* Duas colunas, não quatro. Com o trilho ao lado, a coluna principal
-          tem ~770px: quatro blocos lado a lado truncavam todos, inclusive o
-          nome da campanha — que é a única coisa que ninguém pode perder. */}
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="min-w-0 truncate text-h4 text-ink">{c.nome}</span>
-            {c.identificador && <CodeTag className="shrink-0">{c.identificador}</CodeTag>}
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-ink-3">
-            <Badge tone={saudeTone(c.saude)} size="sm" dot>
-              {c.saudeLabel}
-            </Badge>
-            <span>{c.tipoLabel}</span>
-            <span aria-hidden="true">·</span>
-            <span>{c.faseLabel}</span>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-ink-2">
-            {periodo && (
-              <span className="flex items-center gap-1.5">
-                <Icon.Calendar className="h-3 w-3 shrink-0 text-ink-3" />
-                {periodo}
-              </span>
-            )}
-            {c.demandasTotal != null && c.demandasTotal > 0 && (
-              <span>
-                <span className="font-medium tabular-nums text-ink">{c.demandasTotal}</span>{" "}
-                {c.demandasTotal === 1 ? "demanda" : "demandas"}
-                {c.demandasConcluidas != null && c.demandasConcluidas > 0 && (
-                  <span className="text-ink-3"> ({c.demandasConcluidas} concluídas)</span>
-                )}
-              </span>
-            )}
-            {c.entregasTotal != null && c.entregasTotal > 0 && (
-              <span>
-                <span className="font-medium tabular-nums text-ink">{c.entregasTotal}</span>{" "}
-                {c.entregasTotal === 1 ? "material" : "materiais"}
-              </span>
-            )}
-          </div>
-        </div>
+    <Link
+      href={`/dashboard/campanhas/${c.id}`}
+      className={cn(
+        "group/capa flex min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-xs",
+        "transition-colors duration-120 hover:border-line-strong hover:bg-surface-sunken/40",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      )}
+    >
+      <div className="relative overflow-hidden">
+        <Capa url={c.capaUrl} tipoLabel={c.tipoLabel} />
+        {c.saude === "critica" && (
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-danger" />
+        )}
+      </div>
 
-        <div className="shrink-0 sm:w-44 sm:text-right">
-          <Verba investimento={c.investimento} aprovado={c.orcamentoAprovado} />
-          <p className="mt-1 flex flex-wrap gap-x-2 font-mono text-[0.625rem] uppercase tracking-[0.06em] text-ink-3 sm:justify-end">
-            {c.progressoMarcos != null && <span>{formatPercent(c.progressoMarcos, 0)} dos marcos</span>}
-            {c.alcance != null && c.alcance > 0 && <span>{formatCompact(c.alcance)} de alcance</span>}
-          </p>
+      <div className="min-w-0 p-3">
+        {/* O nome é o que a pessoa procura: duas linhas antes de cortar, e
+            não uma só com reticências no meio da palavra. */}
+        <h3 className="line-clamp-2 text-small font-medium leading-snug text-ink">{c.nome}</h3>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Badge tone={saudeTone(c.saude)} size="sm" dot>
+            {c.saudeLabel}
+          </Badge>
+          {periodo && <span className="min-w-0 truncate text-caption text-ink-3">{periodo}</span>}
         </div>
       </div>
-      {emRisco && c.saude !== "critica" && (
-        <span className="sr-only">Campanha exigindo atenção</span>
-      )}
-    </BoardRow>
+    </Link>
+  );
+}
+
+/** Uma faixa de campanhas com cabeçalho. Substitui o BoardGroup: a grade
+ *  não tem cabeçalho grudento, então o grupo vira um título com contagem. */
+function Faixa({
+  titulo,
+  meta,
+  itens,
+}: {
+  titulo: string;
+  meta?: string;
+  itens: CampaignCardData[];
+}) {
+  if (itens.length === 0) return null;
+
+  return (
+    <section className="min-w-0">
+      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-line pb-1.5">
+        <h2 className="text-h4 text-ink">{titulo}</h2>
+        <span className="font-mono text-label uppercase tabular-nums text-ink-3">{itens.length}</span>
+        {meta && <span className="min-w-0 truncate text-caption text-ink-3">{meta}</span>}
+      </div>
+      <div className="signal-stagger grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {itens.map((c) => (
+          <CartaoCampanha key={c.id} c={c} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -288,52 +292,56 @@ export function CampanhasExplorer({
         )}
       </Toolbar>
 
-    <PageBody
-      rail={
-        <>
-          <RailBlock label={temFiltro ? "No recorte atual" : "No total"}>
-            <div className="divide-y divide-line">
-              <RailStat
-                label="Campanhas ativas"
-                value={resumo.ativas}
-                hint={
-                  resumo.total !== resumo.ativas
-                    ? `${resumo.total - resumo.ativas} já concluídas`
-                    : undefined
-                }
-              />
-              {resumo.emRisco > 0 && (
-                <RailStat label="Exigindo atenção" value={resumo.emRisco} tone="warning" />
-              )}
-              <RailStat
-                label="Investimento"
-                value={resumo.comInvestimento > 0 ? formatMoney(resumo.investimento, true) : "—"}
-                hint={
-                  resumo.comInvestimento > 0
-                    ? `em ${resumo.comInvestimento} de ${resumo.total}`
-                    : "nenhum valor lançado"
-                }
-              />
-              {resumo.demandas > 0 && (
-                <RailStat
-                  label="Produção vinculada"
-                  value={resumo.demandas}
-                  hint={`${resumo.entregas} ${resumo.entregas === 1 ? "material entregue" : "materiais entregues"}`}
-                />
-              )}
-            </div>
-          </RailBlock>
-        </>
-      }
-    >
+
+      {/* Os números que ficavam no trilho. Numa tela cujo conteúdo é uma
+          galeria, o trilho custaria 320px de largura — o suficiente para a
+          capa deixar de ser capa. Aqui eles ocupam uma faixa de uma linha,
+          na mesma ordem de leitura. */}
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b border-line pb-3">
+        <span className="flex items-baseline gap-1.5">
+          <span className="text-metric-sm tabular-nums text-ink">{resumo.ativas}</span>
+          <span className="font-mono text-label uppercase text-ink-3">
+            {resumo.ativas === 1 ? "campanha ativa" : "campanhas ativas"}
+          </span>
+        </span>
+        {resumo.total !== resumo.ativas && (
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-metric-sm tabular-nums text-ink-2">{resumo.total - resumo.ativas}</span>
+            <span className="font-mono text-label uppercase text-ink-3">concluídas</span>
+          </span>
+        )}
+        {resumo.emRisco > 0 && (
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-metric-sm tabular-nums text-warning">{resumo.emRisco}</span>
+            <span className="font-mono text-label uppercase text-ink-3">exigindo atenção</span>
+          </span>
+        )}
+        {resumo.comInvestimento > 0 && (
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-metric-sm tabular-nums text-ink">{formatMoney(resumo.investimento, true)}</span>
+            <span className="font-mono text-label uppercase text-ink-3">
+              investidos em {resumo.comInvestimento} de {resumo.total}
+            </span>
+          </span>
+        )}
+        {resumo.demandas > 0 && (
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-metric-sm tabular-nums text-ink">{resumo.demandas}</span>
+            <span className="font-mono text-label uppercase text-ink-3">
+              {resumo.demandas === 1 ? "demanda vinculada" : "demandas vinculadas"}
+            </span>
+          </span>
+        )}
+      </div>
+
       {/* A linha do tempo só faz sentido com espaço horizontal: abaixo de
-          `md` uma barra de 3% de largura é um traço sem leitura, e a lista
+          `md` uma barra de 3% de largura é um traço sem leitura, e a grade
           logo abaixo já está em ordem cronológica. */}
       {filtradas.length > 1 && (
         <Panel
           title="Quando é o quê"
           description="Período de cada campanha, com a data do evento marcada"
-          className="mb-4 hidden md:block"
+          className="mb-5 hidden md:block"
         >
           <Timeline
             hoje={hoje}
@@ -358,33 +366,12 @@ export function CampanhasExplorer({
           description="Tente outro termo de busca ou limpe os filtros para ver tudo de novo."
         />
       ) : (
-        <Board>
-          {emRisco.length > 0 && (
-            <BoardGroup
-              title="Exigindo atenção"
-              count={emRisco.length}
-              meta="Saúde marcada como atenção ou crítica"
-            >
-              {emRisco.map((c) => <Linha key={c.id} c={c} />)}
-            </BoardGroup>
-          )}
-          {andamento.length > 0 && (
-            <BoardGroup title="Em andamento" count={andamento.length}>
-              {andamento.map((c) => <Linha key={c.id} c={c} />)}
-            </BoardGroup>
-          )}
-          {concluidas.length > 0 && (
-            <BoardGroup title="Concluídas" count={concluidas.length} collapsible defaultOpen={concluidas.length <= 6}>
-              {concluidas.length === 0 ? (
-                <BoardEmpty>Nenhuma campanha concluída.</BoardEmpty>
-              ) : (
-                concluidas.map((c) => <Linha key={c.id} c={c} />)
-              )}
-            </BoardGroup>
-          )}
-        </Board>
+        <div className="space-y-6">
+          <Faixa titulo="Exigindo atenção" meta="Saúde marcada como atenção ou crítica" itens={emRisco} />
+          <Faixa titulo="Em andamento" itens={andamento} />
+          <Faixa titulo="Concluídas" itens={concluidas} />
+        </div>
       )}
-    </PageBody>
     </>
   );
 }
