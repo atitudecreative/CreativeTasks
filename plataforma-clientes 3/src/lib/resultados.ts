@@ -127,6 +127,8 @@ export type ResultadoPeriodo = {
   };
   /** Campanhas do recorte, da mais recente para a mais antiga. */
   campanhas: CampanhaPerfil[];
+  /** Campanhas do período anterior — base da comparação semana a semana. */
+  campanhasAnteriores: CampanhaPerfil[];
 };
 
 function dentro(data: string | null, inicio: string | null, fim?: string): boolean {
@@ -147,9 +149,10 @@ export function resultadoDoPeriodo(
     .sort((a, b) => (b.dataReferencia ?? "").localeCompare(a.dataReferencia ?? ""));
 
   const atual = agregar(campanhas);
-  const anterior = janela.anterior
-    ? agregar(perfis.filter((c) => dentro(c.dataReferencia, janela.anterior!.inicio, janela.anterior!.fim)))
-    : null;
+  const campanhasAnteriores = janela.anterior
+    ? perfis.filter((c) => dentro(c.dataReferencia, janela.anterior!.inicio, janela.anterior!.fim))
+    : [];
+  const anterior = janela.anterior ? agregar(campanhasAnteriores) : null;
 
   // Sem nenhum evento no período anterior, "variação" seria contra o
   // vazio: não há o que comparar, e a seta não aparece.
@@ -167,6 +170,7 @@ export function resultadoDoPeriodo(
       custoPorResultado: comparavel ? variacao(atual.custoPorResultado, anterior!.custoPorResultado) : null,
     },
     campanhas,
+    campanhasAnteriores,
   };
 }
 

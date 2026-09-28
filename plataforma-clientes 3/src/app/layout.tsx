@@ -58,6 +58,11 @@ export default async function RootLayout({
     >
       <head>
         <ThemeScript />
+        {/* Sem JavaScript, o contador dos KPIs não assume o número — então
+            ele aparece pronto, em vez de ficar escondido (ver Contador). */}
+        <noscript>
+          <style>{".contador-pendente{opacity:1 !important}"}</style>
+        </noscript>
       </head>
       <body className="min-h-full bg-canvas font-sans text-body text-ink antialiased">
         <ToastProvider>{children}</ToastProvider>

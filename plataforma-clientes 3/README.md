@@ -352,13 +352,19 @@ escondido não é impresso nem encontrado pelo Ctrl+F.
 Lado do ministério (leitor/colaborador/aprovador/supervisor — somente
 leitura nesta fase, conforme o PRD):
 
-- `/dashboard` — Início, em quatro níveis: **resultado do marketing** no
-  período escolhido (3/6/12 meses ou tudo, via `?periodo=`), contra o
-  período anterior de mesma duração, com as campanhas que o compõem e
-  orçamento × realizado; **andamento** das demandas; **material** entregue
-  por último; **histórico** dos eventos. O que pede ação fica no trilho
-  (e num aviso no topo em telas menores). O cálculo do período mora em
-  `src/lib/resultados.ts` (puro, testado em `resultados.test.ts`)
+- `/dashboard` — Início: a central de resultados do ministério. Saudação
+  com o nome do ministério; período (3/6/12 meses ou tudo, via
+  `?periodo=`) comparado com o anterior de mesma duração; quatro KPIs
+  (investimento, alcance, resultados, custo por resultado) com variação,
+  valor anterior e sparkline semanal; gráfico semana a semana com troca de
+  métrica e comparação opcional com o período anterior; público alcançado
+  (gênero e idade do Meta Ads); produção entregue por tipo; campanhas do
+  período e orçamento × realizado; insights gerados por regra; andamento
+  das demandas, material e histórico. Não há dado por canal no sistema (a
+  mídia paga é o Meta Ads, sem separar Facebook de Instagram), então a Home
+  não mostra divisão por canal. Cálculos em `src/lib/resultados.ts` e
+  `src/lib/home.ts`, puros e testados; a mídia vem de
+  `src/lib/data/midiaMinisterio.ts`, que degrada sem derrubar a página
 - `/dashboard/demandas` — lista e detalhe de cada demanda
 - `/dashboard/campanhas` — lista e detalhe de campanhas/eventos, com
   progresso calculado pelos marcos (pesos)

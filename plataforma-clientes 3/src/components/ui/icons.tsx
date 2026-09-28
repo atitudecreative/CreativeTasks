@@ -218,6 +218,9 @@ const Play = (p: IconProps) => (
 const Message = (p: IconProps) => (
   <Svg {...p}><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.2-4.2A8 8 0 1 1 21 12z" /></Svg>
 );
+const Gauge = (p: IconProps) => (
+  <Svg {...p}><path d="M3.5 17a8.5 8.5 0 1 1 17 0" /><path d="m12 17 3.5-4.5" /><circle cx="12" cy="17" r="1" /></Svg>
+);
 const Mail = (p: IconProps) => (
   <Svg {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3.5 6.5 8.5 6.5 8.5-6.5" /></Svg>
 );
@@ -234,7 +237,7 @@ export const Icon = {
   CheckCircle, AlertTriangle, AlertCircle, Info, Clock, Pause, Eye, EyeOff,
   TrendingUp, TrendingDown, Flat: Minus2, BarChart, PieChart, Activity, Target,
   Wallet, Megaphone, Calendar, Flag, Sparkles,
-  Sun, Moon, Command, Bell, Inbox, File, Image, Play, Message, Mail, Loader,
+  Sun, Moon, Command, Bell, Inbox, File, Image, Play, Message, Mail, Gauge, Loader,
 };
 
 export type IconComponent = (props: IconProps) => JSX.Element;
