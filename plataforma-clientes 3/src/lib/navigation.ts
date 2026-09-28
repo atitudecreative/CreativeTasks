@@ -119,8 +119,15 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** Telas que existem mas não moram no menu (ficam no menu de conta). Sem
+ *  elas aqui, "Meu acesso" abria com o cabeçalho vazio no desktop e com
+ *  "Portal" no celular — a pessoa não sabia em que tela estava. */
+const ROTAS_FORA_DO_MENU: NavItem[] = [
+  { href: "/dashboard/acesso", label: "Meu acesso", icon: "Shield", description: "Ministérios e papéis da sua conta" },
+];
+
 /** Todos os itens numa lista só — pra resolver título e breadcrumb. */
-export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+export const ALL_NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ...ROTAS_FORA_DO_MENU];
 
 export function isNavItemActive(item: NavItem, pathname: string | null): boolean {
   if (!pathname) return false;

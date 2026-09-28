@@ -41,7 +41,7 @@ export type Demand = {
 
 // Demandas com prazo antes disso são sincronizações antigas do Asana que só
 // poluem a aba — a partir daqui a visualização só mostra 2026 em diante.
-const DEMANDAS_CUTOFF_DATE = "2026-01-01";
+export const DEMANDAS_CUTOFF_DATE = "2026-01-01";
 
 // Traz as demandas do ministério cruas. Filtrar é trabalho da tela: a
 // aba Demandas carrega a lista uma vez e filtra no cliente, sem ida ao

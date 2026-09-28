@@ -94,11 +94,11 @@ function tabela(nome: string): Linha[] | typeof SEM_FIXTURE {
           progresso_marcos: c.id === "camp-1" ? 38 : null,
         };
       }) as unknown as Linha[];
-    case "asana_secoes": return [
+    case "asana_secoes": return ([
       { id: "s1", ministry_id: "min-1", secao: "Em Arte", secao_normalizada: "em arte", total_tarefas: 8, vista_em: new Date().toISOString() },
       { id: "s2", ministry_id: "min-1", secao: "Com o Ministério", secao_normalizada: "com o ministerio", total_tarefas: 3, vista_em: new Date().toISOString() },
       { id: "s3", ministry_id: "min-1", secao: "Revisão Pastoral", secao_normalizada: "revisao pastoral", total_tarefas: 2, vista_em: new Date().toISOString() },
-    ];
+    ] as Linha[]).map((r) => ({ ...r, ministries: F.MINISTRIES.find((m) => m.id === r.ministry_id) ?? null }));
     case "asana_status_map": return [
       { id: "r1", ministry_id: null, secao_normalizada: "em arte", status: "em_producao", created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
       { id: "r2", ministry_id: null, secao_normalizada: "com o ministerio", status: "aguardando_ministerio", created_at: new Date().toISOString(), updated_at: new Date().toISOString() },

@@ -33,7 +33,7 @@ export default async function MeuAcessoPage() {
     <div className="mx-auto max-w-report">
       <PageHeader eyebrow="Conta" title="Meu acesso" description="Onde você entra e o que pode fazer em cada lugar." />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
         <Panel title="Sua conta">
           <div className="flex items-start gap-3">
             <Avatar name={nome} size="lg" />

@@ -16,7 +16,7 @@ import { LeituraMinisterioPanel } from "@/components/intel/LeituraMinisterio";
 import { statusTone, saudeTone, deliverableTone } from "@/lib/statusColors";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import {
-  Alert, Badge, Board, BoardRow, Button, Icon, Metric, MetricRow, PageBody,
+  Alert, Badge, Board, BoardRow, Button, Icon, Metric, PageBody,
   Panel, RailBlock, Section, EmptyState,
 } from "@/components/ui";
 import { PageHeader } from "@/components/AppShell";
@@ -365,7 +365,11 @@ export default async function DashboardPage({
                   </p>
                 )}
 
-                <MetricRow columns={4}>
+                {/* 2×2 até sobrar largura para quatro. A faixa padrão (3 no
+                    tablet, 4 a partir de lg) deixava um cartão órfão no tablet
+                    e, com o trilho ao lado, espremia "R$ 59,07" contra a borda
+                    entre 1024 e 1400px. */}
+                <div className="signal-stagger grid grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
                   <Metric
                     size="hero"
                     label={METRICS.investimento.label}
@@ -416,7 +420,7 @@ export default async function DashboardPage({
                     deltaLabel={resultado.variacao.custoPorResultado != null ? deltaLabel : undefined}
                     hint={atual.custoPorResultado == null ? "exige investimento e resultado rastreado" : "quanto custou cada resultado"}
                   />
-                </MetricRow>
+                </div>
 
                 {semBaseAnterior && (
                   <p className="mt-2 text-caption text-ink-3">
@@ -428,11 +432,11 @@ export default async function DashboardPage({
                     mais três caixas. */}
                 <p className="mt-4 rounded-card border border-line bg-surface-sunken px-4 py-3 text-small text-ink-2">
                   No mesmo período, a Comunicação{" "}
-                  <Link href="/dashboard/demandas" className="font-medium text-ink underline-offset-4 hover:underline">
+                  <Link href="/dashboard/demandas" className="-my-1 inline-block py-1 font-medium text-ink underline underline-offset-4 decoration-line-strong hover:decoration-ink">
                     concluiu {concluidasNoPeriodo.atual} {concluidasNoPeriodo.atual === 1 ? "demanda" : "demandas"}
                   </Link>{" "}
                   e{" "}
-                  <Link href="/dashboard/entregas" className="font-medium text-ink underline-offset-4 hover:underline">
+                  <Link href="/dashboard/entregas" className="-my-1 inline-block py-1 font-medium text-ink underline underline-offset-4 decoration-line-strong hover:decoration-ink">
                     entregou {entreguesNoPeriodo.atual} {entreguesNoPeriodo.atual === 1 ? "arquivo" : "arquivos"}
                   </Link>
                   , em {atual.eventos} {atual.eventos === 1 ? "campanha ou evento" : "campanhas e eventos"}.

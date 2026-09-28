@@ -8,6 +8,8 @@ import {
   swapCampaignPositions,
 } from "./actions";
 import { TIPO_LABEL } from "@/lib/campaignOptions";
+import { Badge, Icon, IconButton, Select, Switch, cn } from "@/components/ui";
+import { useAcao } from "./useAcao";
 
 export type CampaignRowData = {
   id: string;
@@ -22,50 +24,19 @@ export type CampaignRowData = {
   ministryNames: string[];
 };
 
-function VisibilityToggle({ id, publicada }: { id: string; publicada: boolean }) {
-  return (
-    <form action={setCampaignVisibility}>
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="publicada" value={(!publicada).toString()} />
-      <button
-        type="submit"
-        title={publicada ? "Visível pro ministério — clique pra ocultar" : "Oculta — clique pra ativar"}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          publicada ? "bg-success" : "bg-line-strong"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition ${
-            publicada ? "left-5" : "left-0.5"
-          }`}
-        />
-      </button>
-    </form>
-  );
-}
+/* =========================================================================
+   LINHA DE CAMPANHA (Publicação de campanhas)
+   -------------------------------------------------------------------------
+   O controle que importa nesta tela é "o ministério vê ou não vê". Ele era
+   um botão de 44px sem rótulo nenhum — só um `title` — e um selo "Ativa"
+   repetindo a mesma informação à direita. Leitor de tela anunciava
+   "botão", e só.
 
-function MoveButton({ idA, idB, disabled, direction }: { idA: string; idB: string; disabled: boolean; direction: "up" | "down" }) {
-  return (
-    <form action={swapCampaignPositions}>
-      <input type="hidden" name="idA" value={idA} />
-      <input type="hidden" name="idB" value={idB} />
-      <button
-        type="submit"
-        disabled={disabled}
-        title={direction === "up" ? "Mover pra cima" : "Mover pra baixo"}
-        className="rounded p-0.5 text-ink-3 hover:text-brand-600 disabled:pointer-events-none disabled:opacity-20"
-      >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d={direction === "up" ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"}
-          />
-        </svg>
-      </button>
-    </form>
-  );
-}
+   Agora é um interruptor com rótulo ("Visível") e estado anunciado, e as
+   ações secundárias (ordem, pasta, editar, excluir) ficam agrupadas à
+   direita. No celular a linha quebra em duas: identidade em cima,
+   controles embaixo — antes ela espremia o nome até sumir.
+   ========================================================================= */
 
 export function CampaignRow({
   campaign,
@@ -78,58 +49,104 @@ export function CampaignRow({
   prevId?: string;
   nextId?: string;
 }) {
+  const { pendente, executar } = useAcao();
+
+  function alternarVisibilidade(publicar: boolean) {
+    executar(
+      setCampaignVisibility,
+      { id: campaign.id, publicada: String(publicar) },
+      {
+        sucesso: publicar
+          ? `"${campaign.nome}" agora aparece para o ministério.`
+          : `"${campaign.nome}" foi ocultada do ministério.`,
+        falha: publicar ? "Não foi possível publicar a campanha." : "Não foi possível ocultar a campanha.",
+      }
+    );
+  }
+
+  function mover(outroId: string) {
+    executar(swapCampaignPositions, { idA: campaign.id, idB: outroId }, { falha: "Não foi possível reordenar." });
+  }
+
   return (
-    <div className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-0">
-      <div className="flex shrink-0 flex-col">
-        <MoveButton idA={campaign.id} idB={prevId ?? ""} disabled={!prevId} direction="up" />
-        <MoveButton idA={campaign.id} idB={nextId ?? ""} disabled={!nextId} direction="down" />
+    <div
+      aria-busy={pendente}
+      className={cn(
+        "flex flex-col gap-3 border-b border-line px-4 py-3 transition-opacity last:border-0 sm:flex-row sm:items-center",
+        pendente && "opacity-60"
+      )}
+    >
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex shrink-0 flex-col">
+          {(["up", "down"] as const).map((dir) => {
+            const alvo = dir === "up" ? prevId : nextId;
+            return (
+              <button
+                key={dir}
+                type="button"
+                aria-label={dir === "up" ? `Mover ${campaign.nome} para cima` : `Mover ${campaign.nome} para baixo`}
+                disabled={!alvo || pendente}
+                onClick={() => alvo && mover(alvo)}
+                className="flex h-6 w-6 items-center justify-center rounded-control text-ink-3 transition-colors hover:bg-neutral-soft hover:text-ink disabled:pointer-events-none disabled:opacity-25"
+              >
+                {dir === "up" ? <Icon.ChevronUp className="h-3.5 w-3.5" /> : <Icon.ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/dashboard/campanhas/${campaign.id}`}
+              className="inline-flex min-h-6 min-w-0 items-center truncate text-small font-medium text-ink hover:text-brand-600 hover:underline"
+            >
+              {campaign.nome}
+            </Link>
+            {!campaign.publicada && (
+              <Badge tone="neutral" size="sm" icon={<Icon.EyeOff className="h-3 w-3" />}>
+                Oculta
+              </Badge>
+            )}
+          </div>
+          <p className="mt-0.5 text-caption text-ink-3">
+            {TIPO_LABEL[campaign.tipo] ?? campaign.tipo}
+            {campaign.origem === "asana_tag" && " · veio de tag do Asana"} · {campaign.demandCount}{" "}
+            {campaign.demandCount === 1 ? "demanda" : "demandas"}
+            {campaign.ministryNames.length > 0 && <> · {campaign.ministryNames.join(", ")}</>}
+          </p>
+        </div>
       </div>
 
-      <VisibilityToggle id={campaign.id} publicada={campaign.publicada} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-9 sm:shrink-0 sm:pl-0">
+        <Switch
+          size="sm"
+          checked={campaign.publicada}
+          onCheckedChange={alternarVisibilidade}
+          disabled={pendente}
+          label="Visível"
+        />
 
-      <div className="min-w-0 flex-1">
-        <Link
-          href={`/dashboard/campanhas/${campaign.id}`}
-          className="truncate font-medium text-ink hover:underline"
-        >
-          {campaign.nome}
-        </Link>
-        <p className="text-xs text-ink-3">
-          {TIPO_LABEL[campaign.tipo] ?? campaign.tipo}
-          {campaign.origem === "asana_tag" && " · detectada por tag do Asana"} ·{" "}
-          {campaign.demandCount} {campaign.demandCount === 1 ? "demanda" : "demandas"}
-          {campaign.ministryNames.length > 0 && (
-            <>
-              {" "}
-              ·{" "}
-              <span title="Ministérios com demanda vinculada a essa campanha">
-                {campaign.ministryNames.join(", ")}
-              </span>
-            </>
-          )}
-        </p>
-      </div>
-
-      <span
-        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-          campaign.publicada ? "bg-success-soft text-success" : "bg-neutral-soft text-ink-2"
-        }`}
-      >
-        {campaign.publicada ? "Ativa" : "Oculta"}
-      </span>
-
-      {folders.length > 0 && (
-        <form
-          action={moveCampaignToFolder}
-          onChange={(e) => (e.currentTarget as HTMLFormElement).requestSubmit()}
-          className="shrink-0"
-        >
-          <input type="hidden" name="campaignId" value={campaign.id} />
-          <select
-            name="folderId"
+        {folders.length > 0 && (
+          <Select
+            aria-label={`Pasta de ${campaign.nome}`}
+            // defaultValue + key: controlado, o select voltava para a pasta
+            // antiga enquanto a ação rodava e só depois pulava para a nova.
+            key={campaign.folder_id ?? "sem-pasta"}
             defaultValue={campaign.folder_id ?? ""}
-            title="Mover pra pasta"
-            className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
+            controlSize="sm"
+            containerClassName="w-40"
+            disabled={pendente}
+            onChange={(e) =>
+              executar(
+                moveCampaignToFolder,
+                { campaignId: campaign.id, folderId: e.target.value },
+                {
+                  sucesso: e.target.value ? "Campanha movida para a pasta." : "Campanha tirada da pasta.",
+                  falha: "Não foi possível mover a campanha.",
+                }
+              )
+            }
           >
             <option value="">Sem pasta</option>
             {folders.map((f) => (
@@ -137,33 +154,36 @@ export function CampaignRow({
                 {f.nome}
               </option>
             ))}
-          </select>
-        </form>
-      )}
+          </Select>
+        )}
 
-      <Link
-        href={`/dashboard/admin/campanhas-pendentes/${campaign.id}`}
-        className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-      >
-        Editar
-      </Link>
+        <Link
+          href={`/dashboard/admin/campanhas-pendentes/${campaign.id}`}
+          className="inline-flex h-control-sm items-center gap-1.5 rounded-control px-2 text-caption font-medium text-brand-600 transition-colors hover:bg-neutral-soft"
+        >
+          <Icon.Edit className="h-3.5 w-3.5" />
+          Editar
+        </Link>
 
-      <form
-        action={deleteCampaign}
-        onSubmit={(e) => {
-          const detalhe =
-            campaign.demandCount > 0 ? ` ${campaign.demandCount} demanda(s) ficam sem essa campanha.` : "";
-          if (!window.confirm(`Excluir "${campaign.nome}" definitivamente?${detalhe}`)) {
-            e.preventDefault();
-          }
-        }}
-        className="shrink-0"
-      >
-        <input type="hidden" name="id" value={campaign.id} />
-        <button type="submit" className="text-caption font-medium text-ink-3 hover:text-danger">
-          Excluir
-        </button>
-      </form>
+        <IconButton
+          label={`Excluir ${campaign.nome}`}
+          size="sm"
+          disabled={pendente}
+          className="text-ink-3 hover:text-danger"
+          onClick={() => {
+            const detalhe =
+              campaign.demandCount > 0 ? ` ${campaign.demandCount} demanda(s) ficam sem essa campanha.` : "";
+            if (!window.confirm(`Excluir "${campaign.nome}" definitivamente?${detalhe}`)) return;
+            executar(
+              deleteCampaign,
+              { id: campaign.id },
+              { sucesso: `"${campaign.nome}" foi excluída.`, falha: "Não foi possível excluir a campanha." }
+            );
+          }}
+        >
+          <Icon.Trash className="h-4 w-4" />
+        </IconButton>
+      </div>
     </div>
   );
 }

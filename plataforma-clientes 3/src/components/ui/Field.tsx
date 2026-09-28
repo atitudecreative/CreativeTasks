@@ -179,10 +179,15 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   hint?: string;
   error?: string | null;
   containerClassName?: string;
+  /** "sm" para select dentro de linha de lista (mover para pasta), onde o
+   *  controle de 44px dobrava a altura da linha. Variante, e não classe
+   *  sobrescrita: duas alturas na mesma lista de classes brigam pela ordem
+   *  do CSS gerado, não pela ordem em que foram escritas. */
+  controlSize?: "sm" | "md";
 };
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, hint, error, className, containerClassName, id, required, children, ...props },
+  { label, hint, error, className, containerClassName, id, required, controlSize = "md", children, ...props },
   ref
 ) {
   const autoId = useId();
@@ -203,14 +208,21 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           error ? CONTROL_TONE.invalid : CONTROL_TONE.normal,
           // appearance-none + chevron próprio: a seta nativa do select é
           // diferente em cada SO e não acompanha o tema escuro.
-          "h-control-lg cursor-pointer appearance-none py-0 pl-3 pr-9",
+          controlSize === "sm"
+            ? "h-control-sm cursor-pointer appearance-none py-0 pl-2.5 pr-8 !text-caption"
+            : "h-control-lg cursor-pointer appearance-none py-0 pl-3 pr-9",
           className
         )}
         {...props}
       >
         {children}
       </select>
-      <Icon.ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+      <Icon.ChevronDown
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-3",
+          controlSize === "sm" ? "right-2.5 h-3.5 w-3.5" : "right-3 h-4 w-4"
+        )}
+      />
     </div>
   );
 
@@ -358,21 +370,30 @@ export function Switch({
       aria-label={typeof label === "string" ? label : undefined}
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
+      // O botão tem 24px de altura mesmo quando o trilho desenhado tem 18:
+      // a área de toque é o botão, não o desenho. Antes o trilho ERA o
+      // botão, e o interruptor pequeno ficava abaixo do mínimo de toque.
       className={cn(
-        "relative inline-flex shrink-0 items-center rounded-full p-0.5",
-        "transition-colors duration-180 ease-snap",
-        "disabled:cursor-not-allowed disabled:opacity-45",
-        track,
-        checked ? "bg-brand-600" : "bg-line-strong"
+        "group/sw relative inline-flex h-6 shrink-0 items-center rounded-full",
+        "disabled:cursor-not-allowed disabled:opacity-45"
       )}
     >
       <span
+        aria-hidden="true"
         className={cn(
-          "inline-block rounded-full bg-white shadow-xs transition-transform duration-180 ease-snap",
-          knob,
-          checked ? travel : "translate-x-0"
+          "inline-flex items-center rounded-full p-0.5 transition-colors duration-180 ease-snap",
+          track,
+          checked ? "bg-brand-600" : "bg-line-strong"
         )}
-      />
+      >
+        <span
+          className={cn(
+            "inline-block rounded-full bg-white shadow-xs transition-transform duration-180 ease-snap",
+            knob,
+            checked ? travel : "translate-x-0"
+          )}
+        />
+      </span>
     </button>
   );
 

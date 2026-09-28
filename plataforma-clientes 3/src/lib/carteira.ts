@@ -99,9 +99,19 @@ export function periodoAnterior(inicio: string, fim: string): { inicio: string; 
 
 export function resumirCarteira(
   perfis: CampanhaPerfil[],
-  janela?: { inicio: string; fim: string }
+  /** `abertoNoFim`: a janela atual inclui campanhas com data de referência
+   *  DEPOIS do fim — a campanha em andamento, cujo evento ainda vai
+   *  acontecer, e que é justamente a que está gastando agora. O fim
+   *  continua definindo a duração do período anterior. É a mesma regra do
+   *  Início do ministério (lib/resultados), para as duas telas não darem
+   *  respostas diferentes sobre o mesmo período. */
+  janela?: { inicio: string; fim: string; abertoNoFim?: boolean }
 ): ResumoCarteira {
-  const atuais = janela ? noPeriodo(perfis, janela.inicio, janela.fim) : perfis;
+  const atuais = janela
+    ? janela.abertoNoFim
+      ? perfis.filter((c) => c.dataReferencia != null && c.dataReferencia >= janela.inicio)
+      : noPeriodo(perfis, janela.inicio, janela.fim)
+    : perfis;
 
   let anteriores: CampanhaPerfil[] = [];
   if (janela) {
