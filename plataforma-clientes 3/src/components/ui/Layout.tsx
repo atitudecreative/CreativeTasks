@@ -61,18 +61,21 @@ export function PageBody({
    espaço — o mesmo recurso que separa seções num relatório impresso.
    ------------------------------------------------------------------------- */
 export function RailBlock({
+  id,
   label,
   action,
   className,
   children,
 }: {
+  /** Âncora — o aviso de "precisa de atenção" do celular aponta pra cá. */
+  id?: string;
   label?: string;
   action?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className={cn("min-w-0", className)}>
+    <section id={id} className={cn("min-w-0", className)}>
       {(label || action) && (
         <div className="mb-2 flex items-center justify-between gap-2">
           {label && <p className="font-mono text-label uppercase text-ink-3">{label}</p>}

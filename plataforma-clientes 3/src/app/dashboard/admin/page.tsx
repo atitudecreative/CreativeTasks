@@ -61,7 +61,7 @@ export default async function AdminPage() {
   // Ver a nota em getUniversoComparacao: a base de comparação degrada em
   // vez de derrubar a tela, mas nunca em silêncio.
   const universo = universoCarga.ok ? universoCarga.dados : [];
-  const carteira = resumirCarteira(universo, { inicio: inicioJanela, fim: fimJanela });
+  const carteira = resumirCarteira(universo, { inicio: inicioJanela, fim: fimJanela, abertoNoFim: true });
   const nomePorMinisterio = new Map(ministerios.map((m) => [m.id, m.name] as const));
 
   const pendingCampaigns = allCampaigns.filter((c) => !c.publicada);
@@ -133,7 +133,7 @@ export default async function AdminPage() {
             </div>
           </div>
           <p className="mt-2 text-caption leading-relaxed text-ink-3">
-            Consolidado dos eventos publicados no período, comparado com os 12 meses anteriores.
+            Eventos publicados dos últimos 12 meses, incluindo os ainda em andamento, comparados com os 12 meses anteriores.
           </p>
         </RailBlock>
       )}

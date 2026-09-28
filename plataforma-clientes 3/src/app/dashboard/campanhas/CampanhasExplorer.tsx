@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { normalizar } from "@/lib/texto";
 import { formatarDiaMes } from "@/lib/dates";
 import {
-  Badge, EmptyState, Icon, Panel, SearchInput, Select, Toolbar, cn,
+  Badge, EmptyState, Icon, Panel, SearchInput, Select, cn,
 } from "@/components/ui";
 import { saudeTone } from "@/lib/statusColors";
 import { formatMoney } from "@/lib/metricLanguage";
@@ -243,54 +243,41 @@ export function CampanhasExplorer({
 
   return (
     <>
-      <Toolbar>
+      {/* Mesma grade de filtros da aba Demandas: busca inteira em cima e
+          três filtros lado a lado até sobrar largura para os quatro numa
+          linha. Em flex-wrap, o terceiro filtro caía sozinho numa segunda
+          linha no notebook. */}
+      <div data-print="hide" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
         <SearchInput
           value={busca}
           onValueChange={setBusca}
           placeholder="Buscar campanha ou evento..."
-          className="min-w-[12rem] flex-1 sm:max-w-xs"
+          aria-label="Buscar campanhas"
+          className="col-span-2 sm:col-span-3 xl:col-span-1"
         />
-        <Select
-          value={saude}
-          onChange={(e) => setSaude(e.target.value)}
-          aria-label="Filtrar por situação"
-          className="w-full"
-          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
-        >
+        <Select value={saude} onChange={(e) => setSaude(e.target.value)} aria-label="Filtrar por situação">
           <option value="">Todas as situações</option>
           {SAUDE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          aria-label="Filtrar por tipo"
-          className="w-full"
-          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
-        >
+        <Select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Filtrar por tipo">
           <option value="">Todos os tipos</option>
           {TIPO_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </Select>
-        <Select
-          value={ordem}
-          onChange={(e) => setOrdem(e.target.value as SortKey)}
-          aria-label="Ordenar"
-          className="w-full"
-          containerClassName="min-w-0 flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto"
-        >
+        <Select value={ordem} onChange={(e) => setOrdem(e.target.value as SortKey)} aria-label="Ordenar">
           <option value="cronologica">Mais recentes</option>
           <option value="investimento">Maior investimento</option>
           <option value="nome">Nome</option>
         </Select>
-        {temFiltro && (
-          <span className="font-mono text-label uppercase text-ink-3">
-            {filtradas.length} de {campaigns.length}
-          </span>
-        )}
-      </Toolbar>
+      </div>
+      {temFiltro && (
+        <p className="-mt-2 mb-3 font-mono text-label uppercase text-ink-3" aria-live="polite">
+          {filtradas.length} de {campaigns.length}
+        </p>
+      )}
 
 
       {/* Os números que ficavam no trilho. Numa tela cujo conteúdo é uma

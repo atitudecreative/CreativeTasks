@@ -160,3 +160,15 @@ test("série de resultados sai em ordem cronológica", () => {
   ]);
   assert.deepEqual(l.serieResultados.map((s) => s.nome), ["Primeiro", "Segundo", "Terceiro"]);
 });
+
+test("janela aberta no fim inclui a campanha em andamento, com evento adiante", () => {
+  const perfis = [
+    p({ id: "andamento", dataReferencia: "2026-10-18", investimento: 500, vendas: 20 }),
+    p({ id: "passada", dataReferencia: "2026-03-01", investimento: 100, vendas: 5 }),
+  ];
+  const fechada = resumirCarteira(perfis, { inicio: "2025-09-29", fim: "2026-09-28" });
+  const aberta = resumirCarteira(perfis, { inicio: "2025-09-29", fim: "2026-09-28", abertoNoFim: true });
+  assert.equal(fechada.eventos, 1);
+  assert.equal(aberta.eventos, 2);
+  assert.equal(aberta.resultados, 25);
+});

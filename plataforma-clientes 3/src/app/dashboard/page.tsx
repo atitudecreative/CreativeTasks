@@ -3,35 +3,36 @@ import { requireMinistry } from "@/lib/data/ministries";
 import {
   getDemandsForMinistry,
   summarizeDemands,
-  getMonthlyDemandStats,
   isOverdue,
   STATUS_LABEL,
 } from "@/lib/data/demands";
-import { getCampaignsForMinistry, getBudgetSummary, SAUDE_LABEL } from "@/lib/data/campaigns";
+import { getCampaignsForMinistry, SAUDE_LABEL } from "@/lib/data/campaigns";
 import { getDeliverablesForMinistry } from "@/lib/data/deliverables";
 import { countByStage, stageOf } from "@/lib/demandStages";
-import { TIMEZONE, hoje, formatarDiaMes, formatarMesPorExtenso } from "@/lib/dates";
+import { TIMEZONE, hoje, formatarDiaMes, formatarDataCompleta } from "@/lib/dates";
 import { getUniversoComparacao } from "@/lib/data/campanhaPerfil";
 import { lerMinisterio } from "@/lib/carteira";
 import { LeituraMinisterioPanel } from "@/components/intel/LeituraMinisterio";
 import { statusTone, saudeTone, deliverableTone } from "@/lib/statusColors";
 import { DELIVERABLE_STATUS_LABEL } from "@/lib/deliverableOptions";
 import {
-  Badge, Board, BoardGroup, BoardRow, Button, Icon, Metric, MetricRow, PageBody,
-  Panel, Progress, RailBlock, Section, EmptyState,
+  Alert, Badge, Board, BoardRow, Button, Icon, Metric, PageBody,
+  Panel, RailBlock, Section, EmptyState,
 } from "@/components/ui";
 import { PageHeader } from "@/components/AppShell";
 import { StageBar } from "@/components/charts/StageBar";
-import { BudgetChart } from "@/components/charts/Charts";
 import { StageColumns } from "@/components/charts/StageColumns";
 import { agruparPorMesEEstagio } from "@/lib/demandSeries";
+import { METRICS, formatCompact, formatMoney as formatMoneyCompact } from "@/lib/metricLanguage";
+import {
+  PERIODOS, contarNoPeriodo, lerPeriodo, manchete, resultadoDoPeriodo,
+} from "@/lib/resultados";
 import { AttentionList } from "./AttentionList";
+import { PeriodoResultados } from "./PeriodoResultados";
+import { CampanhasDoPeriodo } from "./CampanhasDoPeriodo";
+import { OrcamentoPorCampanha, type LinhaOrcamento } from "./OrcamentoPorCampanha";
 
 export const metadata = { title: "Início" };
-
-function formatMoney(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-}
 
 // Saudação pelo horário de Brasília, não pelo fuso do servidor (que no
 // Render roda em UTC).
@@ -57,25 +58,34 @@ function getTodayLabel() {
 /* =========================================================================
    INÍCIO
    -------------------------------------------------------------------------
-   Reorganizado em cinco níveis de leitura, em vez de uma faixa de quatro
-   números iguais seguida de gráficos:
+   A pergunta que o cliente traz ao abrir o portal é "qual foi o resultado
+   do trabalho?". A versão anterior abria com o estado das DEMANDAS (fila,
+   produção, atrasos) e deixava resultado de mídia para o rodapé, sem
+   recorte de tempo e sem comparação. A ordem agora é a da pergunta:
 
-     1. RESUMO EXECUTIVO  o estado do trabalho numa barra e uma frase
-     2. ATENÇÃO           o que está travado, com link direto pro item
-     3. INDICADORES       os números de apoio
-     4. TENDÊNCIA         volume no tempo e dinheiro
-     5. DETALHE           próximos prazos e material recente
+     1. RESULTADO      o que o marketing trouxe no período escolhido, contra
+                       o período anterior — e quais campanhas fizeram isso
+     2. ANDAMENTO      em que pé está o trabalho da Comunicação hoje
+     3. MATERIAL       o que foi entregue por último
+     4. HISTÓRICO      a evolução dos eventos, desde sempre
 
-   Uma remoção deliberada: a métrica "Estimativa de horas trabalhadas"
-   saiu. Ela era calculada com `estimateDemandMinutes()`, que derivava uma
-   duração entre 15min e 2h30 de um HASH DO ID da demanda — um número
-   inventado, com aparência de dado apurado, numa plataforma cujo produto
-   é prestação de contas. No lugar entrou a taxa de conclusão, que é
-   aritmética em cima de dado real.
+   O que precisa de ação (atrasos, "com você", campanhas em risco) fica no
+   trilho, à vista desde a primeira dobra.
+
+   Duas remoções deliberadas:
+   - "Estimativa de horas trabalhadas" (saiu numa passagem anterior): era
+     derivada de um hash do id da demanda — número inventado.
+   - O gráfico "Planejado / Aprovado / Investido": cada barra somava um
+     conjunto diferente de campanhas (ver OrcamentoPorCampanha).
    ========================================================================= */
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const { ministry } = await requireMinistry();
+  const periodo = lerPeriodo(searchParams?.periodo);
 
   const [demands, campaigns, deliverables, universoCarga] = await Promise.all([
     getDemandsForMinistry(ministry.id),
@@ -93,70 +103,91 @@ export default async function DashboardPage() {
   const universo = universoCarga.ok ? universoCarga.dados : [];
   const comparacaoIndisponivel = !universoCarga.ok;
 
-  // Leitura histórica do ministério — a pergunta "como estamos indo",
-  // que o Início não respondia: ele mostrava só o estado de hoje.
   const leitura = lerMinisterio(ministry.id, universo);
 
-  // Uma leitura de "hoje" só, no fuso de Brasília, compartilhada por toda
-  // a página — em vez de cada filtro consultar o relógio por conta própria.
   const hojeBr = hoje();
   const mesAtual = hojeBr.slice(0, 7);
 
+  /* ---------------------------- RESULTADO ---------------------------- */
+
+  // O recorte de campanhas é o MESMO da aba Campanhas (as que este
+  // ministério enxerga), e os números vêm do perfil consolidado — a mesma
+  // fonte do relatório de cada campanha, para o Início nunca divergir da
+  // tela seguinte.
+  const idsVisiveis = new Set(campaigns.map((c) => c.id));
+  const perfis = universo.filter((c) => idsVisiveis.has(c.id));
+  const resultado = resultadoDoPeriodo(perfis, periodo, hojeBr);
+  const defPeriodo = PERIODOS.find((p) => p.chave === periodo)!;
+  const rotuloAnterior = `aos ${defPeriodo.rotulo} anteriores`;
+  const deltaLabel = resultado.anterior ? `vs. ${defPeriodo.rotulo} anteriores` : undefined;
+  const semBaseAnterior = resultado.anterior != null && resultado.anterior.eventos === 0;
+  const frase = manchete(resultado, rotuloAnterior);
+
+  const concluidasNoPeriodo = contarNoPeriodo(demands.map((d) => d.data_conclusao), resultado.janela);
+  const entreguesNoPeriodo = contarNoPeriodo(deliverables.map((e) => e.data_entrega), resultado.janela);
+
+  const { atual } = resultado;
+  const comInvestimento = resultado.campanhas.filter((c) => c.investimento != null).length;
+
+  const descricaoJanela = resultado.janela.inicio
+    ? `Campanhas e eventos com data a partir de ${formatarDataCompleta(resultado.janela.inicio)}, incluindo os que ainda estão em andamento.`
+    : "Todas as campanhas e eventos publicados para este ministério, desde o primeiro.";
+
+  const campanhasDoPeriodo = resultado.campanhas.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    dataReferencia: c.dataReferencia,
+    saude: c.saude,
+    investimento: c.investimento,
+    resultados: c.vendas,
+    custoPorResultado: c.cpa,
+    alcance: c.alcance,
+  }));
+
+  // Orçamento × realizado sobre as campanhas do período — só as que têm
+  // as duas pontas. O realizado é o do perfil (mídia sincronizada, senão
+  // o lançado à mão), a mesma regra do relatório.
+  const perfilPorId = new Map(resultado.campanhas.map((c) => [c.id, c]));
+  const campanhasPorId = new Map(campaigns.map((c) => [c.id, c]));
+  const linhasOrcamento: LinhaOrcamento[] = [];
+  let semOrcamento = 0;
+  for (const perfil of resultado.campanhas) {
+    const c = campanhasPorId.get(perfil.id);
+    const realizado = perfilPorId.get(perfil.id)?.investimento ?? c?.investimento_realizado ?? null;
+    if (realizado == null) continue;
+    const aprovado = perfil.orcamentoAprovado ?? c?.orcamento_aprovado ?? null;
+    const planejado = perfil.orcamentoPlanejado ?? c?.orcamento_planejado ?? null;
+    const orcamento = aprovado && aprovado > 0 ? aprovado : planejado && planejado > 0 ? planejado : null;
+    if (orcamento == null) {
+      semOrcamento++;
+      continue;
+    }
+    linhasOrcamento.push({
+      id: perfil.id,
+      nome: perfil.nome,
+      orcamento,
+      base: aprovado && aprovado > 0 ? "aprovado" : "planejado",
+      realizado,
+    });
+  }
+
+  /* ---------------------------- ANDAMENTO ---------------------------- */
+
   const resumo = summarizeDemands(demands);
   const stages = countByStage(demands.map((d) => d.status));
-  const monthlyStats = getMonthlyDemandStats(demands, hojeBr);
-  // Mesma leitura da aba Demandas: mês de prazo cruzado com estágio. A
-  // versão anterior mostrava total e concluídas (coluna + linha); a
-  // composição responde as duas coisas e mais três, no mesmo espaço.
   const composicao = agruparPorMesEEstagio(
     demands.map((d) => ({ prazo: d.prazo_acordado, stage: stageOf(d.status) })),
     mesAtual
   );
-  const budgetSummary = getBudgetSummary(campaigns);
-
   const taxaConclusao = resumo.total > 0 ? (resumo.concluidas / resumo.total) * 100 : null;
   const campanhasRisco = campaigns.filter((c) => c.saude === "atencao" || c.saude === "critica");
-
-  // "Ativas" quer dizer ativas. A contagem anterior era `campaigns.length`,
-  // que inclui campanha já concluída — o número só subia, nunca descia, e
-  // o cabeçalho da página repetia o mesmo erro.
-  const campanhasAtivas = campaigns.filter((c) => c.saude !== "concluida");
-
-  // Investimento pela MESMA regra do relatório de campanha: o gasto de
-  // mídia sincronizado quando existe, senão o lançado à mão. Somar só
-  // `investimento_realizado` (como era antes) zerava justamente as
-  // campanhas que têm Meta Ads ligado — as que mais gastam —, e o Início
-  // divergia do relatório que o cliente abre na tela seguinte.
-  const perfilPorCampanha = new Map(universo.map((c) => [c.id, c]));
-  const campanhasComInvestimento = campaigns.filter(
-    (c) => (perfilPorCampanha.get(c.id)?.investimento ?? c.investimento_realizado) != null
-  );
-  const investimentoTotal = campanhasComInvestimento.reduce(
-    (sum, c) => sum + (perfilPorCampanha.get(c.id)?.investimento ?? c.investimento_realizado ?? 0),
-    0
-  );
-
-  // Volume do mês corrente contra o mês anterior — os dois pela posição
-  // no calendário, não pelos dois últimos pontos da série. A versão
-  // anterior pegava `monthlyStats[length - 1]`, que é o ÚLTIMO MÊS COM
-  // PRAZO: quase sempre um mês no futuro. O card dizia "Demandas no mês"
-  // e mostrava, por exemplo, novembro.
-  const indiceAtual = monthlyStats.findIndex((m) => m.month === mesAtual);
-  const mesCorrente = indiceAtual >= 0 ? monthlyStats[indiceAtual] : null;
-  const mesAnterior = indiceAtual > 0 ? monthlyStats[indiceAtual - 1] : null;
-  const deltaVolume =
-    mesCorrente && mesAnterior && mesAnterior.total > 0
-      ? ((mesCorrente.total - mesAnterior.total) / mesAnterior.total) * 100
-      : null;
 
   const atrasadas = demands.filter((d) => isOverdue(d, hojeBr));
   const aguardando = demands.filter((d) =>
     ["aguardando_ministerio", "aguardando_aprovacao", "ajustes_solicitados"].includes(d.status)
   );
 
-  // Ordenado por prazo, do mais próximo pro mais distante. Antes era um
-  // .slice(0, 5) em cima da ordem que viesse do banco — o painel se
-  // chamava "Próximos prazos" e listava cinco quaisquer.
+  // Ordenado por prazo, do mais próximo pro mais distante.
   const proximosPrazos = demands
     .filter(
       (d) =>
@@ -183,83 +214,24 @@ export default async function DashboardPage() {
         }
         actions={
           <>
-            <Link href="/dashboard/campanhas">
-              <Button variant="secondary" iconLeft={<Icon.Megaphone className="h-4 w-4" />}>
-                Campanhas
+            <Link href="/dashboard/demandas">
+              <Button variant="secondary" iconLeft={<Icon.ListChecks className="h-4 w-4" />}>
+                Demandas
               </Button>
             </Link>
-            <Link href="/dashboard/demandas">
+            <Link href="/dashboard/campanhas">
               <Button variant="primary" iconRight={<Icon.ArrowRight className="h-4 w-4" />}>
-                Ver demandas
+                Ver campanhas
               </Button>
             </Link>
           </>
         }
       />
 
-      {/* =====================================================================
-          ABERTURA — o estado da operação numa faixa, sem caixa.
-
-          A versão anterior abria com dois painéis lado a lado e depois
-          quatro cartões de indicador: seis retângulos antes de qualquer
-          leitura. Aqui a primeira coisa é a barra de estágios em tamanho
-          grande com os quatro números que importam abaixo dela. Sem borda
-          e sem sombra de propósito — é a declaração de abertura da página,
-          não mais um bloco competindo com os outros.
-          ===================================================================== */}
-      {resumo.total === 0 ? (
-        <EmptyState
-          icon={<Icon.ListChecks className="h-5 w-5" />}
-          title="Nada por aqui ainda"
-          description="Assim que a Comunicação publicar as primeiras demandas deste ministério, elas aparecem aqui."
-        />
-      ) : (
-        <section className="mb-section border-b border-line pb-6">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <p className="font-mono text-label uppercase text-ink-3">Situação das demandas</p>
-            <Link
-              href="/dashboard/demandas"
-              className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
-            >
-              {resumo.total} {resumo.total === 1 ? "demanda" : "demandas"} de 2026 em diante
-            </Link>
-          </div>
-
-          <StageBar stages={stages} total={resumo.total} height="h-11" />
-
-          <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
-            <NumeroDeAbertura label="Em andamento" valor={resumo.emAndamento} hint="fila, produção e com você" />
-            <NumeroDeAbertura
-              label="Com você"
-              valor={resumo.comMinisterio}
-              hint="esperando resposta do ministério"
-              tone={resumo.comMinisterio > 0 ? "warning" : "default"}
-              href="/dashboard/demandas"
-            />
-            <NumeroDeAbertura
-              label="Atrasadas"
-              valor={resumo.atrasadas}
-              hint="prazo já vencido"
-              tone={resumo.atrasadas > 0 ? "danger" : "default"}
-              href="/dashboard/demandas"
-            />
-            <NumeroDeAbertura
-              label="Concluídas"
-              valor={resumo.concluidas}
-              hint={
-                taxaConclusao == null
-                  ? undefined
-                  : `${taxaConclusao.toFixed(0)}% do total`
-              }
-            />
-          </div>
-        </section>
-      )}
-
       <PageBody
         rail={
           <>
-            <RailBlock label="Precisa de atenção">
+            <RailBlock label="Precisa de atenção" className="scroll-mt-20" id="atencao">
               {temAtencao ? (
                 <Board>
                   <AttentionList
@@ -329,79 +301,240 @@ export default async function DashboardPage() {
                 )}
               </Board>
             </RailBlock>
-
           </>
         }
       >
-        {/* ---------- Onde está o trabalho ---------- */}
-        {composicao.length > 1 && (
-          <Panel
-            title="Onde está o trabalho"
-            description="Demandas por mês de prazo, divididas por estágio"
-            className="mb-4"
+        {/* Abaixo de xl o trilho desce para o fim da página. O que pede ação
+            não pode ir junto: uma linha curta no topo leva direto a ele. */}
+        {(aguardando.length > 0 || atrasadas.length > 0) && (
+          <Link
+            href="#atencao"
+            className="mb-5 flex items-center gap-2 rounded-card border border-warning-line bg-warning-soft px-3.5 py-2.5 text-small text-ink xl:hidden"
           >
-            <StageColumns colunas={composicao} className="pt-4" altura={148} />
-          </Panel>
+            <Icon.AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+            <span className="min-w-0 flex-1">
+              {[
+                aguardando.length > 0 &&
+                  `${aguardando.length} ${aguardando.length === 1 ? "demanda espera" : "demandas esperam"} sua resposta`,
+                atrasadas.length > 0 && `${atrasadas.length} ${atrasadas.length === 1 ? "atrasada" : "atrasadas"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            <Icon.ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
+          </Link>
         )}
 
-        {/* ---------- Números de apoio ---------- */}
+        {/* =================================================================
+            1. RESULTADO
+            ================================================================= */}
+        <section aria-labelledby="resultado-titulo" className="mb-section">
+          <PeriodoResultados
+            periodo={periodo}
+            header={
+              <>
+                <p className="mb-1.5 font-mono text-label uppercase text-ink-3">Resultado do marketing</p>
+                <h2 id="resultado-titulo" className="text-h2 text-ink">
+                  O que o trabalho trouxe
+                </h2>
+                <p className="mt-1 max-w-prose text-small text-ink-2">{descricaoJanela}</p>
+              </>
+            }
+          >
+            {comparacaoIndisponivel ? (
+              <Alert tone="warning" title="Os números das campanhas não carregaram agora">
+                O restante da página está atualizado. Recarregue em alguns instantes; se continuar, avise a
+                Comunicação.
+              </Alert>
+            ) : atual.eventos === 0 ? (
+              <EmptyState
+                icon={<Icon.Megaphone className="h-5 w-5" />}
+                title={periodo === "tudo" ? "Nenhuma campanha publicada ainda" : "Nenhuma campanha neste período"}
+                description={
+                  periodo === "tudo"
+                    ? "Quando a Comunicação publicar a primeira campanha ou evento, o investimento e o retorno aparecem aqui."
+                    : "Não há campanha ou evento com data neste recorte. Escolha um período maior acima para ver o histórico."
+                }
+              />
+            ) : (
+              <>
+                {frase && (
+                  <p className="mb-4 flex items-start gap-2 text-body text-ink">
+                    <Icon.Sparkles className="mt-1 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                    <span>{frase}</span>
+                  </p>
+                )}
+
+                {/* 2×2 até sobrar largura para quatro. A faixa padrão (3 no
+                    tablet, 4 a partir de lg) deixava um cartão órfão no tablet
+                    e, com o trilho ao lado, espremia "R$ 59,07" contra a borda
+                    entre 1024 e 1400px. */}
+                <div className="signal-stagger grid grid-cols-2 gap-3 min-[1400px]:grid-cols-4">
+                  <Metric
+                    size="hero"
+                    label={METRICS.investimento.label}
+                    help={METRICS.investimento.description}
+                    value={atual.investimento != null ? formatMoneyCompact(atual.investimento, true) : "—"}
+                    delta={resultado.variacao.investimento}
+                    deltaNeutral
+                    deltaLabel={resultado.variacao.investimento != null ? deltaLabel : undefined}
+                    hint={
+                      atual.investimento == null
+                        ? "nenhum valor lançado"
+                        : `em ${comInvestimento} de ${atual.eventos} ${atual.eventos === 1 ? "campanha" : "campanhas"}`
+                    }
+                  />
+                  <Metric
+                    size="hero"
+                    label={METRICS.alcance.label}
+                    help={`${METRICS.alcance.description} Aqui é a soma do alcance de cada campanha: quem viu duas campanhas conta duas vezes.`}
+                    value={formatCompact(atual.alcance)}
+                    delta={resultado.variacao.alcance}
+                    deltaLabel={resultado.variacao.alcance != null ? deltaLabel : undefined}
+                    hint={atual.alcance == null ? "sem mídia paga vinculada" : `em ${atual.comMidia} com mídia paga`}
+                  />
+                  <Metric
+                    size="hero"
+                    label={METRICS.vendas.label}
+                    help={METRICS.vendas.description}
+                    value={atual.resultados != null ? Math.round(atual.resultados).toLocaleString("pt-BR") : "—"}
+                    delta={resultado.variacao.resultados}
+                    deltaLabel={resultado.variacao.resultados != null ? deltaLabel : undefined}
+                    hint={atual.resultados == null ? "sem conversão rastreada" : "conversões registradas"}
+                  />
+                  <Metric
+                    size="hero"
+                    label={METRICS.cpa.label}
+                    help={METRICS.cpa.description}
+                    value={
+                      atual.custoPorResultado != null
+                        ? atual.custoPorResultado.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                            minimumFractionDigits: 2,
+                          })
+                        : "—"
+                    }
+                    delta={resultado.variacao.custoPorResultado}
+                    deltaInvert
+                    deltaLabel={resultado.variacao.custoPorResultado != null ? deltaLabel : undefined}
+                    hint={atual.custoPorResultado == null ? "exige investimento e resultado rastreado" : "quanto custou cada resultado"}
+                  />
+                </div>
+
+                {semBaseAnterior && (
+                  <p className="mt-2 text-caption text-ink-3">
+                    Não houve campanha nos {defPeriodo.rotulo} anteriores, por isso não há comparação.
+                  </p>
+                )}
+
+                {/* O trabalho que está por trás dos números — numa frase, sem
+                    mais três caixas. */}
+                <p className="mt-4 rounded-card border border-line bg-surface-sunken px-4 py-3 text-small text-ink-2">
+                  No mesmo período, a Comunicação{" "}
+                  <Link href="/dashboard/demandas" className="-my-1 inline-block py-1 font-medium text-ink underline underline-offset-4 decoration-line-strong hover:decoration-ink">
+                    concluiu {concluidasNoPeriodo.atual} {concluidasNoPeriodo.atual === 1 ? "demanda" : "demandas"}
+                  </Link>{" "}
+                  e{" "}
+                  <Link href="/dashboard/entregas" className="-my-1 inline-block py-1 font-medium text-ink underline underline-offset-4 decoration-line-strong hover:decoration-ink">
+                    entregou {entreguesNoPeriodo.atual} {entreguesNoPeriodo.atual === 1 ? "arquivo" : "arquivos"}
+                  </Link>
+                  , em {atual.eventos} {atual.eventos === 1 ? "campanha ou evento" : "campanhas e eventos"}.
+                </p>
+
+                <div className="mt-4 space-y-4">
+                  <Panel noPadding>
+                    <CampanhasDoPeriodo campanhas={campanhasDoPeriodo} />
+                  </Panel>
+                  <Panel title="Orçamento × realizado" description="Quanto de cada orçamento já foi usado">
+                    <OrcamentoPorCampanha linhas={linhasOrcamento} semOrcamento={semOrcamento} />
+                  </Panel>
+                </div>
+              </>
+            )}
+          </PeriodoResultados>
+        </section>
+
+        {/* =================================================================
+            2. ANDAMENTO
+            ================================================================= */}
         <Section
-          eyebrow="Indicadores"
-          title="Números do ministério"
-          description="Consolidado de tudo que está publicado para este ministério."
+          eyebrow="Andamento"
+          title="Em que pé está o trabalho"
+          description="As demandas deste ministério hoje — sem recorte de período."
+          action={
+            resumo.total > 0 ? (
+              <Link
+                href="/dashboard/demandas"
+                className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
+              >
+                {resumo.total} {resumo.total === 1 ? "demanda" : "demandas"} de 2026 em diante
+              </Link>
+            ) : undefined
+          }
           className="mb-section"
         >
-          <MetricRow columns={3}>
-            <Metric
-              label={`Prazos em ${formatarMesPorExtenso(mesAtual).split(" de ")[0].toLowerCase()}`}
-              value={mesCorrente?.total ?? 0}
-              delta={deltaVolume}
-              deltaLabel={mesAnterior ? `vs. ${mesAnterior.label}` : undefined}
-              hint={
-                !mesCorrente
-                  ? "nenhuma demanda com prazo neste mês"
-                  : !mesAnterior
-                    ? "sem mês anterior para comparar"
-                    : "demandas com prazo combinado para este mês"
-              }
-              icon={<Icon.Activity className="h-4 w-4" />}
+          {resumo.total === 0 ? (
+            <EmptyState
+              icon={<Icon.ListChecks className="h-5 w-5" />}
+              title="Nenhuma demanda ainda"
+              description="Assim que a Comunicação publicar as primeiras demandas deste ministério, elas aparecem aqui."
             />
-            <Metric
-              label="Campanhas ativas"
-              value={campanhasAtivas.length}
-              hint={
-                campanhasRisco.length > 0
-                  ? `${campanhasRisco.length} exigindo atenção`
-                  : campanhasAtivas.length === 0
-                    ? "nenhuma campanha em andamento"
-                    : "todas no caminho"
-              }
-              icon={<Icon.Megaphone className="h-4 w-4" />}
-            />
-            <Metric
-              label="Investimento realizado"
-              value={campanhasComInvestimento.length > 0 ? formatMoney(investimentoTotal) : "—"}
-              hint={
-                campanhasComInvestimento.length === 0
-                  ? "nenhuma campanha com valor lançado"
-                  : `em ${campanhasComInvestimento.length} de ${campaigns.length} ${campaigns.length === 1 ? "campanha" : "campanhas"}`
-              }
-              icon={<Icon.Wallet className="h-4 w-4" />}
-            />
-          </MetricRow>
+          ) : (
+            <>
+              <StageBar stages={stages} total={resumo.total} height="h-9" />
+
+              <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+                <NumeroDeAbertura label="Em andamento" valor={resumo.emAndamento} hint="fila, produção e com você" />
+                <NumeroDeAbertura
+                  label="Com você"
+                  valor={resumo.comMinisterio}
+                  hint="esperando resposta do ministério"
+                  tone={resumo.comMinisterio > 0 ? "warning" : "default"}
+                  href="/dashboard/demandas"
+                />
+                <NumeroDeAbertura
+                  label="Atrasadas"
+                  valor={resumo.atrasadas}
+                  hint="prazo já vencido"
+                  tone={resumo.atrasadas > 0 ? "danger" : "default"}
+                  href="/dashboard/demandas"
+                />
+                <NumeroDeAbertura
+                  label="Concluídas"
+                  valor={resumo.concluidas}
+                  hint={taxaConclusao == null ? undefined : `${taxaConclusao.toFixed(0)}% do total`}
+                />
+              </div>
+
+              {composicao.length > 1 && (
+                <Panel
+                  title="Onde está o trabalho"
+                  description="Demandas por mês de prazo, divididas por estágio"
+                  className="mt-5"
+                >
+                  <StageColumns colunas={composicao} className="pt-4" altura={148} />
+                </Panel>
+              )}
+            </>
+          )}
         </Section>
 
-        {/* ---------- Material recente ---------- */}
-    <RailBlock
-          label="Material recente"
+        {/* =================================================================
+            3. MATERIAL
+            ================================================================= */}
+        <Section
+          eyebrow="Material"
+          title="Entregue por último"
           action={
             <Link
               href="/dashboard/entregas"
               className="inline-flex min-h-6 items-center text-caption text-brand-600 underline-offset-4 hover:underline"
             >
-              ver todos
+              ver todos os arquivos
             </Link>
           }
+          className="mb-section"
         >
           <Board>
             {arquivosRecentes.length === 0 ? (
@@ -434,30 +567,28 @@ export default async function DashboardPage() {
               ))
             )}
           </Board>
-    </RailBlock>
-        {/* ---------- Leitura dos eventos ---------- */}
+        </Section>
+
+        {/* =================================================================
+            4. HISTÓRICO
+            ================================================================= */}
         <Section
-          eyebrow="Leitura"
-          title="Como os eventos vêm performando"
-          description="Comparação entre os eventos publicados deste ministério e contra os demais."
+          eyebrow="Histórico"
+          title="Como os eventos vêm evoluindo"
+          description="Todos os eventos publicados deste ministério, e a eficiência contra os demais."
         >
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-            <Panel title="Histórico de eventos">
-              {comparacaoIndisponivel ? (
-                <EmptyState
-                  size="sm"
-                  icon={<Icon.AlertTriangle className="h-4 w-4" />}
-                  title="Não foi possível carregar a comparação"
-                  description="Os números das campanhas não vieram agora. Atualize a página; se continuar, avise a Comunicação."
-                />
-              ) : (
-                <LeituraMinisterioPanel leitura={leitura} />
-              )}
-            </Panel>
-            <Panel title="Orçamento das campanhas" description="Planejado, aprovado e realizado">
-              <BudgetChart data={budgetSummary} />
-            </Panel>
-          </div>
+          <Panel>
+            {comparacaoIndisponivel ? (
+              <EmptyState
+                size="sm"
+                icon={<Icon.AlertTriangle className="h-4 w-4" />}
+                title="Não foi possível carregar a comparação"
+                description="Os números das campanhas não vieram agora. Atualize a página; se continuar, avise a Comunicação."
+              />
+            ) : (
+              <LeituraMinisterioPanel leitura={leitura} />
+            )}
+          </Panel>
         </Section>
       </PageBody>
     </div>

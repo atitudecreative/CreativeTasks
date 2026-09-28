@@ -1,5 +1,7 @@
 import { cn } from "./cn";
 import { Delta } from "./Badge";
+import { Icon } from "./icons";
+import { Tooltip } from "./Navigation";
 
 /* =========================================================================
    MÉTRICAS
@@ -28,7 +30,9 @@ export function Metric({
   hint,
   delta,
   deltaInvert,
+  deltaNeutral,
   deltaLabel,
+  help,
   icon,
   size = "default",
   align = "left",
@@ -43,7 +47,11 @@ export function Metric({
   hint?: string;
   delta?: number | null;
   deltaInvert?: boolean;
+  deltaNeutral?: boolean;
   deltaLabel?: string;
+  /** Explicação do indicador em português claro, num tooltip ao lado do
+   *  rótulo — para o cliente que não sabe o que é "custo por resultado". */
+  help?: string;
   icon?: React.ReactNode;
   size?: "hero" | "default" | "compact";
   align?: "left" | "center";
@@ -79,6 +87,17 @@ export function Metric({
         <div className={cn("mb-2 flex items-center gap-2", align === "center" && "justify-center")}>
           {icon && <span className="shrink-0 text-ink-3">{icon}</span>}
           <p className="min-w-0 font-mono text-label uppercase text-ink-3">{label}</p>
+          {help && (
+            <Tooltip content={help}>
+              <button
+                type="button"
+                aria-label={`O que é ${label.toLowerCase()}: ${help}`}
+                className="-m-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:text-ink-2 focus-visible:text-ink"
+              >
+                <Icon.Info className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+          )}
         </div>
 
         {/* `whitespace-nowrap`: sem isso "R$ 1.297.571" quebrava depois do
@@ -97,7 +116,7 @@ export function Metric({
 
         {(delta != null || hint) && (
           <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5", align === "center" && "justify-center")}>
-            <Delta value={delta} invert={deltaInvert} size={size === "compact" ? "sm" : "md"} />
+            <Delta value={delta} invert={deltaInvert} neutral={deltaNeutral} size={size === "compact" ? "sm" : "md"} />
             {(deltaLabel || hint) && (
               // Quebra em até duas linhas em vez de cortar com reticências:
               // "83% do orçamento aprovado" virava "83% do orçamento ..."

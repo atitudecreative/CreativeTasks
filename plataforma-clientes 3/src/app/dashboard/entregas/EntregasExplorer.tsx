@@ -163,12 +163,13 @@ export function EntregasExplorer({
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(2,minmax(0,1fr))]">
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_repeat(2,minmax(0,1fr))]">
         <SearchInput
           value={search}
           onValueChange={setSearch}
           placeholder="Buscar por título ou tipo de arquivo..."
           aria-label="Buscar arquivo"
+          className="sm:col-span-2 xl:col-span-1"
         />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filtrar por status">
           <option value="">Todos os status</option>

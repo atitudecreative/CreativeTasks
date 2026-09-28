@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { Alert, Button, Input, Select, Textarea, useToast } from "@/components/ui";
 import { updateMinistry } from "./actions";
 import { CATEGORIA_OPTIONS, MINISTRY_STATUS_OPTIONS } from "@/lib/ministryOptions";
 
@@ -23,115 +25,92 @@ type EditableMinistry = {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-control bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-    >
+    <Button type="submit" variant="primary" loading={pending}>
       {pending ? "Salvando..." : "Salvar alterações"}
-    </button>
+    </Button>
   );
 }
 
+/* Mesmos campos, nos componentes do design system, em dois grupos com
+   nome — quem é o ministério, e quem responde por ele. A confirmação só
+   aparece depois que o banco responde (antes não havia confirmação
+   nenhuma: o botão voltava a "Salvar" e a pessoa não sabia se tinha
+   salvado). */
 export function EditMinistryForm({ ministry }: { ministry: EditableMinistry }) {
   const [state, formAction] = useFormState(updateMinistry, { error: null as string | null });
+  const toast = useToast();
+  const enviou = useRef(false);
+
+  useEffect(() => {
+    if (!enviou.current) return;
+    enviou.current = false;
+    if (!state?.error) toast.success("Ministério atualizado.");
+  }, [state, toast]);
 
   return (
-    <form action={formAction} className="rounded-panel border border-line bg-surface p-5 shadow-sm">
+    <form
+      action={formAction}
+      onSubmit={() => (enviou.current = true)}
+      className="space-y-6 rounded-panel border border-line bg-surface p-5 shadow-xs"
+    >
       <input type="hidden" name="id" value={ministry.id} />
 
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Nome *</label>
-          <input
-            name="name"
-            required
-            defaultValue={ministry.name}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Sigla</label>
-          <input
-            name="sigla"
-            defaultValue={ministry.sigla ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Categoria</label>
-          <select
-            name="categoria"
-            defaultValue={ministry.categoria}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          >
+      <div>
+        <p className="mb-3 font-mono text-label uppercase text-ink-3">Identificação</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input name="name" label="Nome" required defaultValue={ministry.name} />
+          <Input name="sigla" label="Sigla" defaultValue={ministry.sigla ?? ""} hint="Aparece no avatar do ministério." />
+          <Select name="categoria" label="Categoria" defaultValue={ministry.categoria}>
             {CATEGORIA_OPTIONS.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Status</label>
-          <select
-            name="status"
-            defaultValue={ministry.status}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          >
+          </Select>
+          <Select name="status" label="Status" defaultValue={ministry.status}>
             {MINISTRY_STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Pastor responsável</label>
-          <input
-            name="pastorResponsavel"
-            defaultValue={ministry.pastor_responsavel ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Centro de custo</label>
-          <input
-            name="centroCusto"
-            defaultValue={ministry.centro_custo ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Ponto focal do ministério</label>
-          <input
-            name="pontoFocalMinisterio"
-            defaultValue={ministry.ponto_focal_ministerio ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-2">Ponto focal da Comunicação</label>
-          <input
-            name="pontoFocalComunicacao"
-            defaultValue={ministry.ponto_focal_comunicacao ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-ink-2">Descrição</label>
-          <textarea
+          </Select>
+          <Textarea
             name="description"
+            label="Descrição"
             rows={3}
             defaultValue={ministry.description ?? ""}
-            className="w-full rounded-control border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
+            containerClassName="sm:col-span-2"
           />
         </div>
       </div>
 
-      {state?.error && <p className="mb-3 text-sm text-danger">{state.error}</p>}
+      <div className="border-t border-line pt-5">
+        <p className="mb-3 font-mono text-label uppercase text-ink-3">Responsáveis</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input name="pastorResponsavel" label="Pastor responsável" defaultValue={ministry.pastor_responsavel ?? ""} />
+          <Input name="centroCusto" label="Centro de custo" defaultValue={ministry.centro_custo ?? ""} />
+          <Input
+            name="pontoFocalMinisterio"
+            label="Ponto focal do ministério"
+            defaultValue={ministry.ponto_focal_ministerio ?? ""}
+          />
+          <Input
+            name="pontoFocalComunicacao"
+            label="Ponto focal da Comunicação"
+            defaultValue={ministry.ponto_focal_comunicacao ?? ""}
+          />
+        </div>
+      </div>
 
-      <SubmitButton />
+      {state?.error && (
+        <Alert tone="danger" title="Não foi possível salvar">
+          {state.error}
+        </Alert>
+      )}
+
+      <div className="flex justify-end border-t border-line pt-4">
+        <SubmitButton />
+      </div>
     </form>
   );
 }

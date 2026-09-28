@@ -9,6 +9,7 @@ import {
   removeMembership,
   deleteUserAccount,
 } from "./actions";
+import { Select } from "@/components/ui";
 import { PAPEL_GLOBAL_OPTIONS, PAPEL_GLOBAL_LABEL, MINISTRY_ROLE_OPTIONS, MINISTRY_ROLE_LABEL } from "@/lib/userOptions";
 
 export type UserRowData = {
@@ -46,17 +47,18 @@ function PapelGlobalEditor({ user, isSelf }: { user: UserRowData; isSelf: boolea
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="userId" value={user.id} />
-      <select
+      <Select
+        controlSize="sm"
+        aria-label="Papel global"
         name="papelGlobal"
         defaultValue={user.papelGlobal}
-        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         {PAPEL_GLOBAL_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
       <SaveButton />
       {state?.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
@@ -70,18 +72,19 @@ function MembershipRoleEditor({ userId, ministryId, role }: { userId: string; mi
     <form action={formAction}>
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="ministryId" value={ministryId} />
-      <select
+      <Select
+        controlSize="sm"
+        aria-label="Papel neste ministério"
         name="role"
         defaultValue={role}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="rounded-control border border-line-strong px-2 py-1 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         {MINISTRY_ROLE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
     </form>
   );
 }
@@ -113,11 +116,12 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="userId" value={userId} />
-      <select
+      <Select
+        controlSize="sm"
+        aria-label="Ministério a vincular"
         name="ministryId"
         required
         defaultValue=""
-        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         <option value="" disabled>
           Ministério
@@ -127,12 +131,13 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
             {m.name}
           </option>
         ))}
-      </select>
-      <select
+      </Select>
+      <Select
+        controlSize="sm"
+        aria-label="Papel no novo vínculo"
         name="role"
         required
         defaultValue=""
-        className="rounded-control border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand-500 focus:shadow-focus focus:outline-none"
       >
         <option value="" disabled>
           Papel
@@ -142,7 +147,7 @@ function AddMembershipInline({ userId, availableMinistries }: { userId: string; 
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
       <SaveButton label="Adicionar" />
       {state?.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>

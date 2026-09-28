@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { falhaAoCarregar } from "./erros";
-import { hoje, jaPassou, formatarMesCurto } from "@/lib/dates";
+import { hoje, jaPassou } from "@/lib/dates";
 export { STATUS_LABEL, PRIORIDADE_LABEL } from "@/lib/demandOptions";
 import { stageOf, type StageKey } from "@/lib/demandStages";
 
@@ -41,7 +41,7 @@ export type Demand = {
 
 // Demandas com prazo antes disso são sincronizações antigas do Asana que só
 // poluem a aba — a partir daqui a visualização só mostra 2026 em diante.
-const DEMANDAS_CUTOFF_DATE = "2026-01-01";
+export const DEMANDAS_CUTOFF_DATE = "2026-01-01";
 
 // Traz as demandas do ministério cruas. Filtrar é trabalho da tela: a
 // aba Demandas carrega a lista uma vez e filtra no cliente, sem ida ao
@@ -150,81 +150,6 @@ export async function getChildDemandCounts(ministryId: string): Promise<Map<stri
     counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
   }
   return counts;
-}
-
-// Agrupa demandas por mês do prazo acordado (chave "YYYY-MM"). Como a
-// consulta já ordena por prazo_acordado ascendente, a ordem de inserção no
-// Map sai cronológica, sem precisar reordenar depois.
-export function groupDemandsByMonth(demands: Demand[]): Map<string, Demand[]> {
-  const groups = new Map<string, Demand[]>();
-  for (const d of demands) {
-    if (!d.prazo_acordado) continue;
-    const key = d.prazo_acordado.slice(0, 7);
-    const list = groups.get(key) ?? [];
-    list.push(d);
-    groups.set(key, list);
-  }
-  return groups;
-}
-
-export type MonthlyDemandStat = {
-  month: string;
-  label: string;
-  total: number;
-  concluidas: number;
-  /** Mês que ainda não terminou: o total dele ainda vai crescer. */
-  emCurso: boolean;
-  /** Mês no futuro: são prazos combinados, não trabalho já realizado. */
-  futuro: boolean;
-};
-
-// Demandas por mês de PRAZO, com quantas já fecharam.
-//
-// Duas correções em relação à versão anterior:
-//
-// 1. Mês sem nenhuma demanda deixava de existir na série. O gráfico então
-//    encostava fevereiro em maio como se fossem meses vizinhos, e a
-//    inclinação da linha passava a mentir sobre o ritmo. Agora o intervalo
-//    é preenchido: mês sem prazo nenhum aparece como zero de verdade.
-//
-// 2. Cada mês vem marcado como em curso ou futuro. Isso importa porque a
-//    série é de PRAZO, não de execução: os últimos pontos são compromisso
-//    combinado, não trabalho entregue, e comparar o mês corrente (parcial)
-//    com o anterior (fechado) produz uma queda que não aconteceu.
-export function getMonthlyDemandStats(
-  demands: Demand[],
-  referencia: string = hoje()
-): MonthlyDemandStat[] {
-  const grouped = groupDemandsByMonth(demands);
-  if (grouped.size === 0) return [];
-
-  const chaves = Array.from(grouped.keys()).sort();
-  const mesAtual = referencia.slice(0, 7);
-
-  const meses: string[] = [];
-  let atual = chaves[0];
-  const fim = chaves[chaves.length - 1];
-  // Guarda de sanidade: um prazo digitado errado (ano 2205) geraria
-  // milhares de meses vazios. 120 é uma década — muito além de qualquer
-  // planejamento real, e para o laço antes de a série virar um problema.
-  while (atual <= fim && meses.length < 120) {
-    meses.push(atual);
-    const ano = +atual.slice(0, 4);
-    const mes = +atual.slice(5, 7);
-    atual = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, "0")}`;
-  }
-
-  return meses.map((key) => {
-    const list = grouped.get(key) ?? [];
-    return {
-      month: key,
-      label: formatarMesCurto(key),
-      total: list.length,
-      concluidas: list.filter((d) => d.status === "concluida").length,
-      emCurso: key === mesAtual,
-      futuro: key > mesAtual,
-    };
-  });
 }
 
 // Demanda "atrasada": ainda aberta, tem prazo definido, e o prazo já

@@ -63,27 +63,6 @@ export type Milestone = {
   data_conclusao: string | null;
 };
 
-export type BudgetSummaryItem = { label: string; value: number; emphasis: boolean };
-
-// Soma planejado x aprovado x investido em cima de todas as campanhas
-// recebidas (sem filtrar por saúde) — visão financeira do Início, no
-// lugar do gráfico de "campanhas por saúde" (pouco acionável sozinho).
-export function getBudgetSummary(campaigns: Campaign[]): BudgetSummaryItem[] {
-  const planejado = campaigns.reduce((sum, c) => sum + (c.orcamento_planejado ?? 0), 0);
-  const aprovado = campaigns.reduce((sum, c) => sum + (c.orcamento_aprovado ?? 0), 0);
-  const investido = campaigns.reduce((sum, c) => sum + (c.investimento_realizado ?? 0), 0);
-
-  // Forma de ênfase: as três barras são o MESMO conceito em três
-  // momentos, então só "Investido" (o número real) recebe a cor de marca
-  // e as outras duas recuam. Três cores fortes aqui sugeririam que são
-  // grandezas diferentes.
-  return [
-    { label: "Planejado", value: planejado, emphasis: false },
-    { label: "Aprovado", value: aprovado, emphasis: false },
-    { label: "Investido", value: investido, emphasis: true },
-  ];
-}
-
 export async function getCampaignsForMinistry(ministryId: string): Promise<Campaign[]> {
   const supabase = await createClient();
 

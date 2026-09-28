@@ -34,7 +34,7 @@ export function LoginForm({ urlErrorMessage }: { urlErrorMessage: string | null 
         // pessoa clicar antes de digitar é atrito puro.
         autoFocus
         placeholder="voce@exemplo.com.br"
-        iconLeft={<Icon.Message className="h-4 w-4" />}
+        iconLeft={<Icon.Mail className="h-4 w-4" />}
       />
 
       <div>

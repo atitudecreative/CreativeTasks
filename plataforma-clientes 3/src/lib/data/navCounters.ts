@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { hoje, jaPassou } from "@/lib/dates";
 import { stageOf } from "@/lib/demandStages";
+import { DEMANDAS_CUTOFF_DATE } from "./demands";
 
 /* =========================================================================
    CONTADORES DO MENU
@@ -39,7 +40,10 @@ export const getNavCounters = cache(async (ministryId: string): Promise<NavCount
     .from("demands")
     .select("status, prazo_acordado")
     .eq("ministry_id", ministryId)
-    .is("parent_demand_id", null);
+    .is("parent_demand_id", null)
+    // Mesmo recorte da aba Demandas: sem ele o selo contava como atrasada
+    // uma demanda de 2025 que a tela para onde ele leva não mostra.
+    .or(`prazo_acordado.gte.${DEMANDAS_CUTOFF_DATE},prazo_acordado.is.null`);
 
   if (error) {
     console.error("Não foi possível contar as demandas do menu:", error.message);

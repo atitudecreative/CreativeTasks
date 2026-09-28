@@ -352,8 +352,13 @@ escondido não é impresso nem encontrado pelo Ctrl+F.
 Lado do ministério (leitor/colaborador/aprovador/supervisor — somente
 leitura nesta fase, conforme o PRD):
 
-- `/dashboard` — Início: resumo de demandas, campanhas ativas, próximos
-  prazos e entregas recentes
+- `/dashboard` — Início, em quatro níveis: **resultado do marketing** no
+  período escolhido (3/6/12 meses ou tudo, via `?periodo=`), contra o
+  período anterior de mesma duração, com as campanhas que o compõem e
+  orçamento × realizado; **andamento** das demandas; **material** entregue
+  por último; **histórico** dos eventos. O que pede ação fica no trilho
+  (e num aviso no topo em telas menores). O cálculo do período mora em
+  `src/lib/resultados.ts` (puro, testado em `resultados.test.ts`)
 - `/dashboard/demandas` — lista e detalhe de cada demanda
 - `/dashboard/campanhas` — lista e detalhe de campanhas/eventos, com
   progresso calculado pelos marcos (pesos)
@@ -366,7 +371,7 @@ Lado da Comunicação (`papel_global` = `gestor_comunicacao` ou
 
 - `/dashboard/admin` — painel consolidado com demandas ativas/atrasadas e
   campanhas em risco por ministério
-- `/dashboard/admin/campanhas-pendentes` ("Campanhas ativas" no menu) —
+- `/dashboard/admin/campanhas-pendentes` ("Publicação de campanhas" no menu) —
   lista única de todas as campanhas/eventos, agrupadas por ministério e
   organizáveis em pastas (útil pra evento anual recorrente, ex: pasta
   "Festa da Roça" com uma campanha por edição). Toda campanha nasce oculta
@@ -378,6 +383,12 @@ Lado da Comunicação (`papel_global` = `gestor_comunicacao` ou
   formulário pra criar novo usuário (cria a conta no Supabase Auth já
   confirmada, e opcionalmente já define papel global e/ou vínculo com um
   ministério)
+
+Números que aparecem em mais de uma tela seguem o MESMO recorte em todas:
+demandas sem subtarefa e com prazo a partir de 2026 (`DEMANDAS_CUTOFF_DATE`)
+no Início, na aba Demandas, no selo do menu e no painel geral; campanhas de
+um período incluem as ainda em andamento (evento adiante) no Início e no
+painel geral.
 
 As rotas antigas (`/dashboard/asana`, `/meta-ads`, `/eventos`,
 `/configuracoes`) continuam existindo só como redirecionamento pras novas,
@@ -543,14 +554,14 @@ portal é um próximo passo natural, fora do escopo desta etapa.
    várias campanhas ao mesmo tempo (tabela `demand_campaigns`), do mesmo
    jeito que uma tarefa pode ter várias tags no Asana. Cada tag nova cria
    automaticamente uma campanha (tipo `campanha` por padrão; a Comunicação
-   pode editar o nome e o tipo depois em "Campanhas ativas"). Se você
+   pode editar o nome e o tipo depois em "Publicação de campanhas"). Se você
    tirar uma tag de uma tarefa no Asana, o próximo sync desfaz o vínculo
    correspondente no portal. Tarefas sem tag ficam sem campanha vinculada.
 
    **Toda campanha nasce oculta** (não só a vinda de tag): ela não aparece
    pro ministério na aba Campanhas até a Comunicação ativar o toggle de
-   visibilidade em `/dashboard/admin/campanhas-pendentes` ("Campanhas
-   ativas" no menu). As demandas sincronizam e ficam vinculadas
+   visibilidade em `/dashboard/admin/campanhas-pendentes` ("Publicação de
+   campanhas" no menu). As demandas sincronizam e ficam vinculadas
    normalmente nesse meio tempo; só a campanha em si fica invisível pro
    ministério até ser ativada. Isso vale também pras campanhas que já
    existiam antes dessa regra — a migration `0010` escondeu todas de uma

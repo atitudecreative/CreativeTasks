@@ -86,7 +86,8 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/dashboard/admin/campanhas-pendentes",
-        label: "Campanhas ativas",
+        label: "Publicação de campanhas",
+        short: "Publicação",
         icon: "Layers",
         adminOnly: true,
         description: "Publicar, ocultar e organizar campanhas em pastas",
@@ -118,8 +119,15 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** Telas que existem mas não moram no menu (ficam no menu de conta). Sem
+ *  elas aqui, "Meu acesso" abria com o cabeçalho vazio no desktop e com
+ *  "Portal" no celular — a pessoa não sabia em que tela estava. */
+const ROTAS_FORA_DO_MENU: NavItem[] = [
+  { href: "/dashboard/acesso", label: "Meu acesso", icon: "Shield", description: "Ministérios e papéis da sua conta" },
+];
+
 /** Todos os itens numa lista só — pra resolver título e breadcrumb. */
-export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+export const ALL_NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ...ROTAS_FORA_DO_MENU];
 
 export function isNavItemActive(item: NavItem, pathname: string | null): boolean {
   if (!pathname) return false;
@@ -143,11 +151,22 @@ export function buildBreadcrumb(pathname: string | null): { label: string; href?
   const item = findNavItem(pathname);
   if (!item) return [];
 
+  // A trilha diz onde a pessoa está na hierarquia do produto, não em que
+  // grupo do menu o item mora. A versão anterior empilhava os dois
+  // ("Gestão › Início › Campanhas"), o que sugeria que Campanhas ficava
+  // dentro de Início dentro de Gestão — nenhuma das duas coisas é verdade.
   const trail: { label: string; href?: string }[] = [];
   const group = NAV_GROUPS.find((g) => g.items.some((i) => i.href === item.href));
 
-  if (group && group.items.length > 1) trail.push({ label: group.label });
-  if (item.href !== "/dashboard") trail.push({ label: "Início", href: "/dashboard" });
+  if (group?.adminOnly) {
+    trail.push(
+      item.href === "/dashboard/admin"
+        ? { label: "Administração" }
+        : { label: "Administração", href: "/dashboard/admin" }
+    );
+  } else if (item.href !== "/dashboard") {
+    trail.push({ label: "Início", href: "/dashboard" });
+  }
 
   trail.push({ label: item.short ?? item.label, href: item.href });
   return trail;

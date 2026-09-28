@@ -27,7 +27,7 @@ export default async function EditCampanhaPage({ params }: { params: Promise<{ i
     <div className="mx-auto max-w-report">
       <Breadcrumb
         items={[
-          { label: "Campanhas ativas", href: "/dashboard/admin/campanhas-pendentes" },
+          { label: "Publicação de campanhas", href: "/dashboard/admin/campanhas-pendentes" },
           { label: campaign.nome },
         ]}
         className="mb-3"
