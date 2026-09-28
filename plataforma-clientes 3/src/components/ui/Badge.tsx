@@ -120,12 +120,16 @@ export function Delta({
   value,
   suffix = "%",
   invert = false,
+  neutral = false,
   className,
   size = "md",
 }: {
   value: number | null | undefined;
   suffix?: string;
   invert?: boolean;
+  /** Métrica sem direção boa (investimento): mostra a seta e o número,
+   *  sem verde nem vermelho. Gastar mais não é, por si, bom nem ruim. */
+  neutral?: boolean;
   className?: string;
   size?: "sm" | "md";
 }) {
@@ -136,7 +140,7 @@ export function Delta({
   const good = invert ? !positive : positive;
 
   const Arrow = flat ? Icon.Flat : positive ? Icon.TrendingUp : Icon.TrendingDown;
-  const tone = flat ? "text-ink-3" : good ? "text-success" : "text-danger";
+  const tone = flat ? "text-ink-3" : neutral ? "text-ink-2" : good ? "text-success" : "text-danger";
 
   return (
     <span

@@ -510,7 +510,7 @@ export function CampaignReport({
             <div className="space-y-4">
               <WeekPerformance total={metaMetrics} weekly={metaWeekly} />
 
-              <Panel title="Evolução semanal" description="Investimento e resultados por semana">
+              <Panel title="Evolução semanal" description="Escolha a métrica; a melhor semana aparece em destaque">
                 <MetaWeeklyChart data={metaWeekly} />
               </Panel>
 

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/AppShell";
 import { CampaignsAdminTable } from "./CampaignsAdminTable";
 import { MetaCampaignMatcher } from "./MetaCampaignMatcher";
 
-export const metadata = { title: "Campanhas ativas" };
+export const metadata = { title: "Publicação de campanhas" };
 
 export default async function CampanhasAtivasPage() {
   await requireComunicacao();
@@ -24,8 +24,8 @@ export default async function CampanhasAtivasPage() {
     <div>
       <PageHeader
         eyebrow="Administração"
-        title="Campanhas ativas"
-        description="Todas as campanhas e eventos, organizados em pastas — útil para evento anual recorrente, com uma campanha por edição."
+        title="Publicação de campanhas"
+        description="Decida o que cada ministério enxerga: toda campanha nasce oculta e só aparece para o ministério depois de publicada aqui. Pastas agrupam edições de um evento recorrente."
         meta={
           <>
             <Badge tone="neutral" icon={<Icon.Megaphone className="h-3 w-3" />}>

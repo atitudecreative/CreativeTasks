@@ -33,11 +33,6 @@ function ChartSkeleton({ height }: { height: number }) {
   );
 }
 
-export const BudgetChart = dynamic(() => import("./ChartsImpl").then((m) => m.BudgetChart), {
-  ssr: false,
-  loading: () => <ChartSkeleton height={220} />,
-});
-
 export const TrendArea = dynamic(() => import("./ChartsImpl").then((m) => m.TrendArea), {
   ssr: false,
   loading: () => <ChartSkeleton height={220} />,

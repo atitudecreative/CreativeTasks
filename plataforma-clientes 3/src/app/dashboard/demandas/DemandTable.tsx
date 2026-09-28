@@ -50,11 +50,14 @@ function Prioridade({ d }: { d: DemandRow }) {
   );
 }
 
+// Data e selo empilhados, e a data nunca quebra: lado a lado, os dois
+// disputavam a coluna mais estreita da tabela, a data era partida palavra
+// por palavra ("03 / de / jul.") e o selo saía cortado pela borda.
 function Prazo({ d }: { d: DemandRow }) {
-  if (!d.overdue) return <span className="text-ink-2 tabular-nums">{d.prazoFormatted}</span>;
+  if (!d.overdue) return <span className="whitespace-nowrap text-ink-2 tabular-nums">{d.prazoFormatted}</span>;
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="font-medium tabular-nums text-danger">{d.prazoFormatted}</span>
+    <span className="flex flex-col items-start gap-1">
+      <span className="whitespace-nowrap font-medium tabular-nums text-danger">{d.prazoFormatted}</span>
       <Badge tone="danger" size="sm" icon={<Icon.AlertTriangle className="h-3 w-3" />}>
         Atrasada
       </Badge>
@@ -67,7 +70,7 @@ function Campanhas({ campanhas }: { campanhas: DemandRow["campanhas"] }) {
   return (
     <span className="flex flex-wrap gap-1">
       {campanhas.slice(0, 2).map((c) => (
-        <Badge key={c.id} tone="accent" size="sm">
+        <Badge key={c.id} tone="accent" size="sm" className="max-w-[12rem]">
           {c.nome}
         </Badge>
       ))}
@@ -130,10 +133,10 @@ export function DemandTable({ demands }: { demands: DemandRow[] }) {
           <THead>
             <TR>
               <TH>Demanda</TH>
-              <TH className="hidden lg:table-cell">Campanha ou evento</TH>
+              <TH className="hidden xl:table-cell">Campanha ou evento</TH>
               <TH>Status</TH>
               <TH className="hidden md:table-cell">Prioridade</TH>
-              <TH>Prazo</TH>
+              <TH className="whitespace-nowrap">Prazo</TH>
             </TR>
           </THead>
           <TBody>
@@ -154,7 +157,7 @@ export function DemandTable({ demands }: { demands: DemandRow[] }) {
                     </span>
                   </Link>
                 </TD>
-                <TD className="hidden lg:table-cell">
+                <TD className="hidden xl:table-cell">
                   <Campanhas campanhas={d.campanhas} />
                 </TD>
                 <TD>

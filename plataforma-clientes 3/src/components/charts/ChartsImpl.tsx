@@ -43,65 +43,6 @@ function money(v: number, compact = false) {
 }
 
 /* -------------------------------------------------------------------------
-   ORÇAMENTO — planejado x aprovado x investido.
-   Forma de ÊNFASE, não categórica: as três barras são o mesmo conceito em
-   três momentos, então a que importa (investido, o número real) fica na
-   cor de marca e as outras recuam pro cinza. Três cores fortes aqui
-   sugeririam que são coisas diferentes.
-   ------------------------------------------------------------------------- */
-export function BudgetChart({
-  data,
-  height = 220,
-}: {
-  data: { label: string; value: number; emphasis?: boolean }[];
-  height?: number;
-}) {
-  if (!data.some((d) => d.value > 0)) {
-    return <ChartEmpty label="Nenhum orçamento cadastrado nas campanhas ainda." />;
-  }
-
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ ...MARGIN, left: 4 }}>
-          <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} dy={4} />
-          {/* Rótulo do eixo no mesmo formato do resto do produto. "1400k"
-              não é como esta plataforma escreve dinheiro em lugar nenhum. */}
-          <YAxis
-            width={56}
-            tick={AXIS_TICK}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v: number) => formatCompact(v)}
-          />
-          <RTooltip
-            cursor={{ fill: "rgb(var(--ink) / 0.04)" }}
-            content={({ active, payload }) =>
-              active && payload?.length ? (
-                <ChartTooltip
-                  rows={[{ label: String(payload[0]?.payload?.label ?? ""), value: money(Number(payload[0]?.value ?? 0)) }]}
-                />
-              ) : null
-            }
-          />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={64} animationDuration={480}>
-            {data.map((d) => (
-              <Cell key={d.label} fill={d.emphasis ? ACCENT : MUTED} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-      <ChartDataTable
-        caption="Orçamento das campanhas"
-        columns={["Etapa", "Valor"]}
-        rows={data.map((d) => [d.label, money(d.value)])}
-      />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
    EVOLUÇÃO SEMANAL DE MÍDIA — investimento ao longo das semanas.
    Área de série única na cor de marca: o que interessa é o formato da
    curva (quando o dinheiro entrou), não comparar categorias.
