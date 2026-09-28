@@ -66,6 +66,7 @@ export default async function CampanhasPage() {
               entregasTotal: p?.entregasTotal ?? null,
               progressoMarcos: p?.progressoMarcos ?? null,
               alcance: p?.alcance ?? null,
+              capaUrl: c.capa_url,
             };
           })}
         />
