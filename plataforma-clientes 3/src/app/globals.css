@@ -375,7 +375,17 @@
    abre todos os painéis e evita quebrar card no meio.
    ========================================================================= */
 
+/* Valor do KPI enquanto o contador ainda não assumiu (Contador.tsx):
+   o número verdadeiro está no HTML, só escondido por um instante. */
+.contador-pendente {
+  opacity: 0;
+}
+
 @media print {
+  .contador-pendente {
+    opacity: 1;
+  }
+
   :root,
   :root[data-theme="dark"] {
     --canvas: 255 255 255;

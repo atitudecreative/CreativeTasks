@@ -87,6 +87,17 @@ export const CAMPAIGNS = [
   ),
 ];
 
+// Um evento no período ANTERIOR ao dos últimos 3 meses, com mídia paga:
+// sem ele a Home não teria contra o que comparar semana a semana, e a
+// comparação atual × anterior nunca apareceria na revisão visual.
+CAMPAIGNS.push({
+  id: "camp-10", identificador: "CAMP-010", ministry_id: "min-1",
+  nome: "Conferência de Líderes", tipo: "evento", fase: "encerramento_aprendizado", saude: "concluida",
+  data_inicio: dia(-160), data_termino: dia(-118), data_evento: dia(-120),
+  orcamento_planejado: 15000, orcamento_aprovado: 14000, investimento_realizado: null,
+  publicada: true, origem: "manual", folder_id: null, posicao: 9, capa_url: null,
+} as (typeof CAMPAIGNS)[number]);
+
 const STATUSES = [
   "recebida", "em_triagem", "planejada", "em_producao", "em_revisao_interna",
   "aguardando_ministerio", "aguardando_aprovacao", "ajustes_solicitados",
@@ -159,6 +170,13 @@ export const META_AD_CAMPAIGNS = [
     investimento: 4210.25, vendas: null, data_inicio: dia(-30), data_termino: dia(20),
     synced_at: new Date().toISOString(),
   },
+  {
+    id: "meta-3", meta_campaign_id: "1200002", meta_ad_account_id: "act_1",
+    nome: "Conferência de Líderes — Inscrições", status: "PAUSED", campaign_id: "camp-10",
+    matched_manualmente: false, alcance: 31200, impressoes: 88000, cliques: 2140,
+    investimento: 9660, vendas: 141, data_inicio: dia(-160), data_termino: dia(-118),
+    synced_at: new Date().toISOString(),
+  },
 ];
 
 export const META_ADS = Array.from({ length: 6 }, (_, i) => ({
@@ -178,13 +196,32 @@ export const META_WEEKLY = Array.from({ length: 8 }, (_, i) => ({
   vendas: i > 1 ? 18 + i * 3 : null,
 }));
 
+// Seis semanas da Conferência (período anterior): verba parecida, retorno
+// menor — é o que dá à comparação algo para mostrar.
+META_WEEKLY.push(
+  ...Array.from({ length: 6 }, (_, i) => ({
+    meta_campaign_id: "1200002",
+    semana_inicio: dia(-160 + i * 7),
+    semana_fim: dia(-154 + i * 7),
+    investimento: 1350 + i * 110,
+    impressoes: 13000 + i * 800,
+    cliques: 320 + i * 25,
+    vendas: 16 + ((i * 7) % 11),
+  }))
+);
+
 export const META_DEMOGRAFIA = [
-  { meta_campaign_id: "1200000", tipo: "genero", chave: "feminino", investimento: 7200, vendas: 132 },
-  { meta_campaign_id: "1200000", tipo: "genero", chave: "masculino", investimento: 5400, vendas: 82 },
+  { meta_campaign_id: "1200000", tipo: "genero", chave: "female", investimento: 7200, vendas: 132 },
+  { meta_campaign_id: "1200000", tipo: "genero", chave: "male", investimento: 5400, vendas: 82 },
   { meta_campaign_id: "1200000", tipo: "idade", chave: "25-34", investimento: 4800, vendas: 91 },
   { meta_campaign_id: "1200000", tipo: "idade", chave: "35-44", investimento: 3900, vendas: 64 },
   { meta_campaign_id: "1200000", tipo: "idade", chave: "18-24", investimento: 2100, vendas: 38 },
   { meta_campaign_id: "1200000", tipo: "idade", chave: "45-54", investimento: 1800, vendas: 21 },
+  { meta_campaign_id: "1200002", tipo: "genero", chave: "female", investimento: 4700, vendas: 70 },
+  { meta_campaign_id: "1200002", tipo: "genero", chave: "male", investimento: 4960, vendas: 71 },
+  { meta_campaign_id: "1200002", tipo: "idade", chave: "25-34", investimento: 3600, vendas: 58 },
+  { meta_campaign_id: "1200002", tipo: "idade", chave: "35-44", investimento: 3300, vendas: 46 },
+  { meta_campaign_id: "1200002", tipo: "idade", chave: "45-54", investimento: 2760, vendas: 37 },
 ];
 
 export const COMMENTS = [

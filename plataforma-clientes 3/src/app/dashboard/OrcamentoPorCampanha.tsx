@@ -103,7 +103,7 @@ export function OrcamentoPorCampanha({ linhas, semOrcamento }: { linhas: LinhaOr
       {ordenadas.length > LIMITE && (
         <p className="mt-3 text-caption text-ink-3">
           +{ordenadas.length - LIMITE} {ordenadas.length - LIMITE === 1 ? "campanha" : "campanhas"} em{" "}
-          <Link href="/dashboard/campanhas" className="text-brand-600 hover:underline">
+          <Link href="/dashboard/campanhas" className="-my-1 inline-block py-1 text-brand-600 hover:underline">
             Campanhas e eventos
           </Link>
         </p>
